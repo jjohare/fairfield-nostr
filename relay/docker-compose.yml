@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  strfry:
+    image: dockurr/strfry:latest
+    container_name: fairfield-relay
+    ports:
+      - "7777:7777"
+    volumes:
+      - ./strfry.conf:/etc/strfry.conf:ro
+      - ./whitelist.json:/etc/strfry/whitelist.json:ro
+      - strfry-data:/app/strfry-db
+    environment:
+      - STRFRY_CONFIG=/etc/strfry.conf
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7777/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - fairfield-network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: fairfield-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./www:/srv/www:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      strfry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - fairfield-network
+
+  backup:
+    image: restic/restic:latest
+    container_name: fairfield-backup
+    volumes:
+      - strfry-data:/data/strfry:ro
+      - ./backup.sh:/backup.sh:ro
+      - backup-cache:/root/.cache/restic
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - RESTIC_REPOSITORY=${BACKUP_S3_BUCKET}
+      - RESTIC_PASSWORD=${BACKUP_PASSWORD}
+    entrypoint: ["/bin/sh", "-c", "crond -f"]
+    restart: unless-stopped
+    networks:
+      - fairfield-network
+
+volumes:
+  strfry-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local
+  backup-cache:
+    driver: local
+
+networks:
+  fairfield-network:
+    driver: bridge

@@ -1,0 +1,17 @@
+<script lang="ts">
+  import Login from '$lib/components/auth/Login.svelte';
+  import { goto } from '$app/navigation';
+  import { authStore } from '$lib/stores/auth';
+
+  function handleSuccess(event: CustomEvent<{ publicKey: string; privateKey: string }>) {
+    const { publicKey, privateKey } = event.detail;
+    authStore.setKeys(publicKey, privateKey);
+    goto('/chat');
+  }
+</script>
+
+<svelte:head>
+  <title>Login - Fairfield Nostr</title>
+</svelte:head>
+
+<Login on:success={handleSuccess} />

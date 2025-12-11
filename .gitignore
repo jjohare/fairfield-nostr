@@ -1,4 +1,3 @@
-
 # Claude Flow generated files
 .claude/settings.local.json
 .mcp.json
@@ -23,6 +22,27 @@ coordination/orchestration/*
 *.sqlite-journal
 *.sqlite-wal
 claude-flow
-# Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
-node_modules/
+
+# SvelteKit
+.DS_Store
+node_modules
+/build
+/.svelte-kit
+/package
+.env
+.env.*
+!.env.example
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+*.log
+.vercel
+.output
+dist
+coverage
+.idea
+.vscode
+*.swp
+*.swo
+*~
+.npmrc
