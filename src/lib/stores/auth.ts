@@ -23,7 +23,9 @@ const initialState: AuthState = {
   error: null
 };
 
-const ADMIN_PUBKEYS = ['npub1admin...']; // Configure admin pubkeys
+// Admin pubkey from environment config (hex format)
+const ADMIN_PUBKEY = import.meta.env.VITE_ADMIN_PUBKEY || '';
+const ADMIN_PUBKEYS = ADMIN_PUBKEY ? [ADMIN_PUBKEY] : [];
 
 function createAuthStore() {
   const { subscribe, set, update }: Writable<AuthState> = writable(initialState);
