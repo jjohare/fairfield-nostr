@@ -117,7 +117,7 @@
 </script>
 
 <svelte:head>
-  <title>Admin Dashboard - Fairfield Nostr</title>
+  <title>Admin Dashboard - Minimoomaa Noir</title>
 </svelte:head>
 
 <div class="container mx-auto p-4 max-w-6xl">

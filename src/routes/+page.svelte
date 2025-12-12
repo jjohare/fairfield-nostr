@@ -12,14 +12,14 @@
 </script>
 
 <svelte:head>
-	<title>Fairfield Nostr - Decentralized Community Chat</title>
+	<title>Minimoomaa Noir - Decentralized Community Chat</title>
 </svelte:head>
 
 <div class="flex flex-col items-center justify-center min-h-screen p-4">
 	<div class="max-w-2xl w-full space-y-8 text-center">
 		<div class="space-y-4">
 			<h1 class="text-6xl font-bold gradient-text">
-				Fairfield Nostr
+				Minimoomaa Noir
 			</h1>
 			<p class="text-xl text-base-content/70">
 				Decentralized Chat with AI Integration

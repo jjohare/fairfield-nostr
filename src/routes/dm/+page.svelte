@@ -43,7 +43,7 @@
 </script>
 
 <svelte:head>
-  <title>Direct Messages - Fairfield Nostr</title>
+  <title>Direct Messages - Minimoomaa Noir</title>
 </svelte:head>
 
 <div class="container mx-auto p-4 max-w-2xl">

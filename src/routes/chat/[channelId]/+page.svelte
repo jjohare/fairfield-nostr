@@ -73,7 +73,7 @@
 </script>
 
 <svelte:head>
-  <title>{channel?.name || 'Channel'} - Fairfield Nostr</title>
+  <title>{channel?.name || 'Channel'} - Minimoomaa Noir</title>
 </svelte:head>
 
 {#if loading}

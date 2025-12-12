@@ -1,6 +1,6 @@
 /**
  * Application Configuration
- * Environment-based configuration for Fairfield Nostr
+ * Environment-based configuration for Minimoomaa Noir
  */
 
 /**
@@ -37,7 +37,7 @@ export const ADMIN_PUBKEY = getEnv('VITE_ADMIN_PUBKEY', '');
 /**
  * Application name for Nostr events
  */
-export const APP_NAME = 'Fairfield Nostr';
+export const APP_NAME = 'Minimoomaa Noir';
 
 /**
  * Application version
@@ -58,7 +58,7 @@ export const NDK_CONFIG = {
    */
   cache: {
     enabled: true,
-    name: 'fairfield-nostr-cache',
+    name: 'minimoomaa-noir-cache',
     version: 1
   },
 

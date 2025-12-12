@@ -29,7 +29,7 @@
 </script>
 
 <svelte:head>
-  <title>Sign Up - Fairfield Nostr</title>
+  <title>Sign Up - Minimoomaa Noir</title>
 </svelte:head>
 
 {#if step === 1}

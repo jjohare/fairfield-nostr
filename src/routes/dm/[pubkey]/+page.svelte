@@ -55,7 +55,7 @@
 </script>
 
 <svelte:head>
-  <title>DM with {formatPubkey(recipientPubkey)} - Fairfield Nostr</title>
+  <title>DM with {formatPubkey(recipientPubkey)} - Minimoomaa Noir</title>
 </svelte:head>
 
 {#if loading}

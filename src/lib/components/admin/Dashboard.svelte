@@ -51,7 +51,7 @@
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-3xl font-bold">Admin Dashboard</h1>
-      <p class="text-base-content/70 mt-1">Fairfield Nostr Administration</p>
+      <p class="text-base-content/70 mt-1">Minimoomaa Noir Administration</p>
     </div>
 
     <div class="flex gap-2">

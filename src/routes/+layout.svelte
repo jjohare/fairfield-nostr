@@ -68,7 +68,7 @@
 </script>
 
 <svelte:head>
-	<title>Fairfield Nostr</title>
+	<title>Minimoomaa Noir</title>
 </svelte:head>
 
 <!-- PWA Install Banner -->
@@ -77,7 +77,7 @@
 		<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
 			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 		</svg>
-		<span>Install Fairfield Nostr for offline access</span>
+		<span>Install Minimoomaa Noir for offline access</span>
 		<div class="flex gap-2">
 			<button class="btn btn-sm btn-primary" on:click={handleInstall}>Install</button>
 			<button class="btn btn-sm btn-ghost" on:click={dismissInstallBanner}>Dismiss</button>
@@ -116,7 +116,7 @@
 		{#if showNav && $isAuthenticated}
 			<nav class="navbar bg-base-200 shadow-lg">
 				<div class="navbar-start">
-					<a href="{base}/chat" class="btn btn-ghost text-xl">Fairfield Nostr</a>
+					<a href="{base}/chat" class="btn btn-ghost text-xl">Minimoomaa Noir</a>
 				</div>
 				<div class="navbar-center hidden lg:flex">
 					<ul class="menu menu-horizontal px-1">

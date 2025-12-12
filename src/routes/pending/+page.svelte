@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-  <title>Pending Approval - Fairfield Nostr</title>
+  <title>Pending Approval - Minimoomaa Noir</title>
 </svelte:head>
 
 <div class="flex items-center justify-center min-h-[calc(100vh-64px)] p-4">

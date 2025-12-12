@@ -56,6 +56,29 @@ export function encodePrivkey(privkey: string): string {
   return nip19.nsecEncode(hexToBytes(privkey));
 }
 
+export function restoreFromNsecOrHex(input: string): { privateKey: string; publicKey: string } {
+  const trimmed = input.trim();
+  let privateKey: string;
+
+  if (trimmed.startsWith('nsec1')) {
+    // Decode nsec bech32 format
+    const decoded = nip19.decode(trimmed);
+    if (decoded.type !== 'nsec') {
+      throw new Error('Invalid nsec format');
+    }
+    privateKey = bytesToHex(decoded.data as Uint8Array);
+  } else {
+    // Assume hex format - validate it's 64 hex characters
+    if (!/^[a-fA-F0-9]{64}$/.test(trimmed)) {
+      throw new Error('Invalid private key: must be 64 hex characters or nsec format');
+    }
+    privateKey = trimmed.toLowerCase();
+  }
+
+  const publicKey = getPublicKey(hexToBytes(privateKey));
+  return { privateKey, publicKey };
+}
+
 export function saveKeysToStorage(publicKey: string, privateKey: string): void {
   if (typeof localStorage === 'undefined') return;
 

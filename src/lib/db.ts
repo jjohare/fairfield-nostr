@@ -78,9 +78,9 @@ export interface DBRelay {
 }
 
 /**
- * Fairfield Nostr Database
+ * Minimoomaa Noir Database
  */
-class FairfieldNostrDB extends Dexie {
+class MinimoomaNoirDB extends Dexie {
   messages!: Table<DBMessage, string>;
   channels!: Table<DBChannel, string>;
   users!: Table<DBUser, string>;
@@ -88,7 +88,7 @@ class FairfieldNostrDB extends Dexie {
   relays!: Table<DBRelay, string>;
 
   constructor() {
-    super('FairfieldNostrDB');
+    super('MinimoomaNoirDB');
 
     this.version(1).stores({
       messages: 'id, channelId, pubkey, created_at, deleted, [channelId+created_at]',
@@ -240,7 +240,7 @@ class FairfieldNostrDB extends Dexie {
 /**
  * Singleton database instance
  */
-export const db = new FairfieldNostrDB();
+export const db = new MinimoomaNoirDB();
 
 /**
  * Initialize database and run maintenance

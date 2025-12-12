@@ -10,7 +10,7 @@
 <nav class="navbar">
   <div class="nav-container">
     <a href="{base}/" class="logo">
-      Fairfield Nostr
+      Minimoomaa Noir
     </a>
 
     <div class="nav-links">

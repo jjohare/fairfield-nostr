@@ -1,17 +1,18 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { restoreFromMnemonic } from '$lib/nostr/keys';
+  import { restoreFromMnemonic, restoreFromNsecOrHex } from '$lib/nostr/keys';
   import { authStore } from '$lib/stores/auth';
 
   const dispatch = createEventDispatcher<{ success: { publicKey: string; privateKey: string } }>();
 
-  let inputMode: 'paste' | 'individual' = 'paste';
+  let inputMode: 'paste' | 'individual' | 'privatekey' = 'paste';
   let pastedMnemonic = '';
   let wordInputs: string[] = Array(12).fill('');
+  let privateKeyInput = '';
   let isRestoring = false;
   let validationError = '';
 
-  function switchMode(mode: 'paste' | 'individual') {
+  function switchMode(mode: 'paste' | 'individual' | 'privatekey') {
     inputMode = mode;
     validationError = '';
   }
@@ -24,20 +25,37 @@
     try {
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      const mnemonic = inputMode === 'paste'
-        ? pastedMnemonic.trim()
-        : wordInputs.map(w => w.trim().toLowerCase()).join(' ');
+      let publicKey: string;
+      let privateKey: string;
 
-      if (!mnemonic || mnemonic.split(' ').length !== 12) {
-        validationError = 'Please enter all 12 words';
-        return;
+      if (inputMode === 'privatekey') {
+        // Handle nsec or hex private key
+        if (!privateKeyInput.trim()) {
+          validationError = 'Please enter your private key (nsec or hex format)';
+          return;
+        }
+        const result = restoreFromNsecOrHex(privateKeyInput);
+        publicKey = result.publicKey;
+        privateKey = result.privateKey;
+      } else {
+        // Handle mnemonic (paste or individual words)
+        const mnemonic = inputMode === 'paste'
+          ? pastedMnemonic.trim()
+          : wordInputs.map(w => w.trim().toLowerCase()).join(' ');
+
+        if (!mnemonic || mnemonic.split(' ').length !== 12) {
+          validationError = 'Please enter all 12 words';
+          return;
+        }
+
+        const result = await restoreFromMnemonic(mnemonic);
+        publicKey = result.publicKey;
+        privateKey = result.privateKey;
       }
-
-      const { publicKey, privateKey } = await restoreFromMnemonic(mnemonic);
 
       dispatch('success', { publicKey, privateKey });
     } catch (error) {
-      validationError = error instanceof Error ? error.message : 'Invalid recovery phrase';
+      validationError = error instanceof Error ? error.message : 'Invalid credentials';
       authStore.setError(validationError);
     } finally {
       isRestoring = false;
@@ -82,6 +100,13 @@
         >
           Enter Words
         </button>
+        <button
+          class="tab flex-1"
+          class:tab-active={inputMode === 'privatekey'}
+          on:click={() => switchMode('privatekey')}
+        >
+          Private Key
+        </button>
       </div>
 
       {#if inputMode === 'paste'}
@@ -92,6 +117,25 @@
             bind:value={pastedMnemonic}
             disabled={isRestoring}
           />
+        </div>
+      {:else if inputMode === 'privatekey'}
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Enter your nsec or hex private key</span>
+          </label>
+          <input
+            type="password"
+            class="input input-bordered font-mono"
+            placeholder="nsec1... or 64-character hex"
+            bind:value={privateKeyInput}
+            disabled={isRestoring}
+            autocomplete="off"
+          />
+          <label class="label">
+            <span class="label-text-alt text-base-content/50">
+              Supports nsec format (nsec1...) or raw 64-character hex
+            </span>
+          </label>
         </div>
       {:else}
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" on:paste={handlePaste}>
