@@ -1,4 +1,3 @@
-import { redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import { browser } from '$app/environment';
 
@@ -7,6 +6,9 @@ const ADMIN_PUBKEYS = [
   'npub1admin...'
 ];
 
+// Allow prerendering
+export const prerender = true;
+
 export const load: PageLoad = async () => {
   if (!browser) {
     return { stats: null };
@@ -14,14 +16,16 @@ export const load: PageLoad = async () => {
 
   const stored = localStorage.getItem('fairfield_auth');
   if (!stored) {
-    throw redirect(302, '/');
+    // Auth check handled in component
+    return { stats: null };
   }
 
   try {
     const auth = JSON.parse(stored);
 
     if (!ADMIN_PUBKEYS.includes(auth.npub)) {
-      throw redirect(302, '/chat');
+      // Permission check handled in component
+      return { stats: null, isAdmin: false };
     }
 
     // Fetch admin stats
@@ -32,9 +36,9 @@ export const load: PageLoad = async () => {
       pendingApprovals: 0
     };
 
-    return { stats };
+    return { stats, isAdmin: true };
   } catch (error) {
     console.error('Admin access denied:', error);
-    throw redirect(302, '/chat');
+    return { stats: null, isAdmin: false };
   }
 };

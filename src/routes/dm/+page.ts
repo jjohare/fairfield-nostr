@@ -1,7 +1,9 @@
-import { redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import { browser } from '$app/environment';
 import { ndkStore, fetchDirectMessages } from '$lib/stores/ndk';
+
+// Allow prerendering
+export const prerender = true;
 
 export const load: PageLoad = async () => {
   if (!browser) {
@@ -10,7 +12,8 @@ export const load: PageLoad = async () => {
 
   const stored = localStorage.getItem('fairfield_auth');
   if (!stored) {
-    throw redirect(302, '/');
+    // Auth check handled in component
+    return { conversations: [] };
   }
 
   try {

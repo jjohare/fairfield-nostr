@@ -1,18 +1,16 @@
-import { redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import { browser } from '$app/environment';
 import { ndkStore, fetchChannels } from '$lib/stores/ndk';
+
+// Allow prerendering
+export const prerender = true;
 
 export const load: PageLoad = async () => {
   if (!browser) {
     return { channels: [] };
   }
 
-  const stored = localStorage.getItem('fairfield_auth');
-  if (!stored) {
-    throw redirect(302, '/');
-  }
-
+  // Auth check is handled in the component with goto()
   try {
     const ndk = ndkStore.get();
     if (!ndk) {

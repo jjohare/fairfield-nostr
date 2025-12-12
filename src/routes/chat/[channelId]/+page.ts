@@ -1,7 +1,9 @@
-import { redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import { browser } from '$app/environment';
 import { ndkStore, fetchChannels, fetchChannelMessages } from '$lib/stores/ndk';
+
+// Dynamic routes can't be prerendered
+export const prerender = false;
 
 export const load: PageLoad = async ({ params }) => {
   if (!browser) {
@@ -10,7 +12,8 @@ export const load: PageLoad = async ({ params }) => {
 
   const stored = localStorage.getItem('fairfield_auth');
   if (!stored) {
-    throw redirect(302, '/');
+    // Auth check handled in component
+    return { channel: null, messages: [] };
   }
 
   try {
@@ -23,7 +26,7 @@ export const load: PageLoad = async ({ params }) => {
     const channel = channels.find(c => c.id === params.channelId);
 
     if (!channel) {
-      throw redirect(302, '/chat');
+      return { channel: null, messages: [] };
     }
 
     const messages = await fetchChannelMessages(ndk, params.channelId);
@@ -31,6 +34,6 @@ export const load: PageLoad = async ({ params }) => {
     return { channel, messages };
   } catch (error) {
     console.error('Failed to load channel:', error);
-    throw redirect(302, '/chat');
+    return { channel: null, messages: [] };
   }
 };
