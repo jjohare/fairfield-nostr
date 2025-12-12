@@ -27,9 +27,11 @@ const initialState: AuthState = {
   error: null
 };
 
-// Admin pubkey from environment config (hex format)
+// Admin pubkeys (hex format)
+// npub12hmds5kgajlsy2lgr034dd30mmhsnjgqm6hjh5nzm3n4jsnu96eqy6g952 = 55f6d852c8ecbf022be81be356b62fdeef09c900deaf2bd262dc6759427c2eb2
 const ADMIN_PUBKEY = import.meta.env.VITE_ADMIN_PUBKEY || '';
-const ADMIN_PUBKEYS = ADMIN_PUBKEY ? [ADMIN_PUBKEY] : [];
+const HARDCODED_ADMINS = ['55f6d852c8ecbf022be81be356b62fdeef09c900deaf2bd262dc6759427c2eb2'];
+const ADMIN_PUBKEYS = [...HARDCODED_ADMINS, ...(ADMIN_PUBKEY ? [ADMIN_PUBKEY] : [])];
 
 function createAuthStore() {
   const { subscribe, set, update }: Writable<AuthState> = writable(initialState);

@@ -30,10 +30,13 @@
 
 	$: npub = $authStore.publicKey ? encodePubkey($authStore.publicKey) : '';
 	$: nsec = $authStore.privateKey ? encodePrivkey($authStore.privateKey) : '';
-	$: if (showProfileModal) {
+	// Initialize form fields when modal opens (only once per open)
+	let lastModalState = false;
+	$: if (showProfileModal && !lastModalState) {
 		editNickname = $authStore.nickname || '';
 		editAvatar = $authStore.avatar || '';
 	}
+	$: lastModalState = showProfileModal;
 
 	function toggleProfileModal() {
 		showProfileModal = !showProfileModal;
