@@ -1,0 +1,30 @@
+# Development Docker Compose for local relay testing
+# Run with: docker compose -f docker-compose.dev.yml up -d
+#
+# NOTE: This uses the official strfry image. The config file is mounted
+# to /app/strfry.conf which is the default location strfry looks for config.
+#
+# For production, consider using a write policy plugin for access control.
+
+services:
+  strfry:
+    image: dockurr/strfry:latest
+    container_name: fairfield-relay-dev
+    ports:
+      - "7777:7777"
+    volumes:
+      # Mount config to strfry's default config location
+      - ./strfry-dev.conf:/app/strfry.conf:ro
+      # Persistent data storage
+      - strfry-dev-data:/app/strfry-db
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:7777 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  strfry-dev-data:
+    driver: local
