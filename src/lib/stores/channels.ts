@@ -241,21 +241,38 @@ export function getCurrentChannel(): Channel | null {
   return get(channelStore).currentChannel;
 }
 
-/**
- * Filter channels by membership status
- */
-export const memberChannels = derived(
-  channelStore,
-  $store => $store.channels.filter(c => c.isMember)
-);
+// Lazy-initialized derived stores to avoid circular initialization
+let _memberChannels: ReturnType<typeof derived<typeof channelStore, Channel[]>> | null = null;
+let _availableChannels: ReturnType<typeof derived<typeof channelStore, Channel[]>> | null = null;
 
 /**
- * Filter channels by non-membership (available to join)
+ * Filter channels by membership status (lazy initialization)
  */
-export const availableChannels = derived(
-  channelStore,
-  $store => $store.channels.filter(c => !c.isMember && c.visibility !== 'unlisted')
-);
+export function getMemberChannels() {
+  if (!_memberChannels) {
+    _memberChannels = derived(channelStore, $store => $store.channels.filter(c => c.isMember));
+  }
+  return _memberChannels;
+}
+
+/**
+ * Filter channels by non-membership (lazy initialization)
+ */
+export function getAvailableChannels() {
+  if (!_availableChannels) {
+    _availableChannels = derived(channelStore, $store => $store.channels.filter(c => !c.isMember && c.visibility !== 'unlisted'));
+  }
+  return _availableChannels;
+}
+
+// Backwards-compatible exports
+export const memberChannels = {
+  subscribe: (fn: (value: Channel[]) => void) => getMemberChannels().subscribe(fn)
+};
+
+export const availableChannels = {
+  subscribe: (fn: (value: Channel[]) => void) => getAvailableChannels().subscribe(fn)
+};
 
 /**
  * Filter channels by cohort

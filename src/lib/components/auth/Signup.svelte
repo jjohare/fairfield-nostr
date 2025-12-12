@@ -13,7 +13,7 @@
 
     try {
       await new Promise(resolve => setTimeout(resolve, 100));
-      const { mnemonic, publicKey, privateKey } = generateNewIdentity();
+      const { mnemonic, publicKey, privateKey } = await generateNewIdentity();
 
       dispatch('next', { mnemonic, publicKey, privateKey });
     } catch (error) {

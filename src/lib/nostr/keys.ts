@@ -1,4 +1,5 @@
-import { generateMnemonic, mnemonicToSeedSync, validateMnemonic } from 'bip39';
+import { generateMnemonic, mnemonicToSeed, validateMnemonic } from '@scure/bip39';
+import { wordlist } from '@scure/bip39/wordlists/english.js';
 import { HDKey } from '@scure/bip32';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import { getPublicKey } from 'nostr-tools';
@@ -12,9 +13,9 @@ export interface KeyPair {
   publicKey: string;
 }
 
-export function generateNewIdentity(): KeyPair {
-  const mnemonic = generateMnemonic(128);
-  const seed = mnemonicToSeedSync(mnemonic, '');
+export async function generateNewIdentity(): Promise<KeyPair> {
+  const mnemonic = generateMnemonic(wordlist, 128);
+  const seed = await mnemonicToSeed(mnemonic, '');
   const hdKey = HDKey.fromMasterSeed(seed);
   const derived = hdKey.derive(NIP06_PATH);
 
@@ -28,12 +29,12 @@ export function generateNewIdentity(): KeyPair {
   return { mnemonic, privateKey, publicKey };
 }
 
-export function restoreFromMnemonic(mnemonic: string): Omit<KeyPair, 'mnemonic'> {
-  if (!validateMnemonic(mnemonic.trim())) {
+export async function restoreFromMnemonic(mnemonic: string): Promise<Omit<KeyPair, 'mnemonic'>> {
+  if (!validateMnemonic(mnemonic.trim(), wordlist)) {
     throw new Error('Invalid mnemonic phrase');
   }
 
-  const seed = mnemonicToSeedSync(mnemonic.trim(), '');
+  const seed = await mnemonicToSeed(mnemonic.trim(), '');
   const hdKey = HDKey.fromMasterSeed(seed);
   const derived = hdKey.derive(NIP06_PATH);
 
