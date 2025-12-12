@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
+	import { base } from '$app/paths';
 	import { authStore, isAuthenticated, isAdmin } from '$lib/stores/auth';
 	import { initializePWA } from '$lib/utils/pwa-init';
 	import {
@@ -19,7 +20,7 @@
 	let showInstallBanner = false;
 	let showUpdateBanner = false;
 
-	$: showNav = $page.url.pathname !== '/' && $page.url.pathname !== '/signup' && $page.url.pathname !== '/setup';
+	$: showNav = $page.url.pathname !== `${base}/` && $page.url.pathname !== base && $page.url.pathname !== `${base}/signup` && $page.url.pathname !== `${base}/setup`;
 
 	canInstall.subscribe(value => {
 		showInstallBanner = value;
@@ -115,14 +116,14 @@
 		{#if showNav && $isAuthenticated}
 			<nav class="navbar bg-base-200 shadow-lg">
 				<div class="navbar-start">
-					<a href="/chat" class="btn btn-ghost text-xl">Fairfield Nostr</a>
+					<a href="{base}/chat" class="btn btn-ghost text-xl">Fairfield Nostr</a>
 				</div>
 				<div class="navbar-center hidden lg:flex">
 					<ul class="menu menu-horizontal px-1">
-						<li><a href="/chat" class:active={$page.url.pathname.startsWith('/chat')}>Channels</a></li>
-						<li><a href="/dm" class:active={$page.url.pathname.startsWith('/dm')}>Messages</a></li>
+						<li><a href="{base}/chat" class:active={$page.url.pathname.startsWith(`${base}/chat`)}>Channels</a></li>
+						<li><a href="{base}/dm" class:active={$page.url.pathname.startsWith(`${base}/dm`)}>Messages</a></li>
 						{#if $isAdmin}
-							<li><a href="/admin" class:active={$page.url.pathname === '/admin'}>Admin</a></li>
+							<li><a href="{base}/admin" class:active={$page.url.pathname === `${base}/admin`}>Admin</a></li>
 						{/if}
 					</ul>
 				</div>

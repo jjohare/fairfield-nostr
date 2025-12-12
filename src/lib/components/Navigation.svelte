@@ -1,6 +1,7 @@
 <script lang="ts">
   import { authStore, isAuthenticated, isAdmin } from '$lib/stores/auth';
   import { page } from '$app/stores';
+  import { base } from '$app/paths';
 
   $: isAuth = $isAuthenticated;
   $: isAdminUser = $isAdmin;
@@ -8,20 +9,20 @@
 
 <nav class="navbar">
   <div class="nav-container">
-    <a href="/" class="logo">
+    <a href="{base}/" class="logo">
       Fairfield Nostr
     </a>
 
     <div class="nav-links">
       {#if isAuth}
-        <a href="/chat" class:active={$page.url.pathname.startsWith('/chat')}>
+        <a href="{base}/chat" class:active={$page.url.pathname.startsWith(`${base}/chat`)}>
           Channels
         </a>
-        <a href="/dm" class:active={$page.url.pathname.startsWith('/dm')}>
+        <a href="{base}/dm" class:active={$page.url.pathname.startsWith(`${base}/dm`)}>
           Messages
         </a>
         {#if isAdminUser}
-          <a href="/admin" class:active={$page.url.pathname === '/admin'}>
+          <a href="{base}/admin" class:active={$page.url.pathname === `${base}/admin`}>
             Admin
           </a>
         {/if}
@@ -29,7 +30,7 @@
           Logout
         </button>
       {:else}
-        <a href="/signup">Sign Up</a>
+        <a href="{base}/signup">Sign Up</a>
       {/if}
     </div>
   </div>

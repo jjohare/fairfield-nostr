@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
   import { authStore } from '$lib/stores/auth';
 
   let conversations: any[] = [];
@@ -8,7 +9,7 @@
 
   onMount(async () => {
     if (!$authStore.isAuthenticated) {
-      goto('/');
+      goto(`${base}/`);
       return;
     }
 
@@ -37,7 +38,7 @@
   }
 
   function openConversation(pubkey: string) {
-    goto(`/dm/${pubkey}`);
+    goto(`${base}/dm/${pubkey}`);
   }
 </script>
 

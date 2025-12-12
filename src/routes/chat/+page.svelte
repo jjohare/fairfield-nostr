@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
   import { channelStore, type Channel } from '$lib/stores/channels';
   import { authStore } from '$lib/stores/auth';
   import { ndk } from '$lib/nostr/ndk';
@@ -13,7 +14,7 @@
 
   onMount(async () => {
     if (!$authStore.isAuthenticated || !$authStore.publicKey) {
-      goto('/');
+      goto(`${base}/`);
       return;
     }
 
@@ -29,7 +30,7 @@
   });
 
   function navigateToChannel(channelId: string) {
-    goto(`/chat/${channelId}`);
+    goto(`${base}/chat/${channelId}`);
   }
 
   function formatDate(timestamp: number): string {

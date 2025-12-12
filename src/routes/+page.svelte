@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { base } from '$app/paths';
 	import { isAuthenticated } from '$lib/stores/auth';
 
 	onMount(() => {
 		if ($isAuthenticated) {
-			goto('/chat');
+			goto(`${base}/chat`);
 		}
 	});
 </script>
@@ -32,10 +33,10 @@
 					Secure, decentralized communication built on Nostr protocol
 				</p>
 				<div class="card-actions justify-center mt-4 flex-wrap gap-3">
-					<a href="/signup" class="btn btn-primary btn-lg">
+					<a href="{base}/signup" class="btn btn-primary btn-lg">
 						Create Account
 					</a>
-					<a href="/setup" class="btn btn-outline btn-lg">
+					<a href="{base}/setup" class="btn btn-outline btn-lg">
 						Login
 					</a>
 				</div>

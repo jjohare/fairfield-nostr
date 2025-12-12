@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
   import { authStore, isAdmin } from '$lib/stores/auth';
 
   let stats = {
@@ -12,7 +13,7 @@
 
   onMount(() => {
     if (!$isAdmin) {
-      goto('/chat');
+      goto(`${base}/chat`);
       return;
     }
 

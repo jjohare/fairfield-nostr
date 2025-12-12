@@ -2,6 +2,7 @@
   import Signup from '$lib/components/auth/Signup.svelte';
   import MnemonicDisplay from '$lib/components/auth/MnemonicDisplay.svelte';
   import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
   import { authStore } from '$lib/stores/auth';
 
   let step = 1;
@@ -17,13 +18,13 @@
       privateKey = data.privateKey;
       step = 2;
     } else {
-      goto('/setup');
+      goto(`${base}/setup`);
     }
   }
 
   function handleContinue() {
     authStore.setKeys(publicKey, privateKey, mnemonic);
-    goto('/chat');
+    goto(`${base}/chat`);
   }
 </script>
 

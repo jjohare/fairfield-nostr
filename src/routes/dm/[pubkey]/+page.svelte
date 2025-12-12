@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { base } from '$app/paths';
   import { authStore } from '$lib/stores/auth';
 
   $: recipientPubkey = $page.params.pubkey;
@@ -14,7 +15,7 @@
 
   onMount(async () => {
     if (!$authStore.isAuthenticated) {
-      goto('/');
+      goto(`${base}/`);
       return;
     }
 
@@ -65,7 +66,7 @@
   <div class="flex flex-col h-[calc(100vh-64px)]">
     <div class="bg-base-200 border-b border-base-300 p-4">
       <div class="container mx-auto max-w-2xl">
-        <button class="btn btn-ghost btn-sm mb-2" on:click={() => goto('/dm')}>
+        <button class="btn btn-ghost btn-sm mb-2" on:click={() => goto(`${base}/dm`)}>
           ← Back to Messages
         </button>
         <div class="flex items-center gap-3">

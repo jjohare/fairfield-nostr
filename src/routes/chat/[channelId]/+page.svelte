@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { base } from '$app/paths';
   import { channelStore } from '$lib/stores/channels';
   import { authStore } from '$lib/stores/auth';
   import { ndk } from '$lib/nostr/ndk';
@@ -18,7 +19,7 @@
 
   onMount(async () => {
     if (!$authStore.isAuthenticated) {
-      goto('/');
+      goto(`${base}/`);
       return;
     }
 
@@ -32,7 +33,7 @@
       channel = channels.find(c => c.id === channelId) || null;
 
       if (!channel) {
-        goto('/chat');
+        goto(`${base}/chat`);
         return;
       }
 
@@ -83,7 +84,7 @@
   <div class="flex flex-col h-[calc(100vh-64px)]">
     <div class="bg-base-200 border-b border-base-300 p-4">
       <div class="container mx-auto max-w-4xl">
-        <button class="btn btn-ghost btn-sm mb-2" on:click={() => goto('/chat')}>
+        <button class="btn btn-ghost btn-sm mb-2" on:click={() => goto(`${base}/chat`)}>
           ← Back to Channels
         </button>
         <h1 class="text-2xl font-bold">{channel.name}</h1>
