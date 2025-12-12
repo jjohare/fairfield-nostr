@@ -3,6 +3,7 @@
  */
 
 import { writable, derived, get } from 'svelte/store';
+import { base } from '$app/paths';
 
 /**
  * Install prompt event store
@@ -125,8 +126,10 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   }
 
   try {
-    const registration = await navigator.serviceWorker.register('/service-worker.js', {
-      scope: '/'
+    const swPath = `${base}/service-worker.js`;
+    const swScope = `${base}/`;
+    const registration = await navigator.serviceWorker.register(swPath, {
+      scope: swScope
     });
 
     console.log('[PWA] Service worker registered:', registration);
