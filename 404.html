@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<meta name="description" content="Secure Nostr messaging application for Fairfield University students" />
+		<meta name="theme-color" content="#16213e" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+		<meta name="apple-mobile-web-app-title" content="Fairfield" />
+
+		<link rel="icon" href="/favicon.png" />
+		<link rel="apple-touch-icon" href="/icon-192.png" />
+		<link rel="manifest" href="/manifest.json" />
+
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
+
+		
+		<link rel="modulepreload" href="/_app/immutable/entry/start.DyfkoaG_.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/BsPp2m_w.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/CqyhCxPH.js">
+		<link rel="modulepreload" href="/_app/immutable/entry/app.ecSBow2F.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/CX_9gOzK.js">
+	</head>
+	<body data-sveltekit-preload-data="hover" class="bg-base-100 text-base-content">
+		<div style="display: contents">
+			<script>
+				{
+					__sveltekit_grjf7g = {
+						base: ""
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("/_app/immutable/entry/start.DyfkoaG_.js"),
+						import("/_app/immutable/entry/app.ecSBow2F.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element);
+					});
+
+					if ('serviceWorker' in navigator) {
+						addEventListener('load', function () {
+							navigator.serviceWorker.register('/service-worker.js');
+						});
+					}
+				}
+			</script>
+		</div>
+	</body>
+</html>
