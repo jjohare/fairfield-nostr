@@ -9,43 +9,44 @@
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 		<meta name="apple-mobile-web-app-title" content="Minimoomaa" />
 
-		<link rel="icon" href="/favicon.png" />
-		<link rel="apple-touch-icon" href="/icon-192.png" />
-		<link rel="manifest" href="/manifest.json" />
+		<link rel="icon" href="/fairfield-nostr/favicon.png" />
+		<link rel="apple-touch-icon" href="/fairfield-nostr/icon-192.png" />
+		<link rel="manifest" href="/fairfield-nostr/manifest.json" />
 
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
 
 		
-		<link rel="modulepreload" href="/_app/immutable/entry/start.BiQeVrKm.js">
-		<link rel="modulepreload" href="/_app/immutable/chunks/Cpn7EE4E.js">
-		<link rel="modulepreload" href="/_app/immutable/chunks/D9KvLAFu.js">
-		<link rel="modulepreload" href="/_app/immutable/chunks/Dv-Yp-mw.js">
-		<link rel="modulepreload" href="/_app/immutable/entry/app.C4y361rA.js">
-		<link rel="modulepreload" href="/_app/immutable/chunks/CmsKOCeN.js">
-		<link rel="modulepreload" href="/_app/immutable/chunks/Bq9qkgAl.js">
+		<link rel="modulepreload" href="/fairfield-nostr/_app/immutable/entry/start.DTrSRkl-.js">
+		<link rel="modulepreload" href="/fairfield-nostr/_app/immutable/chunks/ByqYgsqt.js">
+		<link rel="modulepreload" href="/fairfield-nostr/_app/immutable/chunks/D9KvLAFu.js">
+		<link rel="modulepreload" href="/fairfield-nostr/_app/immutable/chunks/CjmCUg24.js">
+		<link rel="modulepreload" href="/fairfield-nostr/_app/immutable/entry/app.DYq31Jmn.js">
+		<link rel="modulepreload" href="/fairfield-nostr/_app/immutable/chunks/CmsKOCeN.js">
+		<link rel="modulepreload" href="/fairfield-nostr/_app/immutable/chunks/Bq9qkgAl.js">
 	</head>
 	<body data-sveltekit-preload-data="hover" class="bg-base-100 text-base-content">
 		<div style="display: contents">
 			<script>
 				{
-					__sveltekit_3615aq = {
-						base: ""
+					__sveltekit_9wk9mh = {
+						base: "/fairfield-nostr",
+						assets: "/fairfield-nostr"
 					};
 
 					const element = document.currentScript.parentElement;
 
 					Promise.all([
-						import("/_app/immutable/entry/start.BiQeVrKm.js"),
-						import("/_app/immutable/entry/app.C4y361rA.js")
+						import("/fairfield-nostr/_app/immutable/entry/start.DTrSRkl-.js"),
+						import("/fairfield-nostr/_app/immutable/entry/app.DYq31Jmn.js")
 					]).then(([kit, app]) => {
 						kit.start(app, element);
 					});
 
 					if ('serviceWorker' in navigator) {
 						addEventListener('load', function () {
-							navigator.serviceWorker.register('/service-worker.js');
+							navigator.serviceWorker.register('/fairfield-nostr/service-worker.js');
 						});
 					}
 				}
