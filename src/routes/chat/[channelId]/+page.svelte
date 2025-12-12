@@ -3,46 +3,80 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { base } from '$app/paths';
-  import { channelStore } from '$lib/stores/channels';
   import { authStore } from '$lib/stores/auth';
-  import { ndk } from '$lib/nostr/ndk';
-  import type { Channel } from '$lib/stores/channels';
+  import { setSigner, connectNDK } from '$lib/nostr/ndk';
+  import {
+    fetchChannels,
+    fetchChannelMessages,
+    sendChannelMessage,
+    subscribeToChannel,
+    type CreatedChannel
+  } from '$lib/nostr/channels';
 
   $: channelId = $page.params.channelId;
 
-  let channel: Channel | null = null;
-  let messages: any[] = [];
+  let channel: CreatedChannel | null = null;
+  let messages: Array<{
+    id: string;
+    content: string;
+    pubkey: string;
+    createdAt: number;
+    replyTo?: string;
+  }> = [];
   let messageInput = '';
   let loading = true;
   let sending = false;
+  let error: string | null = null;
   let messagesContainer: HTMLDivElement;
+  let unsubscribe: (() => void) | null = null;
 
   onMount(async () => {
-    if (!$authStore.isAuthenticated) {
+    if (!$authStore.isAuthenticated || !$authStore.publicKey) {
       goto(`${base}/`);
       return;
     }
 
     try {
-      const ndkInstance = await ndk.getNDK();
-      const channels = await channelStore.fetchChannels(
-        ndkInstance,
-        $authStore.publicKey!,
-        ['business', 'moomaa-tribe']
-      );
+      // Set up signer if we have a private key
+      if ($authStore.privateKey) {
+        setSigner($authStore.privateKey);
+      }
+
+      // Connect and fetch channels
+      await connectNDK();
+      const channels = await fetchChannels();
       channel = channels.find(c => c.id === channelId) || null;
 
       if (!channel) {
-        goto(`${base}/chat`);
+        error = 'Channel not found';
+        loading = false;
         return;
       }
 
-      // Load messages (placeholder - implement with actual Nostr events)
-      messages = [];
-    } catch (error) {
-      console.error('Error loading channel:', error);
+      // Fetch existing messages
+      messages = await fetchChannelMessages(channelId);
+
+      // Subscribe to new messages
+      const sub = subscribeToChannel(channelId, (newMessage) => {
+        // Avoid duplicates
+        if (!messages.find(m => m.id === newMessage.id)) {
+          messages = [...messages, newMessage];
+          scrollToBottom();
+        }
+      });
+      unsubscribe = sub.unsubscribe;
+
+    } catch (e) {
+      console.error('Error loading channel:', e);
+      error = e instanceof Error ? e.message : 'Failed to load channel';
     } finally {
       loading = false;
+    }
+  });
+
+  onDestroy(() => {
+    if (unsubscribe) {
+      unsubscribe();
     }
   });
 
@@ -54,13 +88,23 @@
     messageInput = '';
 
     try {
-      // Implement actual message sending via NDK
-      console.log('Sending message:', content);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      messageInput = content;
+      const msgId = await sendChannelMessage(channelId, content);
+      console.log('Message sent:', msgId);
+      scrollToBottom();
+    } catch (e) {
+      console.error('Error sending message:', e);
+      messageInput = content; // Restore on error
+      error = e instanceof Error ? e.message : 'Failed to send message';
     } finally {
       sending = false;
+    }
+  }
+
+  function scrollToBottom() {
+    if (messagesContainer) {
+      setTimeout(() => {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }, 100);
     }
   }
 
@@ -69,6 +113,10 @@
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  function shortenPubkey(pubkey: string): string {
+    return pubkey.slice(0, 8) + '...' + pubkey.slice(-4);
   }
 </script>
 
@@ -79,6 +127,15 @@
 {#if loading}
   <div class="flex justify-center items-center h-[calc(100vh-64px)]">
     <div class="loading loading-spinner loading-lg text-primary"></div>
+  </div>
+{:else if error && !channel}
+  <div class="container mx-auto p-4 max-w-4xl">
+    <button class="btn btn-ghost btn-sm mb-4" on:click={() => goto(`${base}/chat`)}>
+      ← Back to Channels
+    </button>
+    <div class="alert alert-error">
+      <span>{error}</span>
+    </div>
   </div>
 {:else if channel}
   <div class="flex flex-col h-[calc(100vh-64px)]">
@@ -91,8 +148,23 @@
         {#if channel.description}
           <p class="text-base-content/70 text-sm">{channel.description}</p>
         {/if}
+        <div class="flex items-center gap-2 mt-1">
+          <span class="badge badge-sm badge-ghost">{channel.visibility}</span>
+          {#if channel.encrypted}
+            <span class="badge badge-sm badge-primary">Encrypted</span>
+          {/if}
+        </div>
       </div>
     </div>
+
+    {#if error}
+      <div class="container mx-auto max-w-4xl p-2">
+        <div class="alert alert-warning alert-sm">
+          <span>{error}</span>
+          <button class="btn btn-ghost btn-xs" on:click={() => error = null}>✕</button>
+        </div>
+      </div>
+    {/if}
 
     <div class="flex-1 overflow-y-auto p-4 bg-base-100" bind:this={messagesContainer}>
       <div class="container mx-auto max-w-4xl">
@@ -103,10 +175,13 @@
         {:else}
           <div class="space-y-4">
             {#each messages as message (message.id)}
-              <div class="chat chat-start">
-                <div class="chat-bubble">{message.content}</div>
+              <div class="chat {message.pubkey === $authStore.publicKey ? 'chat-end' : 'chat-start'}">
+                <div class="chat-header opacity-50 text-xs mb-1">
+                  {shortenPubkey(message.pubkey)}
+                </div>
+                <div class="chat-bubble {message.pubkey === $authStore.publicKey ? 'chat-bubble-primary' : ''}">{message.content}</div>
                 <div class="chat-footer opacity-50 text-xs">
-                  {formatTime(message.created_at)}
+                  {formatTime(message.createdAt)}
                 </div>
               </div>
             {/each}
