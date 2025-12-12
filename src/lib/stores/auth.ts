@@ -1,7 +1,6 @@
 import { writable, derived } from 'svelte/store';
 import type { Writable } from 'svelte/store';
 import { browser } from '$app/environment';
-import { goto } from '$app/navigation';
 import { base } from '$app/paths';
 
 export interface AuthState {
@@ -78,10 +77,11 @@ function createAuthStore() {
     clearError: () => {
       update(state => ({ ...state, error: null }));
     },
-    logout: () => {
+    logout: async () => {
       set(initialState);
       if (browser) {
         localStorage.removeItem('fairfield_keys');
+        const { goto } = await import('$app/navigation');
         goto(`${base}/`);
       }
     },

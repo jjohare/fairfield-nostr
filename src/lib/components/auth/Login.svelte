@@ -33,7 +33,7 @@
         return;
       }
 
-      const { publicKey, privateKey } = restoreFromMnemonic(mnemonic);
+      const { publicKey, privateKey } = await restoreFromMnemonic(mnemonic);
 
       dispatch('success', { publicKey, privateKey });
     } catch (error) {

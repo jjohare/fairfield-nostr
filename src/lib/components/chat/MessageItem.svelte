@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { authStore } from '$lib/stores/authStore';
+  import { authStore } from '$lib/stores/auth';
   import { channelStore, userMemberStatus } from '$lib/stores/channelStore';
   import type { Message } from '$lib/types/channel';
 
@@ -8,7 +8,7 @@
 
   const dispatch = createEventDispatcher<{ deleted: { messageId: string } }>();
 
-  $: isOwnMessage = $authStore.user?.pubkey === message.authorPubkey;
+  $: isOwnMessage = $authStore.publicKey === message.authorPubkey;
   $: canDelete = isOwnMessage || $userMemberStatus === 'admin';
   $: displayContent = message.isEncrypted && message.decryptedContent
     ? message.decryptedContent
@@ -45,16 +45,13 @@
   }
 
   function getAuthorName(pubkey: string): string {
-    if ($authStore.user?.pubkey === pubkey && $authStore.user?.name) {
-      return $authStore.user.name;
+    if ($authStore.publicKey === pubkey) {
+      return 'You';
     }
     return pubkey.slice(0, 8) + '...' + pubkey.slice(-4);
   }
 
   function getAuthorAvatar(pubkey: string): string {
-    if ($authStore.user?.pubkey === pubkey && $authStore.user?.avatar) {
-      return $authStore.user.avatar;
-    }
     return `https://api.dicebear.com/7.x/identicon/svg?seed=${pubkey}`;
   }
 

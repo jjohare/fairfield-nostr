@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { channelStore, selectedChannel, userMemberStatus } from '$lib/stores/channelStore';
-  import { authStore } from '$lib/stores/authStore';
+  import { authStore } from '$lib/stores/auth';
   import type { Message } from '$lib/types/channel';
 
   let messageText = '';
@@ -23,7 +23,7 @@
   }
 
   async function sendMessage() {
-    if (!messageText.trim() || !$selectedChannel || !$authStore.user || !canSend || isSending) {
+    if (!messageText.trim() || !$selectedChannel || !$authStore.publicKey || !canSend || isSending) {
       return;
     }
 
@@ -40,7 +40,7 @@
       const message: Message = {
         id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         channelId: $selectedChannel.id,
-        authorPubkey: $authStore.user.pubkey,
+        authorPubkey: $authStore.publicKey,
         content: content,
         createdAt: Date.now(),
         isEncrypted: $selectedChannel.isEncrypted,

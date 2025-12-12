@@ -1,6 +1,6 @@
 <script lang="ts">
   import { channelStore, selectedChannel } from '$lib/stores/channelStore';
-  import { authStore } from '$lib/stores/authStore';
+  import { authStore } from '$lib/stores/auth';
   import type { Channel, MemberStatus } from '$lib/types/channel';
 
   export let cohortFilter: string[] = [];
@@ -15,8 +15,8 @@
   }
 
   function getMemberStatus(channel: Channel): MemberStatus {
-    if (!$authStore.user) return 'non-member';
-    return channelStore.getMemberStatus(channel.id, $authStore.user.pubkey);
+    if (!$authStore.publicKey) return 'non-member';
+    return channelStore.getMemberStatus(channel.id, $authStore.publicKey);
   }
 
   function getStatusBadgeClass(status: MemberStatus): string {

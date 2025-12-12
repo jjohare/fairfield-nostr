@@ -1,6 +1,6 @@
 <script lang="ts">
   import { channelStore, selectedChannel, userMemberStatus } from '$lib/stores/channelStore';
-  import { authStore } from '$lib/stores/authStore';
+  import { authStore } from '$lib/stores/auth';
 
   let isLoading = false;
 
@@ -57,14 +57,14 @@
   }
 
   async function handleJoinRequest() {
-    if (!$selectedChannel || !$authStore.user || isDisabled) return;
+    if (!$selectedChannel || !$authStore.publicKey || isDisabled) return;
 
     isLoading = true;
 
     try {
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      channelStore.requestJoin($selectedChannel.id, $authStore.user.pubkey);
+      channelStore.requestJoin($selectedChannel.id, $authStore.publicKey);
 
     } catch (error) {
       console.error('Failed to send join request:', error);
