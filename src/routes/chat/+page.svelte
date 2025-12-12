@@ -2,15 +2,13 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
-  import { channelStore, type Channel } from '$lib/stores/channels';
   import { authStore } from '$lib/stores/auth';
-  import { ndk } from '$lib/nostr/ndk';
-  import type { PageData } from './$types';
+  import { setSigner, connectNDK } from '$lib/nostr/ndk';
+  import { fetchChannels, type CreatedChannel } from '$lib/nostr/channels';
 
-  export let data: PageData;
-
-  let channels: Channel[] = [];
+  let channels: CreatedChannel[] = [];
   let loading = true;
+  let error: string | null = null;
 
   onMount(async () => {
     if (!$authStore.isAuthenticated || !$authStore.publicKey) {
@@ -19,11 +17,17 @@
     }
 
     try {
-      const ndkInstance = await ndk.getNDK();
-      const userCohorts: ('business' | 'moomaa-tribe')[] = ['business', 'moomaa-tribe'];
-      channels = await channelStore.fetchChannels(ndkInstance, $authStore.publicKey, userCohorts);
-    } catch (error) {
-      console.error('Failed to load channels:', error);
+      // Set up signer if we have a private key
+      if ($authStore.privateKey) {
+        setSigner($authStore.privateKey);
+      }
+
+      // Connect and fetch NIP-28 channels (kind 40)
+      await connectNDK();
+      channels = await fetchChannels();
+    } catch (e) {
+      console.error('Failed to load channels:', e);
+      error = e instanceof Error ? e.message : 'Failed to load channels';
     } finally {
       loading = false;
     }
@@ -52,6 +56,10 @@
     <div class="flex justify-center items-center min-h-[400px]">
       <div class="loading loading-spinner loading-lg text-primary"></div>
     </div>
+  {:else if error}
+    <div class="alert alert-error">
+      <span>{error}</span>
+    </div>
   {:else if channels.length === 0}
     <div class="card bg-base-200">
       <div class="card-body items-center text-center">
@@ -67,17 +75,9 @@
         >
           <div class="card-body">
             <div class="flex items-start gap-3">
-              {#if channel.picture}
-                <img
-                  src={channel.picture}
-                  alt={channel.name}
-                  class="w-12 h-12 rounded-lg object-cover"
-                />
-              {:else}
-                <div class="w-12 h-12 rounded-lg bg-primary flex items-center justify-center text-primary-content font-bold text-xl">
-                  {channel.name.charAt(0).toUpperCase()}
-                </div>
-              {/if}
+              <div class="w-12 h-12 rounded-lg bg-primary flex items-center justify-center text-primary-content font-bold text-xl">
+                {channel.name.charAt(0).toUpperCase()}
+              </div>
 
               <div class="flex-1 min-w-0">
                 <h3 class="card-title text-lg mb-1">{channel.name}</h3>
@@ -87,10 +87,10 @@
                   </p>
                 {/if}
                 <div class="flex items-center gap-3 mt-2 text-xs text-base-content/60">
-                  <span>{channel.memberCount} members</span>
+                  <span class="badge badge-sm badge-ghost">{channel.visibility}</span>
                   <span>•</span>
                   <span>{formatDate(channel.createdAt)}</span>
-                  {#if channel.isEncrypted}
+                  {#if channel.encrypted}
                     <span class="badge badge-sm badge-primary">Encrypted</span>
                   {/if}
                 </div>
