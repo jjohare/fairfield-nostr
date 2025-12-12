@@ -8,6 +8,8 @@ export interface AuthState {
   publicKey: string | null;
   privateKey: string | null;
   mnemonic: string | null;
+  nickname: string | null;
+  avatar: string | null;
   isPending: boolean;
   isAdmin: boolean;
   error: string | null;
@@ -18,6 +20,8 @@ const initialState: AuthState = {
   publicKey: null,
   privateKey: null,
   mnemonic: null,
+  nickname: null,
+  avatar: null,
   isPending: false,
   isAdmin: false,
   error: null
@@ -61,14 +65,34 @@ function createAuthStore() {
       };
 
       if (browser) {
+        // Preserve existing nickname/avatar if present
+        const existing = localStorage.getItem('fairfield_keys');
+        let existingData: { nickname?: string; avatar?: string } = {};
+        if (existing) {
+          try { existingData = JSON.parse(existing); } catch {}
+        }
         localStorage.setItem('fairfield_keys', JSON.stringify({
           publicKey,
           privateKey,
-          mnemonic: mnemonic || null
+          mnemonic: mnemonic || null,
+          nickname: existingData.nickname || null,
+          avatar: existingData.avatar || null
         }));
       }
 
       update(state => ({ ...state, ...authData }));
+    },
+    setProfile: (nickname: string | null, avatar: string | null) => {
+      if (browser) {
+        const stored = localStorage.getItem('fairfield_keys');
+        if (stored) {
+          const data = JSON.parse(stored);
+          data.nickname = nickname;
+          data.avatar = avatar;
+          localStorage.setItem('fairfield_keys', JSON.stringify(data));
+        }
+      }
+      update(state => ({ ...state, nickname, avatar }));
     },
     setPending: (isPending: boolean) => {
       update(state => ({ ...state, isPending }));
