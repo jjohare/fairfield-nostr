@@ -33,12 +33,12 @@
     }
   }
 
-  function handleLoginSuccess(event: CustomEvent<{ publicKey: string; privateKey: string }>) {
+  async function handleLoginSuccess(event: CustomEvent<{ publicKey: string; privateKey: string }>) {
     const { publicKey, privateKey } = event.detail;
 
     if (publicKey && privateKey) {
       tempKeys = { mnemonic: '', publicKey, privateKey };
-      authStore.setKeys(publicKey, privateKey);
+      await authStore.setKeys(publicKey, privateKey);
       saveKeysToStorage(publicKey, privateKey);
       currentStep = 'pending-approval';
     } else {
@@ -46,10 +46,12 @@
     }
   }
 
-  function handleKeyBackupContinue() {
+  async function handleKeyBackupContinue() {
     if (tempKeys) {
-      authStore.setKeys(tempKeys.publicKey, tempKeys.privateKey, tempKeys.mnemonic);
+      await authStore.setKeys(tempKeys.publicKey, tempKeys.privateKey, tempKeys.mnemonic);
       saveKeysToStorage(tempKeys.publicKey, tempKeys.privateKey);
+      // Confirm backup was shown to clear mnemonic from storage
+      authStore.confirmMnemonicBackup();
       authStore.setPending(true);
       currentStep = 'pending-approval';
     }

@@ -1,25 +1,16 @@
 {
-  "description": "Fairfield Nostr Pubkey Whitelist",
+  "description": "Minimoonoir Nostr Pubkey Whitelist",
   "version": "1.0.0",
-  "updated": "2024-12-11T00:00:00Z",
+  "updated": "2025-12-13T00:00:00Z",
   "admins": [
     {
-      "pubkey": "ADMIN_PUBKEY_HEX_HERE",
-      "name": "Fairfield Admin",
+      "pubkey": "dfb48cd608782306afe0a4482ef3500d435230628c1c94bac9f2e1b50e710e7e",
+      "name": "Primary Admin",
       "roles": ["super-admin"],
-      "added": "2024-12-11T00:00:00Z"
+      "added": "2025-12-13T00:00:00Z"
     }
   ],
-  "users": [
-    {
-      "pubkey": "USER_PUBKEY_HEX_HERE",
-      "name": "Example User",
-      "cohorts": ["moomaa-tribe"],
-      "status": "approved",
-      "added": "2024-12-11T00:00:00Z",
-      "approved_by": "ADMIN_PUBKEY_HEX_HERE"
-    }
-  ],
+  "users": [],
   "pending": [],
   "banned": []
 }
