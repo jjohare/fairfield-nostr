@@ -186,8 +186,8 @@ describe('Link Preview Utilities', () => {
 			expect(getMediaType('https://example.com/file.jpg').type).toBe('image');
 			// Video should be detected
 			expect(getMediaType('https://example.com/file.mp4').type).toBe('video');
-			// YouTube should be detected
-			expect(getMediaType('https://youtu.be/abc123').type).toBe('youtube');
+			// YouTube should be detected (requires 11-character ID)
+			expect(getMediaType('https://youtu.be/dQw4w9WgXcQ').type).toBe('youtube');
 		});
 	});
 });

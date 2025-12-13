@@ -2,6 +2,7 @@
   import { sortedConversations, dmStore } from '$lib/stores/dm';
   import { draftStore } from '$lib/stores/drafts';
   import DraftIndicator from '../chat/DraftIndicator.svelte';
+  import UserDisplay from '$lib/components/user/UserDisplay.svelte';
   import type { DMConversation } from '$lib/stores/dm';
 
   let draftConversations: Set<string> = new Set();
@@ -37,18 +38,6 @@
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
-  /**
-   * Get avatar placeholder with initials
-   */
-  function getAvatarPlaceholder(name: string): string {
-    const initials = name
-      .split(' ')
-      .map(part => part[0])
-      .join('')
-      .substring(0, 2)
-      .toUpperCase();
-    return initials || name.substring(0, 2).toUpperCase();
-  }
 </script>
 
 <div class="flex flex-col h-full bg-base-100">
@@ -85,26 +74,27 @@
             class="w-full p-4 hover:bg-base-200 active:bg-base-300 transition-colors flex items-center gap-3 text-left"
             on:click={() => handleConversationClick(conversation)}
           >
-            <!-- Avatar -->
-            <div class="avatar placeholder">
-              <div class="w-12 h-12 rounded-full bg-primary text-primary-content">
-                {#if conversation.avatar}
-                  <img src={conversation.avatar} alt={conversation.name} />
-                {:else}
-                  <span class="text-sm font-semibold">
-                    {getAvatarPlaceholder(conversation.name)}
-                  </span>
-                {/if}
-              </div>
-            </div>
+            <!-- User Display -->
+            <UserDisplay
+              pubkey={conversation.pubkey}
+              showAvatar={true}
+              showName={false}
+              avatarSize="md"
+              clickable={false}
+            />
 
             <!-- Content -->
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-2 mb-1">
                 <div class="flex items-center gap-2 flex-1 min-w-0">
-                  <span class="font-semibold text-base-content truncate">
-                    {conversation.name}
-                  </span>
+                  <UserDisplay
+                    pubkey={conversation.pubkey}
+                    showAvatar={false}
+                    showName={true}
+                    showFullName={true}
+                    clickable={false}
+                    maxNameLength={25}
+                  />
                   {#if draftConversations.has(conversation.pubkey)}
                     {@const draftPreview = draftStore.getDraftPreview(conversation.pubkey)}
                     {#if draftPreview}

@@ -5,6 +5,7 @@
   import { draftStore } from '$lib/stores/drafts';
   import { notificationStore } from '$lib/stores/notifications';
   import { createMentionTags, extractMentionedPubkeys, formatPubkey } from '$lib/utils/mentions';
+  import { toast } from '$lib/stores/toast';
   import MentionAutocomplete from './MentionAutocomplete.svelte';
   import type { Message } from '$lib/types/channel';
   import type { UserProfile } from '$lib/stores/user';
@@ -201,7 +202,12 @@
     } catch (error) {
       console.error('Failed to send message:', error);
       messageText = content;
-      alert('Failed to send message. Please try again.');
+      toast.error('Failed to send message', 5000, {
+        label: 'Retry',
+        callback: async () => {
+          await sendMessage();
+        }
+      });
     } finally {
       isSending = false;
     }
@@ -297,7 +303,7 @@
   }
 </script>
 
-<div class="border-t border-base-300 bg-base-100 p-4 relative">
+<div class="border-t border-base-300 bg-base-100 p-4 relative message-input-container">
   <MentionAutocomplete
     bind:visible={showMentionAutocomplete}
     searchQuery={mentionQuery}
@@ -318,11 +324,11 @@
         placeholder={placeholder}
         disabled={!canSend || isSending}
         rows="1"
-        class="textarea textarea-bordered w-full resize-none min-h-[2.5rem] max-h-32 disabled:bg-base-200 disabled:text-base-content/50"
+        class="textarea textarea-bordered w-full resize-none min-h-[2.75rem] max-h-32 disabled:bg-base-200 disabled:text-base-content/50 mobile-input"
         style="overflow-y: auto;"
       ></textarea>
       <div class="text-xs text-base-content/60 mt-1 px-1 flex items-center gap-2">
-        <span>Press Enter to send, Shift+Enter for new line</span>
+        <span class="hidden sm:inline">Press Enter to send, Shift+Enter for new line</span>
         {#if hasDraft && messageText.trim()}
           <span class="badge badge-xs badge-warning gap-1">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
@@ -335,7 +341,7 @@
     </div>
 
     <button
-      class="btn btn-primary btn-square"
+      class="btn btn-primary btn-square min-h-11 min-w-11"
       on:click={sendMessage}
       disabled={!messageText.trim() || !canSend || isSending}
       aria-label="Send message"
@@ -357,3 +363,27 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .message-input-container {
+    position: relative;
+  }
+
+  /* iOS keyboard handling */
+  @supports (-webkit-touch-callout: none) {
+    .message-input-container {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
+
+  /* Prevent iOS zoom on input focus - 16px minimum */
+  .mobile-input {
+    font-size: 16px;
+  }
+
+  @media (min-width: 640px) {
+    .mobile-input {
+      font-size: 0.875rem;
+    }
+  }
+</style>

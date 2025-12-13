@@ -6,21 +6,82 @@
 	body {
 		@apply bg-base-100 text-base-content;
 		font-feature-settings: 'rlig' 1, 'calt' 1;
+		-webkit-tap-highlight-color: transparent;
+		-webkit-overflow-scrolling: touch;
+		overscroll-behavior: none;
 	}
 
 	html {
 		scroll-behavior: smooth;
 	}
+
+	/* Prevent iOS zoom on input focus */
+	input,
+	textarea,
+	select {
+		font-size: 16px;
+	}
+
+	@media (min-width: 640px) {
+		input,
+		textarea,
+		select {
+			font-size: 0.875rem;
+		}
+	}
 }
 
 @layer components {
+	/* ========================================
+	   DESIGN SYSTEM - BUTTONS
+	   ======================================== */
+
+	/* Button variants - use these for consistent styling */
 	.btn-icon {
 		@apply btn btn-circle btn-ghost;
 	}
 
+	/* Ensure minimum touch target sizes (44x44px) for mobile accessibility */
+	.btn {
+		min-height: 2.75rem;
+	}
+
+	.btn-sm {
+		min-height: 2rem;
+		font-size: 0.875rem;
+	}
+
+	.btn-lg {
+		min-height: 3.5rem;
+		font-size: 1.125rem;
+	}
+
+	.btn-xs {
+		min-height: 1.75rem;
+		font-size: 0.75rem;
+	}
+
+	.btn-square {
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+	}
+
+	.btn-circle {
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+	}
+
+	/* ========================================
+	   DESIGN SYSTEM - CARDS & CONTAINERS
+	   ======================================== */
+
 	.card-elevated {
 		@apply card bg-base-200 shadow-xl;
 	}
+
+	/* ========================================
+	   DESIGN SYSTEM - FORMS
+	   ======================================== */
 
 	.input-primary {
 		@apply input input-bordered w-full;
@@ -29,6 +90,33 @@
 	.textarea-primary {
 		@apply textarea textarea-bordered w-full;
 	}
+
+	/* Touch-friendly inputs */
+	.input,
+	.textarea,
+	.select {
+		min-height: 2.75rem;
+	}
+
+	/* ========================================
+	   DESIGN SYSTEM - ACCESSIBILITY
+	   ======================================== */
+
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border-width: 0;
+	}
+
+	/* ========================================
+	   DESIGN SYSTEM - SCROLLBARS
+	   ======================================== */
 
 	.scrollbar-thin {
 		scrollbar-width: thin;
@@ -52,6 +140,10 @@
 		@apply bg-base-content/20;
 	}
 
+	/* ========================================
+	   DESIGN SYSTEM - CHAT COMPONENTS
+	   ======================================== */
+
 	.message-bubble {
 		@apply px-4 py-2 rounded-2xl max-w-md break-words;
 	}
@@ -70,10 +162,18 @@
 		max-height: 10rem;
 	}
 
+	/* ========================================
+	   DESIGN SYSTEM - AVATARS
+	   ======================================== */
+
 	.avatar-online::after {
 		content: '';
 		@apply absolute bottom-0 right-0 w-3 h-3 bg-success rounded-full border-2 border-base-100;
 	}
+
+	/* ========================================
+	   DESIGN SYSTEM - LOADING STATES
+	   ======================================== */
 
 	.skeleton-pulse {
 		@apply animate-pulse bg-base-300 rounded;
@@ -102,5 +202,40 @@
 		background-clip: text;
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
+	}
+
+	/* Safe area support for iOS notch */
+	@supports (padding: max(0px)) {
+		.safe-top {
+			padding-top: max(1rem, env(safe-area-inset-top));
+		}
+
+		.safe-bottom {
+			padding-bottom: max(1rem, env(safe-area-inset-bottom));
+		}
+
+		.safe-left {
+			padding-left: max(1rem, env(safe-area-inset-left));
+		}
+
+		.safe-right {
+			padding-right: max(1rem, env(safe-area-inset-right));
+		}
+	}
+
+	/* Better mobile scrolling */
+	.mobile-scroll {
+		-webkit-overflow-scrolling: touch;
+		overscroll-behavior: contain;
+	}
+
+	/* Hide scrollbar but keep functionality */
+	.hide-scrollbar {
+		-ms-overflow-style: none;
+		scrollbar-width: none;
+	}
+
+	.hide-scrollbar::-webkit-scrollbar {
+		display: none;
 	}
 }

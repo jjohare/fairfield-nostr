@@ -2,6 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import { restoreFromMnemonic, restoreFromNsecOrHex } from '$lib/nostr/keys';
   import { authStore } from '$lib/stores/auth';
+  import InfoTooltip from '$lib/components/ui/InfoTooltip.svelte';
 
   const dispatch = createEventDispatcher<{ success: { publicKey: string; privateKey: string } }>();
 
@@ -76,7 +77,14 @@
 <div class="flex flex-col items-center justify-center min-h-screen p-4 bg-base-200">
   <div class="card w-full max-w-2xl bg-base-100 shadow-xl">
     <div class="card-body">
-      <h2 class="card-title text-2xl justify-center mb-4">Restore Your Account</h2>
+      <div class="flex items-center justify-center gap-2 mb-4">
+        <h2 class="card-title text-2xl">Restore Your Account</h2>
+        <InfoTooltip
+          text="Restore your Nostr identity using your recovery phrase or private key (nsec). Your keys are never sent to any server - everything happens locally in your browser."
+          position="bottom"
+          maxWidth="400px"
+        />
+      </div>
 
       <div class="alert alert-info mb-4">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
@@ -101,11 +109,17 @@
           Enter Words
         </button>
         <button
-          class="tab flex-1"
+          class="tab flex-1 gap-1"
           class:tab-active={inputMode === 'privatekey'}
           on:click={() => switchMode('privatekey')}
         >
           Private Key
+          <InfoTooltip
+            text="Your private key (nsec) is the secret credential that proves you own your account. It starts with 'nsec1' or can be 64 hex characters. NEVER share this with anyone."
+            position="top"
+            maxWidth="350px"
+            inline={true}
+          />
         </button>
       </div>
 

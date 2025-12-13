@@ -1,6 +1,7 @@
 <script lang="ts">
   import { channelStore, selectedChannel, userMemberStatus } from '$lib/stores/channelStore';
   import { authStore } from '$lib/stores/auth';
+  import { toast } from '$lib/stores/toast';
 
   let isLoading = false;
 
@@ -65,10 +66,16 @@
       await new Promise(resolve => setTimeout(resolve, 500));
 
       channelStore.requestJoin($selectedChannel.id, $authStore.publicKey);
+      toast.success('Join request sent successfully');
 
     } catch (error) {
       console.error('Failed to send join request:', error);
-      alert('Failed to send join request. Please try again.');
+      toast.error('Failed to send join request', 5000, {
+        label: 'Retry',
+        callback: async () => {
+          await handleJoinRequest();
+        }
+      });
     } finally {
       isLoading = false;
     }

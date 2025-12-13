@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import { getMessageReactions, reactionStore } from '$lib/stores/reactions';
   import { authStore } from '$lib/stores/auth';
   import { getReactionEmoji } from '$lib/nostr/reactions';
+  import { profileCache } from '$lib/stores/profiles';
 
   export let messageId: string;
   export let relayUrl: string = '';
@@ -43,7 +44,8 @@
       if (pubkey === currentUserPubkey) {
         return 'You';
       }
-      return pubkey.slice(0, 8) + '...' + pubkey.slice(-4);
+      const cached = profileCache.getCachedSync(pubkey);
+      return cached?.displayName || `${pubkey.slice(0, 8)}...${pubkey.slice(-4)}`;
     });
 
     if (names.length === 0) return '';
@@ -52,6 +54,17 @@
 
     return `${names[0]}, ${names[1]} and ${names.length - 2} other${names.length - 2 > 1 ? 's' : ''}`;
   }
+
+  // Prefetch profiles for reactors
+  onMount(() => {
+    const allReactors = Array.from($reactions.reactions.values())
+      .flatMap(r => r.reactors)
+      .filter(pubkey => pubkey !== $authStore.publicKey);
+
+    if (allReactors.length > 0) {
+      profileCache.prefetchProfiles(allReactors);
+    }
+  });
 </script>
 
 {#if $reactions.totalCount > 0}

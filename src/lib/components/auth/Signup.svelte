@@ -2,6 +2,8 @@
   import { createEventDispatcher } from 'svelte';
   import { generateNewIdentity } from '$lib/nostr/keys';
   import { authStore } from '$lib/stores/auth';
+  import InfoTooltip from '$lib/components/ui/InfoTooltip.svelte';
+  import WelcomeModal from '$lib/components/ui/WelcomeModal.svelte';
 
   const dispatch = createEventDispatcher<{ next: { mnemonic: string; publicKey: string; privateKey: string } }>();
 
@@ -24,6 +26,8 @@
   }
 </script>
 
+<WelcomeModal />
+
 <div class="flex flex-col items-center justify-center min-h-screen p-4 bg-base-200">
   <div class="card w-full max-w-md bg-base-100 shadow-xl">
     <div class="card-body">
@@ -33,7 +37,13 @@
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
         </svg>
-        <span class="text-sm">You'll receive a 12-word recovery phrase. Keep it safe!</span>
+        <div class="flex items-center gap-2">
+          <span class="text-sm">You'll receive a 12-word recovery phrase. Keep it safe!</span>
+          <InfoTooltip
+            text="A recovery phrase (also called a mnemonic or seed phrase) is a set of words that can restore your account. It's derived from your private key and provides a human-friendly backup method."
+            position="top"
+          />
+        </div>
       </div>
 
       {#if $authStore.error}

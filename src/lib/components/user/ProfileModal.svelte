@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import MuteButton from '$lib/components/chat/MuteButton.svelte';
   import { nip19 } from 'nostr-tools';
   import { getAvatarUrl } from '$lib/utils/identicon';
@@ -13,13 +13,29 @@
 
   const dispatch = createEventDispatcher<{ close: void; startDM: { pubkey: string } }>();
 
+  let previousFocusElement: HTMLElement | null = null;
+
   $: npub = nip19.npubEncode(pubkey);
   $: displayName = name || `${pubkey.slice(0, 8)}...${pubkey.slice(-4)}`;
   $: avatarUrl = avatar || getAvatarUrl(pubkey, 80);
 
+  $: if (show && typeof window !== 'undefined') {
+    previousFocusElement = document.activeElement as HTMLElement;
+    setTimeout(() => {
+      const firstButton = document.querySelector('.modal.modal-open button') as HTMLElement;
+      if (firstButton) {
+        firstButton.focus();
+      }
+    }, 0);
+  }
+
   function handleClose() {
     show = false;
     dispatch('close');
+    if (previousFocusElement) {
+      previousFocusElement.focus();
+      previousFocusElement = null;
+    }
   }
 
   function handleStartDM() {
@@ -30,16 +46,42 @@
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text);
   }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      handleClose();
+    }
+
+    if (e.key === 'Tab') {
+      const modal = document.querySelector('.modal.modal-open');
+      if (!modal) return;
+
+      const focusableElements = modal.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey && document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      } else if (!e.shiftKey && document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    }
+  }
 </script>
 
 {#if show}
-  <div class="modal modal-open">
+  <div class="modal modal-open" on:keydown={handleKeydown} role="dialog" aria-modal="true" aria-labelledby="user-profile-modal-title">
     <div class="modal-box max-w-2xl">
       <button
         class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
         on:click={handleClose}
+        aria-label="Close user profile"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
         </svg>
       </button>
@@ -51,7 +93,7 @@
           </div>
         </div>
 
-        <h2 class="text-2xl font-bold mb-1">{displayName}</h2>
+        <h2 id="user-profile-modal-title" class="text-2xl font-bold mb-1">{displayName}</h2>
 
         {#if nip05}
           <div class="badge badge-success gap-2 mb-3">
@@ -84,7 +126,7 @@
 
         <div class="flex flex-wrap gap-2 justify-center">
           <button class="btn btn-primary" on:click={handleStartDM}>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
               <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
             </svg>
@@ -95,7 +137,7 @@
         </div>
       </div>
     </div>
-    <div class="modal-backdrop" on:click={handleClose}></div>
+    <div class="modal-backdrop" on:click={handleClose} aria-hidden="true"></div>
   </div>
 {/if}
 

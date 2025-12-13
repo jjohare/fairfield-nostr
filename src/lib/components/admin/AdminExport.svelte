@@ -2,6 +2,7 @@
   import { db, type DBMessage, type DBChannel } from '$lib/db';
   import ExportModal from '../chat/ExportModal.svelte';
   import { downloadFile, generateTimestampedFilename } from '$lib/utils/download';
+  import { toast } from '$lib/stores/toast';
 
   let showExportModal = false;
   let isExporting = false;
@@ -51,9 +52,15 @@
       const content = JSON.stringify(backup, null, 2);
       const filename = generateTimestampedFilename('fairfield-database-backup', 'json');
       downloadFile(content, filename, 'application/json');
+      toast.success('Database backup completed successfully');
     } catch (error) {
       console.error('Database backup failed:', error);
-      alert('Database backup failed. Please try again.');
+      toast.error('Database backup failed', 5000, {
+        label: 'Retry',
+        callback: async () => {
+          await handleDatabaseBackup();
+        }
+      });
     } finally {
       isExporting = false;
     }

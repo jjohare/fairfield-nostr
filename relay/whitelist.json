@@ -1,13 +1,22 @@
 {
-  "description": "Minimoonoir Nostr Pubkey Whitelist",
+  "description": "Minimoonoir Nostr Pubkey Whitelist - Source of Truth for Admin Configuration",
   "version": "1.0.0",
   "updated": "2025-12-13T00:00:00Z",
+  "_comment": "⚠️ SECURITY WARNING: Replace the placeholder admin pubkey below with your actual admin public key(s) before deployment!",
+  "_instructions": [
+    "1. Generate a new key pair: npx nostr-tools-cli generate",
+    "2. Convert your npub to hex: npx nostr-tools-cli decode npub1...",
+    "3. Replace the placeholder pubkey below with your actual admin public key",
+    "4. Update VITE_ADMIN_PUBKEY in .env with the same value(s)",
+    "5. NEVER commit real admin keys to version control!"
+  ],
   "admins": [
     {
-      "pubkey": "dfb48cd608782306afe0a4482ef3500d435230628c1c94bac9f2e1b50e710e7e",
-      "name": "Primary Admin",
+      "pubkey": "0000000000000000000000000000000000000000000000000000000000000000",
+      "name": "⚠️ PLACEHOLDER - MUST BE REPLACED",
       "roles": ["super-admin"],
-      "added": "2025-12-13T00:00:00Z"
+      "added": "2025-12-13T00:00:00Z",
+      "_warning": "This is a placeholder key. Replace with your actual admin public key before deployment!"
     }
   ],
   "users": [],

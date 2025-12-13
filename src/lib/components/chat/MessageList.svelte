@@ -109,6 +109,9 @@
   class="flex-1 overflow-y-auto p-4 space-y-4 bg-base-100"
   bind:this={messagesContainer}
   on:scroll={handleScroll}
+  role="log"
+  aria-live="polite"
+  aria-label="Chat messages"
 >
   {#if isLoadingMore}
     <div class="flex justify-center py-2">

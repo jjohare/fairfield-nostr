@@ -13,6 +13,7 @@ const STORAGE_KEY = 'minimoonoir-settings';
  * Get the private relay URL based on current browser location
  */
 function getPrivateRelayUrl(): string {
+  // SSR fallback only - browser environments use dynamic host detection
   if (!browser) return 'ws://localhost:3000/relay';
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';

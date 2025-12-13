@@ -6,6 +6,16 @@ import { join } from 'path';
 const KIND_ADD_USER = 9000;
 const KIND_REMOVE_USER = 9001;
 
+/**
+ * Whitelist structure - relay/whitelist.json is the source of truth
+ *
+ * The whitelist.json file controls:
+ * - Admin permissions (super-admin, moderator, etc.)
+ * - User access (approved, pending, banned)
+ *
+ * Client-side admin status (VITE_ADMIN_PUBKEY) should match the admins array
+ * in whitelist.json for consistency.
+ */
 interface Whitelist {
   admins: { pubkey: string; name?: string; roles?: string[] }[];
   users: { pubkey: string; status: 'approved' | 'pending' | 'banned'; added?: string }[];
@@ -142,5 +152,24 @@ export class WhitelistSync {
 
   private async writeWhitelist(whitelist: Whitelist): Promise<void> {
     await writeFile(this.whitelistPath, JSON.stringify(whitelist, null, 2));
+  }
+
+  /**
+   * Get list of admin public keys from whitelist
+   * @returns Array of admin pubkeys
+   */
+  async getAdminPubkeys(): Promise<string[]> {
+    const whitelist = await this.readWhitelist();
+    return whitelist.admins.map(admin => admin.pubkey);
+  }
+
+  /**
+   * Check if a pubkey is an admin
+   * @param pubkey Public key to check
+   * @returns true if the pubkey is in the admins list
+   */
+  async isAdmin(pubkey: string): Promise<boolean> {
+    const adminPubkeys = await this.getAdminPubkeys();
+    return adminPubkeys.includes(pubkey);
   }
 }

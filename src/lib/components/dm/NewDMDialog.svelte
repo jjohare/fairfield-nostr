@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { dmStore, sortedConversations } from '$lib/stores/dm';
+  import { toast } from '$lib/stores/toast';
 
   /**
    * Whether dialog is open
@@ -34,12 +35,13 @@
     if (!pubkey) return;
 
     if (!/^[0-9a-f]{64}$/i.test(pubkey)) {
-      alert('Invalid public key format. Must be 64 hex characters.');
+      toast.error('Invalid public key format. Must be 64 hex characters.');
       return;
     }
 
     dmStore.startConversation(pubkey, customName || undefined);
     dispatch('start', { pubkey, name: customName || undefined });
+    toast.success('Conversation started');
     handleClose();
   }
 
