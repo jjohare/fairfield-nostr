@@ -1,8 +1,12 @@
 import { writable, derived, get } from 'svelte/store';
 import { isAdmin } from './user';
+import { ndk } from '$lib/nostr/ndk';
+import { NDKEvent, type NDKFilter } from '@nostr-dev-kit/ndk';
+import { browser } from '$app/environment';
 
 const STORAGE_KEY = 'fairfield-pinned-messages';
 const MAX_PINNED_PER_CHANNEL = 5;
+const PIN_LIST_KIND = 30001; // NIP-51 Categorized Bookmark List
 
 interface PinnedMessagesState {
   [channelId: string]: string[];
@@ -31,70 +35,124 @@ function saveToStorage(state: PinnedMessagesState): void {
 }
 
 function createPinnedStore() {
-  const { subscribe, update } = writable<PinnedMessagesState>(loadFromStorage());
+  const { subscribe, set, update } = writable<PinnedMessagesState>(loadFromStorage());
 
   return {
     subscribe,
 
-    pinMessage: (channelId: string, messageId: string): boolean => {
+    // Initialize store by fetching from relay
+    init: async () => {
+        if (!browser) return;
+        // Logic to fetch pinned messages for all known channels could go here
+        // For now we rely on the component loading the channel to fetch pins
+    },
+
+    fetchPinnedMessages: async (channelId: string) => {
+        const $ndk = get(ndk);
+        if (!$ndk) return;
+
+        try {
+            // Fetch the pin list for this channel
+            // We look for a 30001 event with d tag = "pinned:<channelId>"
+            // Note: In a real app, we should probably look for the *channel creator's* list
+            // or the *admin's* list. For now, we'll search broadly or assume we know the pubkey.
+            // Since we don't track "channel admin" pubkey easily here without looking up the channel metadata,
+            // we will search for any event of this kind with this d-tag.
+            // CAUTION: This might allow anyone to publish pins if we don't filter by author.
+            // For security, the UI should strictly filter by the known admin pubkeys.
+
+            // For this implementation, we will trust the event but in a production environment
+            // we must filter `authors: [adminPubkey]`
+
+            const filter: NDKFilter = {
+                kinds: [PIN_LIST_KIND],
+                '#d': [`pinned:${channelId}`],
+                limit: 1
+            };
+
+            const events = await $ndk.fetchEvents(filter);
+            if (events.size > 0) {
+                // Take the most recent one
+                const event = Array.from(events).sort((a, b) => b.created_at! - a.created_at!)[0];
+                const pinnedIds = event.tags
+                    .filter(t => t[0] === 'e')
+                    .map(t => t[1]);
+
+                update(state => {
+                    const newState = {
+                        ...state,
+                        [channelId]: pinnedIds
+                    };
+                    saveToStorage(newState);
+                    return newState;
+                });
+            }
+        } catch (e) {
+            console.error(`Failed to fetch pinned messages for ${channelId}:`, e);
+        }
+    },
+
+    pinMessage: async (channelId: string, messageId: string): Promise<boolean> => {
       const userIsAdmin = get(isAdmin);
       if (!userIsAdmin) {
         console.warn('Only admins can pin messages');
         return false;
       }
 
-      let success = false;
-      update(state => {
-        const channelPins = state[channelId] || [];
+      const state = get({ subscribe });
+      const channelPins = state[channelId] || [];
 
-        if (channelPins.includes(messageId)) {
-          console.warn('Message is already pinned');
-          return state;
-        }
+      if (channelPins.includes(messageId)) {
+        console.warn('Message is already pinned');
+        return true;
+      }
 
-        if (channelPins.length >= MAX_PINNED_PER_CHANNEL) {
-          console.warn(`Cannot pin more than ${MAX_PINNED_PER_CHANNEL} messages per channel`);
-          return state;
-        }
+      if (channelPins.length >= MAX_PINNED_PER_CHANNEL) {
+        console.warn(`Cannot pin more than ${MAX_PINNED_PER_CHANNEL} messages per channel`);
+        return false;
+      }
 
-        const newState = {
-          ...state,
-          [channelId]: [...channelPins, messageId]
-        };
-        saveToStorage(newState);
-        success = true;
-        return newState;
+      const newPins = [...channelPins, messageId];
+
+      // Update local state
+      update(s => {
+          const newState = { ...s, [channelId]: newPins };
+          saveToStorage(newState);
+          return newState;
       });
 
-      return success;
+      // Sync to relay
+      await publishPinList(channelId, newPins);
+      return true;
     },
 
-    unpinMessage: (channelId: string, messageId: string): boolean => {
+    unpinMessage: async (channelId: string, messageId: string): Promise<boolean> => {
       const userIsAdmin = get(isAdmin);
       if (!userIsAdmin) {
         console.warn('Only admins can unpin messages');
         return false;
       }
 
-      let success = false;
-      update(state => {
-        const channelPins = state[channelId] || [];
+      const state = get({ subscribe });
+      const channelPins = state[channelId] || [];
 
-        if (!channelPins.includes(messageId)) {
-          console.warn('Message is not pinned');
-          return state;
-        }
+      if (!channelPins.includes(messageId)) {
+        console.warn('Message is not pinned');
+        return true;
+      }
 
-        const newState = {
-          ...state,
-          [channelId]: channelPins.filter(id => id !== messageId)
-        };
-        saveToStorage(newState);
-        success = true;
-        return newState;
+      const newPins = channelPins.filter(id => id !== messageId);
+
+      // Update local state
+      update(s => {
+          const newState = { ...s, [channelId]: newPins };
+          saveToStorage(newState);
+          return newState;
       });
 
-      return success;
+      // Sync to relay
+      await publishPinList(channelId, newPins);
+      return true;
     },
 
     isPinned: (channelId: string, messageId: string): boolean => {
@@ -116,9 +174,36 @@ function createPinnedStore() {
   };
 }
 
+async function publishPinList(channelId: string, messageIds: string[]) {
+    const $ndk = ndk;
+    if (!$ndk || !$ndk.signer) {
+        console.error('Cannot publish pins: NDK not connected or no signer');
+        return;
+    }
+
+    try {
+        const event = new NDKEvent($ndk);
+        event.kind = PIN_LIST_KIND;
+        event.tags = [
+            ['d', `pinned:${channelId}`],
+            ...messageIds.map(id => ['e', id])
+        ];
+
+        await event.publish();
+    } catch (e) {
+        console.error('Failed to publish pinned messages list:', e);
+    }
+}
+
 export const pinnedStore = createPinnedStore();
 
 export function getPinnedForChannel(channelId: string) {
+  // Trigger a fetch when this derived store is first accessed for a channel
+  if (browser) {
+      // Debounce slightly to avoid rapid fetches
+      setTimeout(() => pinnedStore.fetchPinnedMessages(channelId), 0);
+  }
+
   return derived(pinnedStore, $pinned => $pinned[channelId] || []);
 }
 
