@@ -1,30 +1,28 @@
-# Dockerfile for Fairfield Nostr PWA
-# Multi-stage build for optimized production image
+# Dockerfile for Minimoonoir PWA
+# Builds static PWA and serves via nginx
+# Note: For full stack with relay, use docker-compose.yml
 
 # ===========================================
-# Stage 1: Build
+# Stage 1: Build PWA
 # ===========================================
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies first (for caching)
 COPY package*.json ./
-RUN npm ci
+RUN npm install --frozen-lockfile || npm install
 
-# Copy source files
 COPY . .
 
-# Build the application
 ENV NODE_ENV=production
 RUN npm run build
 
 # ===========================================
-# Stage 2: Production
+# Stage 2: Production (PWA only)
 # ===========================================
 FROM nginx:alpine AS production
 
-# Copy built files to nginx
+# Copy built PWA files
 COPY --from=builder /app/build /usr/share/nginx/html
 
 # Copy nginx configuration

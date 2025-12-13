@@ -1,0 +1,32 @@
+services:
+  # Nginx reverse proxy - unified entry point
+  nginx:
+    image: nginx:alpine
+    container_name: minimoonoir
+    ports:
+      - "3000:80"
+    volumes:
+      - ./build:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - relay
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Strfry Nostr Relay (internal only)
+  relay:
+    image: dockurr/strfry:latest
+    container_name: minimoonoir-relay
+    expose:
+      - "7777"
+    volumes:
+      - ./relay/strfry-dev.conf:/etc/strfry.conf:ro
+      - strfry-data:/app/strfry-db
+    restart: unless-stopped
+
+volumes:
+  strfry-data:
