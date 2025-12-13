@@ -5,6 +5,7 @@
 
 import { ndk, connectNDK } from './ndk';
 import { NDKEvent, type NDKFilter } from '@nostr-dev-kit/ndk';
+import { createChannel } from './channels';
 
 // Calendar event kind (NIP-52 time-based calendar event)
 export const CALENDAR_EVENT_KIND = 31923;
@@ -18,7 +19,8 @@ export interface CalendarEvent {
   start: number; // Unix timestamp
   end: number; // Unix timestamp
   location?: string;
-  channelId: string; // For cohort-based access
+  channelId: string; // For cohort-based access (parent channel)
+  chatRoomId?: string; // Linked chatroom for event-specific discussion
   createdBy: string;
   maxAttendees?: number;
   tags?: string[];
@@ -40,6 +42,7 @@ export interface CreateEventParams {
   channelId: string;
   maxAttendees?: number;
   tags?: string[];
+  createChatRoom?: boolean; // If true, creates a linked chatroom for this event
 }
 
 /**
@@ -67,6 +70,25 @@ export async function createCalendarEvent(
   await connectNDK();
 
   try {
+    let chatRoomId: string | undefined;
+
+    // Create linked chatroom if requested
+    if (params.createChatRoom) {
+      try {
+        const chatRoom = await createChannel({
+          name: `${event.title} - Chat`,
+          description: `Discussion room for event: ${event.title}`,
+          visibility: 'cohort',
+          cohorts: [event.channelId], // Link to parent channel for access control
+        });
+        chatRoomId = chatRoom.id;
+        console.log('Created linked chatroom:', chatRoomId);
+      } catch (chatError) {
+        console.error('Failed to create linked chatroom:', chatError);
+        // Continue without chatroom - event can still be created
+      }
+    }
+
     const ndkEvent = new NDKEvent(ndk);
     ndkEvent.kind = CALENDAR_EVENT_KIND;
 
@@ -76,6 +98,7 @@ export async function createCalendarEvent(
       description: event.description,
       location: event.location,
       maxAttendees: event.maxAttendees,
+      chatRoomId, // Include chatroom ID in content
     });
 
     ndkEvent.content = content;
@@ -88,6 +111,11 @@ export async function createCalendarEvent(
       ['end', event.end.toString()],
       ['e', event.channelId, '', 'channel'], // Link to channel for cohort gating
     ];
+
+    // Add chatroom link tag if created
+    if (chatRoomId) {
+      ndkEvent.tags.push(['e', chatRoomId, '', 'chatroom']);
+    }
 
     if (event.location) {
       ndkEvent.tags.push(['location', event.location]);
@@ -108,6 +136,7 @@ export async function createCalendarEvent(
       end: event.end,
       location: event.location,
       channelId: event.channelId,
+      chatRoomId,
       createdBy: ndkEvent.pubkey,
       maxAttendees: event.maxAttendees,
       tags: event.tags,
@@ -311,16 +340,20 @@ function parseCalendarEvent(event: NDKEvent): CalendarEvent | null {
     const endTag = event.tags.find((t) => t[0] === 'end');
     const channelTag = event.tags.find((t) => t[0] === 'e' && t[3] === 'channel');
     const locationTag = event.tags.find((t) => t[0] === 'location');
+    const chatRoomTag = event.tags.find((t) => t[0] === 'e' && t[3] === 'chatroom');
 
     if (!nameTag || !startTag) return null;
 
-    let parsedContent: { description?: string; maxAttendees?: number } = {};
+    let parsedContent: { description?: string; maxAttendees?: number; chatRoomId?: string } = {};
     try {
       parsedContent = JSON.parse(event.content);
     } catch {
       // Content might not be JSON
       parsedContent = { description: event.content };
     }
+
+    // Get chatRoomId from tag first, fall back to content
+    const chatRoomId = chatRoomTag?.[1] || parsedContent.chatRoomId;
 
     return {
       id: event.id,
@@ -330,6 +363,7 @@ function parseCalendarEvent(event: NDKEvent): CalendarEvent | null {
       end: endTag ? parseInt(endTag[1], 10) : parseInt(startTag[1], 10),
       location: locationTag?.[1],
       channelId: channelTag?.[1] || '',
+      chatRoomId,
       createdBy: event.pubkey,
       maxAttendees: parsedContent.maxAttendees,
       tags: event.tags.filter((t) => t[0] === 't').map((t) => t[1]),

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
   import { rsvpToEvent, type CalendarEvent } from '$lib/nostr/calendar';
   import { authStore } from '$lib/stores/auth';
 
@@ -11,6 +13,13 @@
 
   let isRsvping = false;
   let userRsvp: 'accept' | 'decline' | 'tentative' | null = null;
+
+  function handleJoinChat(e: MouseEvent) {
+    e.stopPropagation();
+    if (event.chatRoomId) {
+      goto(`${base}/chat/${event.chatRoomId}`);
+    }
+  }
 
   function formatDate(timestamp: number): string {
     const date = new Date(timestamp * 1000);
@@ -163,6 +172,30 @@
               <span class="badge badge-outline badge-sm">
                 Max: {event.maxAttendees}
               </span>
+            {/if}
+
+            {#if event.chatRoomId}
+              <button
+                class="btn btn-xs btn-primary gap-1"
+                on:click={handleJoinChat}
+                title="Join event chatroom"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-3 w-3"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                  />
+                </svg>
+                Chat
+              </button>
             {/if}
           </div>
         {/if}
