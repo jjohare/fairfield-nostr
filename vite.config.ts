@@ -2,11 +2,8 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
 
-// PWA plugin config - DISABLED during production build due to @noble/hashes version conflict
-// The vite-plugin-pwa/workbox has internal dependencies expecting @noble/hashes v2.x paths
-// which conflict with NDK's requirement for v1.8.0
-const isProd = process.env.NODE_ENV === 'production';
-const pwaPlugin = isProd ? [] : [
+// PWA plugin config
+const pwaPlugin = [
 	VitePWA({
 		strategies: 'injectManifest',
 		srcDir: 'src',
@@ -47,6 +44,12 @@ export default defineConfig({
 			external: []
 		}
 	},
+		  resolve: {
+		      alias: {
+		          // Force resolution to the version installed in root node_modules
+		          '@noble/hashes': new URL('./node_modules/@noble/hashes', import.meta.url).pathname
+		      }
+		  },
 	ssr: {
 		// Force bundling of crypto packages to avoid version conflicts
 		noExternal: [

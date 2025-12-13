@@ -7,6 +7,9 @@
     "@noble/hashes": "1.8.0",
     "@noble/curves": "1.8.1"
   },
+  "resolutions": {
+    "@noble/hashes": "1.8.0"
+  },
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",

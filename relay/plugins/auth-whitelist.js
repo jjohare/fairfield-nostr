@@ -106,7 +106,11 @@ function processEvent(request) {
   if (REQUIRE_AUTH) {
     // sourceInfo contains auth info when available
     if (sourceInfo && sourceInfo.authedPubkey === event.pubkey) {
-      return { id: event.id, action: 'accept', msg: '' };
+      // CRITICAL FIX: Check if the authenticated user is actually in the whitelist
+      if (isWhitelisted(sourceInfo.authedPubkey)) {
+        return { id: event.id, action: 'accept', msg: '' };
+      }
+      return { id: event.id, action: 'reject', msg: 'blocked: authenticated but not whitelisted' };
     }
 
     // Reject if not authenticated
