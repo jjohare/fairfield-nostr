@@ -15,6 +15,9 @@
 		isOnline,
 		queuedMessageCount
 	} from '$lib/stores/pwa';
+	import { initializeNotificationListeners } from '$lib/utils/notificationIntegration';
+	import { notificationStore } from '$lib/stores/notifications';
+	import { initSearch } from '$lib/init/searchInit';
 
 	let mounted = false;
 	let themePreference = 'dark';
@@ -88,6 +91,17 @@
 
 			// Initialize PWA
 			initializePWA();
+
+			// Initialize notification system
+			initializeNotificationListeners();
+
+			// Request notification permission if not already granted
+			if ('Notification' in window && Notification.permission === 'default') {
+				notificationStore.requestPermission();
+			}
+
+			// Initialize search index (async, don't block app startup)
+			initSearch();
 		}
 	});
 

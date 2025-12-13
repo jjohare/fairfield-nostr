@@ -1,0 +1,79 @@
+# =============================================================================
+# Fairfield Nostr - Docker Compose Deployment
+# =============================================================================
+# Single container with website + relay, designed for cloudflared tunnel
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # Main application: Website + Nostr Relay
+  fairfield:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fairfield-nostr
+    ports:
+      - "8080:80"  # Map to 8080 for cloudflared
+    volumes:
+      - strfry-data:/app/strfry-db
+      - ./relay/whitelist.json:/etc/strfry/whitelist.json:ro
+    environment:
+      - TZ=UTC
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - fairfield-network
+
+  # Optional: Cloudflared tunnel (uncomment to use)
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   container_name: fairfield-tunnel
+  #   command: tunnel --no-autoupdate run
+  #   environment:
+  #     - TUNNEL_TOKEN=${CLOUDFLARED_TOKEN}
+  #   depends_on:
+  #     fairfield:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   networks:
+  #     - fairfield-network
+
+volumes:
+  strfry-data:
+    driver: local
+
+networks:
+  fairfield-network:
+    driver: bridge
+
+# =============================================================================
+# Deployment Instructions:
+# =============================================================================
+#
+# 1. Build and start:
+#    docker-compose up -d --build
+#
+# 2. View logs:
+#    docker-compose logs -f
+#
+# 3. Access:
+#    - Website: http://localhost:8080
+#    - Relay:   ws://localhost:8080/relay
+#
+# 4. For cloudflared tunnel:
+#    - Create tunnel: cloudflared tunnel create fairfield
+#    - Configure tunnel to point to http://fairfield:80
+#    - Set CLOUDFLARED_TOKEN in .env
+#    - Uncomment cloudflared service above
+#
+# 5. Backup data:
+#    docker run --rm -v fairfield-nostr_strfry-data:/data \
+#      -v $(pwd)/backup:/backup alpine tar czf /backup/strfry-backup.tar.gz /data
+#
+# =============================================================================

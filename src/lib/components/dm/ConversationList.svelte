@@ -1,6 +1,16 @@
 <script lang="ts">
   import { sortedConversations, dmStore } from '$lib/stores/dm';
+  import { draftStore } from '$lib/stores/drafts';
+  import DraftIndicator from '../chat/DraftIndicator.svelte';
   import type { DMConversation } from '$lib/stores/dm';
+
+  let draftConversations: Set<string> = new Set();
+
+  // Update draft conversations whenever sorted conversations change
+  $: {
+    const channels = draftStore.getDraftChannels();
+    draftConversations = new Set(channels);
+  }
 
   /**
    * Handle conversation click
@@ -91,9 +101,17 @@
             <!-- Content -->
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-2 mb-1">
-                <span class="font-semibold text-base-content truncate">
-                  {conversation.name}
-                </span>
+                <div class="flex items-center gap-2 flex-1 min-w-0">
+                  <span class="font-semibold text-base-content truncate">
+                    {conversation.name}
+                  </span>
+                  {#if draftConversations.has(conversation.pubkey)}
+                    {@const draftPreview = draftStore.getDraftPreview(conversation.pubkey)}
+                    {#if draftPreview}
+                      <DraftIndicator draftPreview={draftPreview} tooltipPosition="right" />
+                    {/if}
+                  {/if}
+                </div>
                 {#if conversation.lastMessageTimestamp > 0}
                   <span class="text-xs text-base-content/60 flex-shrink-0">
                     {formatTimestamp(conversation.lastMessageTimestamp)}

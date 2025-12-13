@@ -24,6 +24,12 @@ coordination/orchestration/*
 claude-flow
 hive-mind-prompt-*.txt
 
+# Agentic QE
+.agentic-qe/memory.db
+.agentic-qe/patterns/
+.agentic-qe/metrics/
+.agentic-qe/learning-buffer.json
+
 # SvelteKit
 .DS_Store
 node_modules

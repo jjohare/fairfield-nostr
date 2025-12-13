@@ -12,7 +12,10 @@
     subscribeToChannel,
     type CreatedChannel
   } from '$lib/nostr/channels';
-  import { getAvatarUrl as getLocalAvatarUrl } from '$lib/utils/identicon';
+  import { getAvatarUrl } from '$lib/utils/identicon';
+  import { lastReadStore } from '$lib/stores/readPosition';
+  import PinnedMessages from '$lib/components/chat/PinnedMessages.svelte';
+  import ChannelStats from '$lib/components/forum/ChannelStats.svelte';
 
   $: channelId = $page.params.channelId;
 
@@ -37,6 +40,9 @@
   let typingTimeout: ReturnType<typeof setTimeout> | null = null;
   let messageCount = 0;
   let timeUpdateInterval: ReturnType<typeof setInterval> | null = null;
+  let markReadTimeout: ReturnType<typeof setTimeout> | null = null;
+  let wasAtBottom = true;
+  let showStats = false;
 
   onMount(async () => {
     // Wait for auth store to be ready before checking authentication
@@ -74,10 +80,18 @@
         if (!messages.find(m => m.id === newMessage.id)) {
           messages = [...messages, newMessage];
           messageCount = messages.length;
-          scrollToBottom();
+
+          // Auto-scroll and mark read if at bottom
+          if (wasAtBottom) {
+            scrollToBottom();
+            scheduleMarkAsRead();
+          }
         }
       });
       unsubscribe = sub.unsubscribe;
+
+      // Mark as read after brief delay
+      scheduleMarkAsRead();
 
       // Set up time update interval for relative timestamps
       timeUpdateInterval = setInterval(() => {
@@ -93,6 +107,12 @@
   });
 
   onDestroy(() => {
+    // Save last read position before leaving
+    if (messages.length > 0) {
+      const latestTimestamp = Math.max(...messages.map(m => m.createdAt));
+      lastReadStore.setLastRead(channelId, latestTimestamp);
+    }
+
     if (unsubscribe) {
       unsubscribe();
     }
@@ -101,6 +121,9 @@
     }
     if (timeUpdateInterval) {
       clearInterval(timeUpdateInterval);
+    }
+    if (markReadTimeout) {
+      clearTimeout(markReadTimeout);
     }
   });
 
@@ -135,8 +158,28 @@
   function handleScroll() {
     if (messagesContainer) {
       const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
-      showScrollButton = scrollHeight - scrollTop - clientHeight > 100;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      showScrollButton = distanceFromBottom > 100;
+      wasAtBottom = distanceFromBottom < 50;
+
+      // Mark as read when scrolled to bottom
+      if (wasAtBottom) {
+        scheduleMarkAsRead();
+      }
     }
+  }
+
+  function scheduleMarkAsRead() {
+    if (markReadTimeout) {
+      clearTimeout(markReadTimeout);
+    }
+
+    markReadTimeout = setTimeout(() => {
+      if (messages.length > 0) {
+        const latestTimestamp = Math.max(...messages.map(m => m.createdAt));
+        lastReadStore.setLastRead(channelId, latestTimestamp);
+      }
+    }, 1000); // 1 second delay
   }
 
   function handleInput() {
@@ -186,8 +229,32 @@
 
   function getAvatarUrlForPubkey(pubkey: string): string {
     // Use local identicon generation to protect user privacy
-    return getLocalAvatarUrl(pubkey, 80);
+    return getAvatarUrl(pubkey, 80);
   }
+
+  function handleScrollToMessage(event: CustomEvent<{ messageId: string }>) {
+    const messageElement = document.getElementById(`message-${event.detail.messageId}`);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // Highlight the message briefly
+      messageElement.classList.add('highlight-flash');
+      setTimeout(() => {
+        messageElement.classList.remove('highlight-flash');
+      }, 2000);
+    }
+  }
+
+  // Convert messages to proper Message type for PinnedMessages component
+  $: formattedMessages = messages.map(msg => ({
+    id: msg.id,
+    channelId: channelId,
+    authorPubkey: msg.pubkey,
+    content: msg.content,
+    createdAt: msg.createdAt * 1000, // Convert to milliseconds
+    isEncrypted: false,
+    decryptedContent: undefined
+  }));
 </script>
 
 <svelte:head>
@@ -224,9 +291,28 @@
             <span class="badge badge-sm badge-primary">Encrypted</span>
           {/if}
           <span class="badge badge-sm badge-outline">{messageCount} messages</span>
+          <button
+            class="btn btn-ghost btn-sm"
+            on:click={() => showStats = !showStats}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 20V10" />
+              <path d="M12 20V4" />
+              <path d="M6 20v-6" />
+            </svg>
+            {showStats ? 'Hide' : 'Show'} Stats
+          </button>
         </div>
       </div>
     </div>
+
+    <ChannelStats channelId={channelId} isExpanded={showStats} />
+
+    <PinnedMessages
+      channelId={channelId}
+      messages={formattedMessages}
+      on:scrollTo={handleScrollToMessage}
+    />
 
     {#if error}
       <div class="container mx-auto max-w-4xl p-2">
@@ -246,7 +332,10 @@
         {:else}
           <div class="space-y-4">
             {#each messages as message (message.id)}
-              <div class="chat {message.pubkey === $authStore.publicKey ? 'chat-end' : 'chat-start'}">
+              <div
+                id="message-{message.id}"
+                class="chat {message.pubkey === $authStore.publicKey ? 'chat-end' : 'chat-start'}"
+              >
                 <div class="chat-image avatar">
                   <div class="w-10 rounded-full">
                     <img src={getAvatarUrlForPubkey(message.pubkey)} alt="avatar" />
@@ -302,3 +391,18 @@
     </div>
   </div>
 {/if}
+
+<style>
+  :global(.highlight-flash) {
+    animation: highlight 2s ease-in-out;
+  }
+
+  @keyframes highlight {
+    0%, 100% {
+      background-color: transparent;
+    }
+    50% {
+      background-color: rgba(251, 191, 36, 0.2);
+    }
+  }
+</style>

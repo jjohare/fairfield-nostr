@@ -4,29 +4,25 @@
 
 Single port deployment serving both PWA and Nostr relay:
 
-```
-┌─────────────────────────────────────────────────────────┐
-│              Cloudflare Tunnel (optional)               │
-│                  chat.yourdomain.com                    │
-└───────────────────────────┬─────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────┐
-│                  192.168.0.51:3000                      │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │                 nginx (port 80)                   │  │
-│  │  ┌─────────────────┐  ┌─────────────────────────┐ │  │
-│  │  │   /* → PWA      │  │  /relay → strfry:7777   │ │  │
-│  │  │   static files  │  │  WebSocket proxy        │ │  │
-│  │  └─────────────────┘  └─────────────────────────┘ │  │
-│  └───────────────────────────────────────────────────┘  │
-│                            │                            │
-│                            ▼                            │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │            strfry relay (internal:7777)           │  │
-│  │              Nostr WebSocket server               │  │
-│  └───────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Internet["Cloudflare Tunnel (optional)"]
+        Domain["chat.yourdomain.com"]
+    end
+
+    subgraph Server["192.168.0.51:3000"]
+        subgraph Nginx["nginx (port 80)"]
+            PWARoute["/* → PWA<br/>static files"]
+            RelayRoute["/relay → strfry:7777<br/>WebSocket proxy"]
+        end
+
+        subgraph Relay["strfry relay (internal:7777)"]
+            Nostr["Nostr WebSocket server"]
+        end
+    end
+
+    Domain --> Nginx
+    RelayRoute --> Relay
 ```
 
 ## Quick Start

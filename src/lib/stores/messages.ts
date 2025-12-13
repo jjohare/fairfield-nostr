@@ -3,6 +3,7 @@ import { db, type DBMessage, type DBUser } from '$lib/db';
 import type { Event, Filter, Sub } from '$lib/types/nostr';
 import { currentPubkey } from './user';
 import { toast } from './toast';
+import { indexNewMessage, removeDeletedMessage } from '$lib/utils/searchIndex';
 
 /**
  * Message author information
@@ -362,6 +363,11 @@ function createMessageStore() {
 
           await db.messages.put(dbMsg);
 
+          // Index for search (async, don't block)
+          indexNewMessage(dbMsg).catch(err =>
+            console.error('Failed to index message for search:', err)
+          );
+
           // Update store
           const appMsg = await dbMessageToMessage(dbMsg);
 
@@ -446,6 +452,11 @@ function createMessageStore() {
 
         await db.messages.put(dbMsg);
 
+        // Index for search (async, don't block)
+        indexNewMessage(dbMsg).catch(err =>
+          console.error('Failed to index message for search:', err)
+        );
+
         // Update store
         const appMsg = await dbMessageToMessage(dbMsg);
 
@@ -500,6 +511,11 @@ function createMessageStore() {
           created_at: event.created_at,
           kind: 5
         });
+
+        // Remove from search index (async, don't block)
+        removeDeletedMessage(messageId).catch(err =>
+          console.error('Failed to remove deleted message from search:', err)
+        );
 
         // Update store
         update(state => ({
@@ -574,6 +590,11 @@ function createMessageStore() {
 
           await db.messages.put(dbMsg);
 
+          // Index for search (async, don't block)
+          indexNewMessage(dbMsg).catch(err =>
+            console.error('Failed to index message for search:', err)
+          );
+
           const appMsg = await dbMessageToMessage(dbMsg);
 
           update(state => {
@@ -601,6 +622,11 @@ function createMessageStore() {
               created_at: event.created_at,
               kind: event.kind
             });
+
+            // Remove from search index (async, don't block)
+            removeDeletedMessage(deletedId).catch(err =>
+              console.error('Failed to remove deleted message from search:', err)
+            );
 
             update(state => ({
               ...state,

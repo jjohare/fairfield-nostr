@@ -5,7 +5,10 @@
   import { ndk, connectNDK } from '$lib/nostr/ndk';
   import { browser } from '$app/environment';
   import { getAvatarUrl } from '$lib/utils/identicon';
+  import { lastReadStore } from '$lib/stores/readPosition';
+  import { formatUnreadCount } from '$lib/utils/readPosition';
   import type { CreatedChannel } from '$lib/nostr/channels';
+  import type { Message } from '$lib/types/channel';
 
   export let channel: CreatedChannel;
 
@@ -16,6 +19,8 @@
     timestamp: number;
   } | null = null;
   let loading = true;
+  let messages: Message[] = [];
+  let unreadCount = 0;
 
   // Forum category icons based on channel name keywords
   const categoryIcons: Record<string, string> = {
@@ -68,6 +73,19 @@
       });
 
       messageCount = events.size;
+
+      // Convert events to messages and find the most recent
+      messages = Array.from(events).map(event => ({
+        id: event.id,
+        channelId: channel.id,
+        authorPubkey: event.pubkey,
+        content: event.content,
+        createdAt: event.created_at || 0,
+        isEncrypted: false
+      }));
+
+      // Calculate unread count
+      unreadCount = lastReadStore.getUnreadCount(channel.id, messages);
 
       // Find the most recent message
       let latest: { content: string; pubkey: string; created_at: number } | null = null;
@@ -128,8 +146,15 @@
       <!-- Channel Info -->
       <div class="flex-1 min-w-0">
         <div class="flex items-start justify-between gap-2">
-          <div>
-            <h3 class="font-bold text-base truncate">{channel.name}</h3>
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              <h3 class="font-bold text-base truncate">{channel.name}</h3>
+              {#if !loading && unreadCount > 0}
+                <span class="badge badge-primary badge-sm rounded-full">
+                  {formatUnreadCount(unreadCount)}
+                </span>
+              {/if}
+            </div>
             {#if channel.description}
               <p class="text-sm text-base-content/70 line-clamp-1 mt-0.5">
                 {channel.description}

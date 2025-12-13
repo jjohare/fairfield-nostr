@@ -78,6 +78,29 @@ export interface DBRelay {
 }
 
 /**
+ * Search index entry for full-text search
+ */
+export interface DBSearchIndex {
+  id: string; // unique id for this index entry
+  messageId: string;
+  channelId: string;
+  content: string;
+  authorPubkey: string;
+  timestamp: number;
+  tokens: string[]; // tokenized content for searching
+}
+
+/**
+ * Search history entry
+ */
+export interface DBSearchHistory {
+  id?: number;
+  query: string;
+  timestamp: number;
+  resultCount: number;
+}
+
+/**
  * Minimoomaa Noir Database
  */
 class MinimoomaNoirDB extends Dexie {
@@ -86,6 +109,8 @@ class MinimoomaNoirDB extends Dexie {
   users!: Table<DBUser, string>;
   deletions!: Table<DBDeletion, string>;
   relays!: Table<DBRelay, string>;
+  searchIndex!: Table<DBSearchIndex, string>;
+  searchHistory!: Table<DBSearchHistory, number>;
 
   constructor() {
     super('MinimoomaNoirDB');
@@ -96,6 +121,17 @@ class MinimoomaNoirDB extends Dexie {
       users: 'pubkey, cached_at',
       deletions: 'id, deletedEventId, channelId, deleterPubkey, created_at',
       relays: 'url, connected, lastConnected'
+    });
+
+    // Version 2: Add search tables
+    this.version(2).stores({
+      messages: 'id, channelId, pubkey, created_at, deleted, [channelId+created_at]',
+      channels: 'id, creatorPubkey, created_at, isPrivate, isEncrypted',
+      users: 'pubkey, cached_at',
+      deletions: 'id, deletedEventId, channelId, deleterPubkey, created_at',
+      relays: 'url, connected, lastConnected',
+      searchIndex: 'id, messageId, channelId, authorPubkey, timestamp, *tokens',
+      searchHistory: '++id, timestamp'
     });
   }
 
@@ -234,6 +270,129 @@ class MinimoomaNoirDB extends Dexie {
    */
   async importMessages(messages: DBMessage[]): Promise<void> {
     await this.messages.bulkPut(messages);
+  }
+
+  /**
+   * Tokenize text for search indexing
+   * Converts text to lowercase, removes special characters, splits into words
+   */
+  tokenize(text: string): string[] {
+    return text
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ') // Replace special chars with spaces
+      .split(/\s+/) // Split on whitespace
+      .filter(token => token.length > 1) // Remove single characters
+      .filter(token => !this.isStopWord(token)); // Remove stop words
+  }
+
+  /**
+   * Check if word is a stop word (common words to ignore)
+   */
+  private isStopWord(word: string): boolean {
+    const stopWords = new Set([
+      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+      'of', 'with', 'is', 'was', 'are', 'were', 'be', 'been', 'being',
+      'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should',
+      'could', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those'
+    ]);
+    return stopWords.has(word);
+  }
+
+  /**
+   * Index a single message for search
+   */
+  async indexMessage(message: DBMessage): Promise<void> {
+    if (message.deleted) return; // Don't index deleted messages
+
+    const tokens = this.tokenize(message.content);
+
+    const searchEntry: DBSearchIndex = {
+      id: `idx_${message.id}`,
+      messageId: message.id,
+      channelId: message.channelId,
+      content: message.content,
+      authorPubkey: message.pubkey,
+      timestamp: message.created_at,
+      tokens
+    };
+
+    await this.searchIndex.put(searchEntry);
+  }
+
+  /**
+   * Bulk index multiple messages
+   */
+  async bulkIndexMessages(messages: DBMessage[]): Promise<void> {
+    const searchEntries = messages
+      .filter(msg => !msg.deleted)
+      .map(message => {
+        const tokens = this.tokenize(message.content);
+        return {
+          id: `idx_${message.id}`,
+          messageId: message.id,
+          channelId: message.channelId,
+          content: message.content,
+          authorPubkey: message.pubkey,
+          timestamp: message.created_at,
+          tokens
+        };
+      });
+
+    await this.searchIndex.bulkPut(searchEntries);
+  }
+
+  /**
+   * Remove message from search index
+   */
+  async removeFromIndex(messageId: string): Promise<void> {
+    await this.searchIndex.delete(`idx_${messageId}`);
+  }
+
+  /**
+   * Clear entire search index
+   */
+  async clearSearchIndex(): Promise<void> {
+    await this.searchIndex.clear();
+  }
+
+  /**
+   * Save search query to history
+   */
+  async addSearchHistory(query: string, resultCount: number): Promise<void> {
+    await this.searchHistory.add({
+      query,
+      timestamp: Date.now() / 1000,
+      resultCount
+    });
+
+    // Keep only last 50 searches
+    const count = await this.searchHistory.count();
+    if (count > 50) {
+      const oldest = await this.searchHistory
+        .orderBy('timestamp')
+        .limit(count - 50)
+        .toArray();
+
+      await this.searchHistory.bulkDelete(oldest.map(h => h.id!));
+    }
+  }
+
+  /**
+   * Get recent search history
+   */
+  async getSearchHistory(limit: number = 10): Promise<DBSearchHistory[]> {
+    return await this.searchHistory
+      .orderBy('timestamp')
+      .reverse()
+      .limit(limit)
+      .toArray();
+  }
+
+  /**
+   * Clear search history
+   */
+  async clearSearchHistory(): Promise<void> {
+    await this.searchHistory.clear();
   }
 }
 

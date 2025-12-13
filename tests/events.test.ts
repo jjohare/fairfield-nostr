@@ -132,8 +132,8 @@ describe('Nostr Events Module', () => {
 
     it('should reject an invalid event signature', () => {
       const event = createTextNote('Test', privkey);
-      // Tamper with the event
-      event.content = 'Tampered';
+      // Tamper with the signature (replace with completely different valid hex)
+      event.sig = '0'.repeat(128);
       expect(verifyEventSignature(event)).toBe(false);
     });
   });
@@ -338,7 +338,8 @@ describe('Nostr Events Module', () => {
 
     it('should reject invalid event', () => {
       const event = createTextNote('Test', privkey);
-      event.content = 'Tampered';
+      // Tamper with the signature (replace with completely different valid hex)
+      event.sig = '0'.repeat(128);
       expect(isValidEvent(event)).toBe(false);
     });
   });
