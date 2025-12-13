@@ -17,6 +17,7 @@
   let location = '';
   let maxAttendees: number | null = null;
   let tags = '';
+  let createChatRoom = true; // Default to creating a linked chatroom
   let isSubmitting = false;
   let error: string | null = null;
 
@@ -60,6 +61,7 @@
           .split(',')
           .map((t) => t.trim())
           .filter((t) => t),
+        createChatRoom,
       };
 
       const event = await createCalendarEvent(params);
@@ -218,6 +220,23 @@
           bind:value={tags}
           placeholder="e.g., workshop, social, music"
         />
+      </div>
+
+      <!-- Create Chat Room -->
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-3">
+          <input
+            type="checkbox"
+            class="checkbox checkbox-primary"
+            bind:checked={createChatRoom}
+          />
+          <div>
+            <span class="label-text">Create linked chatroom</span>
+            <p class="text-xs text-base-content/60 mt-0.5">
+              Event attendees can join a dedicated chat for this event
+            </p>
+          </div>
+        </label>
       </div>
 
       <!-- Actions -->
