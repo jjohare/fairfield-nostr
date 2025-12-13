@@ -84,8 +84,6 @@ export async function createChannel(options: ChannelCreateOptions): Promise<Crea
 	await event.sign();
 	await event.publish();
 
-	console.log('Channel created:', event.id);
-
 	return {
 		id: event.id,
 		name: options.name,
@@ -122,8 +120,6 @@ export async function updateChannelMetadata(
 
 	await event.sign();
 	await event.publish();
-
-	console.log('Channel metadata updated:', channelId);
 }
 
 /**
@@ -156,7 +152,6 @@ export async function sendChannelMessage(
 	await event.sign();
 	await event.publish();
 
-	console.log('Message sent to channel:', channelId);
 	return event.id;
 }
 

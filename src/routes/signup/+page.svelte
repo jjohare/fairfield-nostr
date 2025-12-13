@@ -22,8 +22,10 @@
     }
   }
 
-  function handleContinue() {
-    authStore.setKeys(publicKey, privateKey, mnemonic);
+  async function handleContinue() {
+    await authStore.setKeys(publicKey, privateKey, mnemonic);
+    // Confirm backup was shown to clear mnemonic from storage
+    authStore.confirmMnemonicBackup();
     goto(`${base}/chat`);
   }
 </script>

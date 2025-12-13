@@ -97,7 +97,10 @@ export default defineConfig({
 	},
 	build: {
 		target: 'esnext',
-		sourcemap: true
+		// Disable sourcemaps in production to prevent source code exposure
+		sourcemap: process.env.NODE_ENV !== 'production' ? true : false,
+		// Minify in production
+		minify: process.env.NODE_ENV === 'production' ? 'esbuild' : false
 	},
 	ssr: {
 		noExternal: ['@noble/hashes', '@noble/curves', '@scure/bip32', '@scure/bip39']
