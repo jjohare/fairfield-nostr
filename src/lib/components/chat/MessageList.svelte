@@ -1,6 +1,10 @@
 <script lang="ts">
   import { onMount, afterUpdate, tick } from 'svelte';
   import { selectedMessages, selectedChannel } from '$lib/stores/channelStore';
+  import { messageStore } from '$lib/stores/messages';
+  import { authStore } from '$lib/stores/auth';
+  import { getActiveRelays } from '$lib/stores/settings';
+  import { toast } from '$lib/stores/toast';
   import MessageItem from './MessageItem.svelte';
   import type { Message } from '$lib/types/channel';
 
@@ -47,13 +51,38 @@
     if (!$selectedChannel || isLoadingMore) return;
 
     isLoadingMore = true;
+    const previousScrollHeight = messagesContainer?.scrollHeight || 0;
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const relayUrls = getActiveRelays();
+      const relayUrl = relayUrls[0];
 
-      hasMoreMessages = false;
+      if (!relayUrl) {
+        toast.warning('No relay configured');
+        hasMoreMessages = false;
+        return;
+      }
+
+      const foundMore = await messageStore.fetchOlderMessages(
+        relayUrl,
+        $selectedChannel.id,
+        $authStore.privateKey,
+        30
+      );
+
+      hasMoreMessages = foundMore;
+
+      // Maintain scroll position after loading older messages
+      if (messagesContainer && foundMore) {
+        await tick();
+        const newScrollHeight = messagesContainer.scrollHeight;
+        messagesContainer.scrollTop = newScrollHeight - previousScrollHeight;
+      }
+
     } catch (error) {
       console.error('Failed to load more messages:', error);
+      toast.error('Failed to load older messages');
+      hasMoreMessages = false;
     } finally {
       isLoadingMore = false;
     }

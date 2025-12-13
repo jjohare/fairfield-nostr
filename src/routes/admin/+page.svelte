@@ -127,7 +127,10 @@
     return badges[visibility] || 'badge-ghost';
   }
 
-  onMount(() => {
+  onMount(async () => {
+    // Wait for auth store to be ready before checking authentication
+    await authStore.waitForReady();
+
     if (!$isAdmin) {
       goto(`${base}/chat`);
       return;

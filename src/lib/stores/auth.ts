@@ -16,6 +16,7 @@ export interface AuthState {
   error: string | null;
   isEncrypted: boolean;
   mnemonicBackedUp: boolean;
+  isReady: boolean;
 }
 
 const initialState: AuthState = {
@@ -29,7 +30,8 @@ const initialState: AuthState = {
   isAdmin: false,
   error: null,
   isEncrypted: false,
-  mnemonicBackedUp: false
+  mnemonicBackedUp: false,
+  isReady: false
 };
 
 const STORAGE_KEY = 'fairfield_keys';
@@ -64,12 +66,21 @@ function getSessionKey(): string {
 function createAuthStore() {
   const { subscribe, set, update }: Writable<AuthState> = writable(initialState);
 
+  // Promise that resolves when session restore is complete
+  let readyPromise: Promise<void> | null = null;
+
   // Restore from localStorage on init
   async function restoreSession() {
-    if (!browser) return;
+    if (!browser) {
+      update(state => ({ ...state, isReady: true }));
+      return;
+    }
 
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return;
+    if (!stored) {
+      update(state => ({ ...state, isReady: true }));
+      return;
+    }
 
     try {
       const parsed = JSON.parse(stored);
@@ -88,7 +99,8 @@ function createAuthStore() {
             isAuthenticated: true,
             isAdmin: isAdminPubkey(parsed.publicKey || ''),
             isEncrypted: true,
-            mnemonicBackedUp: parsed.mnemonicBackedUp || false
+            mnemonicBackedUp: parsed.mnemonicBackedUp || false,
+            isReady: true
           }));
         } catch {
           // Session key changed (new session) - need to re-authenticate
@@ -99,7 +111,8 @@ function createAuthStore() {
             avatar: parsed.avatar || null,
             isAuthenticated: false,
             isEncrypted: true,
-            error: 'Session expired. Please enter your password to unlock.'
+            error: 'Session expired. Please enter your password to unlock.',
+            isReady: true
           }));
         }
       } else if (parsed.privateKey) {
@@ -110,21 +123,32 @@ function createAuthStore() {
           isAuthenticated: true,
           isAdmin: isAdminPubkey(parsed.publicKey || ''),
           isEncrypted: false,
-          mnemonicBackedUp: parsed.mnemonicBackedUp || false
+          mnemonicBackedUp: parsed.mnemonicBackedUp || false,
+          isReady: true
         }));
+      } else {
+        update(state => ({ ...state, isReady: true }));
       }
     } catch {
       localStorage.removeItem(STORAGE_KEY);
+      update(state => ({ ...state, isReady: true }));
     }
   }
 
   // Initialize restoration
   if (browser) {
-    restoreSession();
+    readyPromise = restoreSession();
+  } else {
+    readyPromise = Promise.resolve();
   }
 
   return {
     subscribe,
+
+    /**
+     * Wait for the auth store to be ready (session restored)
+     */
+    waitForReady: () => readyPromise || Promise.resolve(),
 
     /**
      * Set keys with encryption
@@ -279,3 +303,4 @@ function createAuthStore() {
 export const authStore = createAuthStore();
 export const isAuthenticated = derived(authStore, $auth => $auth.isAuthenticated);
 export const isAdmin = derived(authStore, $auth => $auth.isAdmin);
+export const isReady = derived(authStore, $auth => $auth.isReady);

@@ -3,6 +3,30 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
 import path from 'path';
 
+/**
+ * ⚠️ IMPORTANT: NDK VERSION LOCK REQUIRED ⚠️
+ *
+ * The @nostr-dev-kit packages have complex dependencies on @noble/hashes and @noble/curves.
+ * The versions in package.json MUST remain locked to prevent build failures:
+ *
+ * - @nostr-dev-kit/ndk: ^2.8.2
+ * - @nostr-dev-kit/ndk-cache-dexie: ^2.2.11
+ * - @nostr-dev-kit/ndk-svelte: ^2.2.15
+ * - @noble/hashes: ^2.0.1 (devDependencies)
+ * - @noble/curves: ^2.0.1 (devDependencies)
+ *
+ * Before updating ANY of these packages:
+ * 1. Test the build thoroughly: npm run build
+ * 2. Check for ESM export issues in the browser console
+ * 3. Verify crypto operations (key generation, signing) work correctly
+ *
+ * The noblePackagesFixPlugin below handles version conflicts between NDK's nested
+ * @noble packages (v1.x) and root @noble packages (v2.x) which have different export
+ * structures. If NDK updates its dependencies, this plugin may need adjustment.
+ *
+ * Issue tracker: https://github.com/nostr-dev-kit/ndk/issues
+ */
+
 // Custom plugin to fix @noble/hashes and @noble/curves version conflicts
 // Problem: NDK needs older versions with different export structures
 //          Root @noble/hashes v2.0.1: flat structure, has webcrypto.js, missing bytesToUtf8 in utils

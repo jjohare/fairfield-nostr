@@ -2,6 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import { authStore } from '$lib/stores/auth';
   import { channelStore, userMemberStatus } from '$lib/stores/channelStore';
+  import { getAvatarUrl } from '$lib/utils/identicon';
   import type { Message } from '$lib/types/channel';
 
   export let message: Message;
@@ -52,7 +53,8 @@
   }
 
   function getAuthorAvatar(pubkey: string): string {
-    return `https://api.dicebear.com/7.x/identicon/svg?seed=${pubkey}`;
+    // Use local identicon generation to protect user privacy
+    return getAvatarUrl(pubkey, 80);
   }
 
   async function handleDelete() {

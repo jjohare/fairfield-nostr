@@ -27,6 +27,9 @@
   $: selectedChannel = channels.find((c) => c.id === selectedChannelId);
 
   onMount(async () => {
+    // Wait for auth store to be ready before checking authentication
+    await authStore.waitForReady();
+
     if (!$authStore.isAuthenticated || !$authStore.publicKey) {
       goto(`${base}/`);
       return;

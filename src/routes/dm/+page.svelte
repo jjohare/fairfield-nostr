@@ -8,6 +8,9 @@
   let loading = true;
 
   onMount(async () => {
+    // Wait for auth store to be ready before checking authentication
+    await authStore.waitForReady();
+
     if (!$authStore.isAuthenticated) {
       goto(`${base}/`);
       return;

@@ -4,6 +4,7 @@
   import { base } from '$app/paths';
   import { ndk, connectNDK } from '$lib/nostr/ndk';
   import { browser } from '$app/environment';
+  import { getAvatarUrl } from '$lib/utils/identicon';
   import type { CreatedChannel } from '$lib/nostr/channels';
 
   export let channel: CreatedChannel;
@@ -158,7 +159,7 @@
           <div class="mt-2 pt-2 border-t border-base-300 text-xs text-base-content/60">
             <div class="flex items-center gap-2">
               <img
-                src="https://api.dicebear.com/7.x/identicon/svg?seed={lastPost.author}"
+                src={getAvatarUrl(lastPost.author, 32)}
                 alt=""
                 class="w-4 h-4 rounded-full"
               />

@@ -2,6 +2,7 @@ import { writable, get, derived } from 'svelte/store';
 import { db, type DBMessage, type DBUser } from '$lib/db';
 import type { Event, Filter, Sub } from '$lib/types/nostr';
 import { currentPubkey } from './user';
+import { toast } from './toast';
 
 /**
  * Message author information
@@ -106,6 +107,8 @@ function createMessageStore() {
       return await nip04Decrypt(recipientPrivkey, senderPubkey, encryptedContent);
     } catch (error) {
       console.error('Failed to decrypt message:', error);
+      // Notify user of decryption failure (only once per session to avoid spam)
+      toast.warning('Some messages could not be decrypted', 5000);
       return '[Encrypted message - decryption failed]';
     }
   }
@@ -384,6 +387,9 @@ function createMessageStore() {
         const errorMsg = error instanceof Error ? error.message : 'Failed to fetch messages';
         console.error('fetchMessages error:', error);
 
+        // Notify user of connection issues
+        toast.error(`Connection error: ${errorMsg}`);
+
         update(state => ({
           ...state,
           error: errorMsg,
@@ -452,6 +458,9 @@ function createMessageStore() {
         const errorMsg = error instanceof Error ? error.message : 'Failed to send message';
         console.error('sendMessage error:', error);
 
+        // Notify user of send failure
+        toast.error(`Failed to send: ${errorMsg}`);
+
         update(state => ({
           ...state,
           error: errorMsg
@@ -503,6 +512,9 @@ function createMessageStore() {
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Failed to delete message';
         console.error('deleteMessage error:', error);
+
+        // Notify user of deletion failure
+        toast.error(`Failed to delete: ${errorMsg}`);
 
         update(state => ({
           ...state,
@@ -606,9 +618,13 @@ function createMessageStore() {
       } catch (error) {
         console.error('subscribeToChannel error:', error);
 
+        const errorMsg = error instanceof Error ? error.message : 'Failed to subscribe to channel';
+        // Notify user of subscription failure
+        toast.error(`Channel subscription failed: ${errorMsg}`);
+
         update(state => ({
           ...state,
-          error: error instanceof Error ? error.message : 'Failed to subscribe to channel'
+          error: errorMsg
         }));
       }
     },
@@ -625,6 +641,113 @@ function createMessageStore() {
         });
 
         channelSubscriptions.delete(channelId);
+      }
+    },
+
+    /**
+     * Fetch older messages (pagination)
+     */
+    async fetchOlderMessages(
+      relayUrl: string,
+      channelId: string,
+      userPrivkey: string | null,
+      limit: number = 50
+    ): Promise<boolean> {
+      const currentState = get({ subscribe });
+
+      // Get oldest message timestamp
+      const oldestMessage = currentState.messages
+        .filter(m => m.channelId === channelId)
+        .reduce((oldest, m) => m.created_at < oldest.created_at ? m : oldest, { created_at: Infinity } as Message);
+
+      if (oldestMessage.created_at === Infinity) {
+        return false; // No messages to paginate from
+      }
+
+      update(state => ({ ...state, loading: true, error: null }));
+
+      try {
+        const channel = await db.getChannel(channelId);
+        const isEncrypted = channel?.isEncrypted || false;
+
+        const filter: Filter = {
+          kinds: [9],
+          '#e': [channelId],
+          until: oldestMessage.created_at - 1,
+          limit
+        };
+
+        let foundMessages = 0;
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => resolve(), 5000);
+
+          subscribeToRelay(relayUrl, [filter], async (event) => {
+            const isDeleted = await db.isMessageDeleted(event.id);
+            if (isDeleted) return;
+
+            let content = event.content;
+            if (isEncrypted && userPrivkey) {
+              content = await decryptMessage(event.content, event.pubkey, userPrivkey);
+            }
+
+            const dbMsg: DBMessage = {
+              id: event.id,
+              channelId,
+              pubkey: event.pubkey,
+              content,
+              created_at: event.created_at,
+              encrypted: isEncrypted,
+              deleted: false,
+              kind: event.kind,
+              tags: event.tags,
+              sig: event.sig
+            };
+
+            await db.messages.put(dbMsg);
+
+            const appMsg = await dbMessageToMessage(dbMsg);
+
+            update(state => {
+              const exists = state.messages.some(m => m.id === appMsg.id);
+              if (!exists) {
+                foundMessages++;
+                return {
+                  ...state,
+                  messages: [...state.messages, appMsg].sort((a, b) => a.created_at - b.created_at)
+                };
+              }
+              return state;
+            });
+          }).catch(reject);
+
+          // Give relay time to respond
+          setTimeout(() => {
+            clearTimeout(timeout);
+            resolve();
+          }, 3000);
+        });
+
+        update(state => ({
+          ...state,
+          loading: false,
+          hasMore: foundMessages >= limit * 0.5 // Assume more if we got at least half of requested
+        }));
+
+        return foundMessages > 0;
+
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Failed to fetch older messages';
+        console.error('fetchOlderMessages error:', error);
+
+        update(state => ({
+          ...state,
+          error: errorMsg,
+          loading: false,
+          hasMore: false
+        }));
+
+        return false;
       }
     },
 

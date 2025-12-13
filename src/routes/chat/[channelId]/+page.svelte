@@ -12,6 +12,7 @@
     subscribeToChannel,
     type CreatedChannel
   } from '$lib/nostr/channels';
+  import { getAvatarUrl as getLocalAvatarUrl } from '$lib/utils/identicon';
 
   $: channelId = $page.params.channelId;
 
@@ -38,6 +39,9 @@
   let timeUpdateInterval: ReturnType<typeof setInterval> | null = null;
 
   onMount(async () => {
+    // Wait for auth store to be ready before checking authentication
+    await authStore.waitForReady();
+
     if (!$authStore.isAuthenticated || !$authStore.publicKey) {
       goto(`${base}/`);
       return;
@@ -180,8 +184,9 @@
     return pubkey.slice(0, 8) + '...' + pubkey.slice(-4);
   }
 
-  function getAvatarUrl(pubkey: string): string {
-    return `https://api.dicebear.com/7.x/identicon/svg?seed=${pubkey}`;
+  function getAvatarUrlForPubkey(pubkey: string): string {
+    // Use local identicon generation to protect user privacy
+    return getLocalAvatarUrl(pubkey, 80);
   }
 </script>
 
@@ -244,7 +249,7 @@
               <div class="chat {message.pubkey === $authStore.publicKey ? 'chat-end' : 'chat-start'}">
                 <div class="chat-image avatar">
                   <div class="w-10 rounded-full">
-                    <img src={getAvatarUrl(message.pubkey)} alt="avatar" />
+                    <img src={getAvatarUrlForPubkey(message.pubkey)} alt="avatar" />
                   </div>
                 </div>
                 <div class="chat-header opacity-70 text-xs mb-1">

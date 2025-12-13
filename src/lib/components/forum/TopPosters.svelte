@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { ndk, connectNDK } from '$lib/nostr/ndk';
   import { browser } from '$app/environment';
+  import { getAvatarUrl } from '$lib/utils/identicon';
 
   interface Poster {
     pubkey: string;
@@ -56,7 +57,7 @@
             pubkey,
             displayName: pubkey.substring(0, 8) + '...',
             postCount,
-            avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${pubkey}`,
+            avatar: getAvatarUrl(pubkey, 48),
           }));
       };
 

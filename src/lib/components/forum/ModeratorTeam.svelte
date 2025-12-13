@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { getAvatarUrl } from '$lib/utils/identicon';
+
   // For now, moderators are derived from admin pubkeys
   // In a full implementation, this would be fetched from relay
   export let moderators: Array<{
@@ -29,7 +31,7 @@
           <div class="avatar">
             <div class="w-10 rounded-full">
               <img
-                src="https://api.dicebear.com/7.x/identicon/svg?seed={mod.pubkey}"
+                src={getAvatarUrl(mod.pubkey, 80)}
                 alt={mod.displayName}
               />
             </div>
