@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import InfoTooltip from '$lib/components/ui/InfoTooltip.svelte';
 
   export let mnemonic: string;
 
@@ -30,7 +31,14 @@
 <div class="flex flex-col items-center justify-center min-h-screen p-4 bg-base-200">
   <div class="card w-full max-w-2xl bg-base-100 shadow-xl">
     <div class="card-body">
-      <h2 class="card-title text-2xl justify-center mb-2">Your Recovery Phrase</h2>
+      <div class="flex items-center justify-center gap-2 mb-2">
+        <h2 class="card-title text-2xl">Your Recovery Phrase</h2>
+        <InfoTooltip
+          text="This 12-word phrase is the backup for your Nostr account. Anyone with this phrase can access your account, so keep it secret and secure. Write it on paper and store it safely."
+          position="bottom"
+          maxWidth="400px"
+        />
+      </div>
 
       <div class="alert alert-warning mb-4">
         <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">

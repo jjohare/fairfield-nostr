@@ -12,6 +12,7 @@
     type ExportMessage
   } from '$lib/utils/export';
   import { downloadFile, generateTimestampedFilename, formatFileSize } from '$lib/utils/download';
+  import { toast } from '$lib/stores/toast';
 
   export let isOpen = false;
   export let channelId: string | null = null; // null = all channels
@@ -160,10 +161,16 @@
       // Close modal after brief delay
       setTimeout(() => {
         onClose();
+        toast.success('Export completed successfully');
       }, 500);
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Export failed. Please try again.');
+      toast.error('Export failed', 5000, {
+        label: 'Retry',
+        callback: async () => {
+          await handleExport();
+        }
+      });
     } finally {
       isLoading = false;
     }

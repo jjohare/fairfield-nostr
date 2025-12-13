@@ -6,6 +6,7 @@
   import { isAdmin } from '$lib/stores/user';
   import { bookmarkStore, isBookmarked } from '$lib/stores/bookmarks';
   import { pinnedStore, isPinnedMessage } from '$lib/stores/pinnedMessages';
+  import { toast } from '$lib/stores/toast';
   import type { Message } from '$lib/types/channel';
   import { extractUrls, getMediaType } from '$lib/utils/linkPreview';
   import LinkPreview from './LinkPreview.svelte';
@@ -14,6 +15,7 @@
   import { reactionStore, getMessageReactions } from '$lib/stores/reactions';
   import ReactionBar from './ReactionBar.svelte';
   import ReactionPicker from './ReactionPicker.svelte';
+  import UserDisplay from '$lib/components/user/UserDisplay.svelte';
 
   export let message: Message;
   export let channelName: string | undefined = undefined;
@@ -74,17 +76,7 @@
     }
   }
 
-  function getAuthorName(pubkey: string): string {
-    if ($authStore.publicKey === pubkey) {
-      return 'You';
-    }
-    return pubkey.slice(0, 8) + '...' + pubkey.slice(-4);
-  }
-
-  function getAuthorAvatar(pubkey: string): string {
-    // Use local identicon generation to protect user privacy
-    return getAvatarUrl(pubkey, 80);
-  }
+  $: isCurrentUser = $authStore.publicKey === message.authorPubkey;
 
   async function handleDelete() {
     if (!confirm('Are you sure you want to delete this message?')) return;
@@ -92,9 +84,15 @@
     try {
       channelStore.deleteMessage(message.channelId, message.id);
       dispatch('deleted', { messageId: message.id });
+      toast.success('Message deleted');
     } catch (error) {
       console.error('Failed to delete message:', error);
-      alert('Failed to delete message. Please try again.');
+      toast.error('Failed to delete message', 5000, {
+        label: 'Retry',
+        callback: async () => {
+          await handleDelete();
+        }
+      });
     }
   }
 
@@ -113,14 +111,16 @@
     if ($isPinned) {
       if (pinnedStore.unpinMessage(message.channelId, message.id)) {
         dispatch('unpinned', { messageId: message.id });
+        toast.success('Message unpinned');
       }
     } else {
       if (!canPinMore) {
-        alert('Maximum of 5 messages can be pinned per channel');
+        toast.warning('Maximum of 5 messages can be pinned per channel');
         return;
       }
       if (pinnedStore.pinMessage(message.channelId, message.id)) {
         dispatch('pinned', { messageId: message.id });
+        toast.success('Message pinned');
       }
     }
   }
@@ -154,21 +154,32 @@
   bind:this={messageElement}
   id="message-{message.id}"
 >
-  <div class="avatar flex-shrink-0">
-    <div class="w-10 h-10 rounded-full ring ring-base-300 ring-offset-base-100 ring-offset-1">
-      <img
-        src={getAuthorAvatar(message.authorPubkey)}
-        alt={getAuthorName(message.authorPubkey)}
-        class="object-cover"
+  {#if !isCurrentUser}
+    <div class="flex-shrink-0">
+      <UserDisplay
+        pubkey={message.authorPubkey}
+        showAvatar={true}
+        showName={false}
+        avatarSize="sm"
+        clickable={false}
       />
     </div>
-  </div>
+  {/if}
 
   <div class="flex-1 min-w-0 max-w-md">
     <div class="flex items-baseline gap-2 mb-1 {isOwnMessage ? 'flex-row-reverse' : ''}">
-      <span class="font-semibold text-sm truncate">
-        {getAuthorName(message.authorPubkey)}
-      </span>
+      {#if isCurrentUser}
+        <span class="font-semibold text-sm truncate">You</span>
+      {:else}
+        <UserDisplay
+          pubkey={message.authorPubkey}
+          showAvatar={false}
+          showName={true}
+          showFullName={true}
+          clickable={false}
+          maxNameLength={20}
+        />
+      {/if}
       {#if $isPinned}
         <div class="tooltip tooltip-top" data-tip="Pinned message">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-warning" viewBox="0 0 20 20" fill="currentColor">

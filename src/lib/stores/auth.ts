@@ -37,12 +37,41 @@ const initialState: AuthState = {
 const STORAGE_KEY = 'fairfield_keys';
 const SESSION_KEY = 'fairfield_session';
 
-// Admin pubkeys loaded from environment only - no hardcoded values
+/**
+ * Admin Configuration
+ *
+ * Admin pubkeys are loaded from VITE_ADMIN_PUBKEY environment variable.
+ * This should match the admins array in relay/whitelist.json.
+ *
+ * Source of Truth: relay/whitelist.json
+ * - The relay whitelist determines actual permissions
+ * - This client-side check is for UI/UX only
+ * - Always verify admin actions server-side via the relay
+ *
+ * Configuration:
+ * 1. Update relay/whitelist.json with admin pubkeys
+ * 2. Set VITE_ADMIN_PUBKEY in .env with the same values (comma-separated)
+ * 3. Never commit actual admin keys to version control
+ */
 const ADMIN_PUBKEY = import.meta.env.VITE_ADMIN_PUBKEY || '';
 const ADMIN_PUBKEYS = ADMIN_PUBKEY ? ADMIN_PUBKEY.split(',').map((k: string) => k.trim()).filter(Boolean) : [];
 
+/**
+ * Check if a pubkey is an admin (client-side check only)
+ *
+ * NOTE: This is a client-side convenience check for UI purposes.
+ * All admin actions MUST be verified server-side by the relay
+ * against relay/whitelist.json which is the source of truth.
+ *
+ * @param pubkey - Public key to check
+ * @returns true if pubkey is in VITE_ADMIN_PUBKEY list
+ */
 function isAdminPubkey(pubkey: string): boolean {
-  return ADMIN_PUBKEYS.includes(pubkey);
+  // Filter out placeholder keys (all zeros)
+  const validAdminKeys = ADMIN_PUBKEYS.filter(k =>
+    k !== '0000000000000000000000000000000000000000000000000000000000000000' && k.length === 64
+  );
+  return validAdminKeys.includes(pubkey);
 }
 
 /**

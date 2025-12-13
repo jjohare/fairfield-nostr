@@ -22,6 +22,11 @@
   function handleDismiss(id: string) {
     toast.remove(id);
   }
+
+  async function handleAction(id: string, callback: () => void | Promise<void>) {
+    toast.remove(id);
+    await callback();
+  }
 </script>
 
 <div class="toast toast-end z-50">
@@ -36,9 +41,20 @@
           {variantIcons[toastItem.variant]}
         </span>
 
-        <span class="flex-1 text-sm break-words">
-          {toastItem.message}
-        </span>
+        <div class="flex-1 flex flex-col gap-2">
+          <span class="text-sm break-words">
+            {toastItem.message}
+          </span>
+
+          {#if toastItem.action}
+            <button
+              class="btn btn-xs btn-outline self-start"
+              on:click={() => handleAction(toastItem.id, toastItem.action.callback)}
+            >
+              {toastItem.action.label}
+            </button>
+          {/if}
+        </div>
 
         {#if toastItem.dismissible}
           <button

@@ -6,6 +6,10 @@ export interface Toast {
   variant: 'success' | 'error' | 'info' | 'warning';
   duration?: number;
   dismissible?: boolean;
+  action?: {
+    label: string;
+    callback: () => void | Promise<void>;
+  };
 }
 
 interface ToastStore {
@@ -20,11 +24,12 @@ function createToastStore() {
   function addToast(
     message: string,
     variant: Toast['variant'] = 'info',
-    duration = 3000,
-    dismissible = true
+    duration = 5000,
+    dismissible = true,
+    action?: Toast['action']
   ): string {
     const id = `toast-${Date.now()}-${idCounter++}`;
-    const toast: Toast = { id, message, variant, duration, dismissible };
+    const toast: Toast = { id, message, variant, duration, dismissible, action };
 
     update(state => ({
       toasts: [...state.toasts, toast]
@@ -52,9 +57,11 @@ function createToastStore() {
   return {
     subscribe,
     success: (message: string, duration?: number) => addToast(message, 'success', duration),
-    error: (message: string, duration?: number) => addToast(message, 'error', duration),
+    error: (message: string, duration?: number, action?: Toast['action']) =>
+      addToast(message, 'error', duration, true, action),
     info: (message: string, duration?: number) => addToast(message, 'info', duration),
-    warning: (message: string, duration?: number) => addToast(message, 'warning', duration),
+    warning: (message: string, duration?: number, action?: Toast['action']) =>
+      addToast(message, 'warning', duration, true, action),
     remove: removeToast,
     clear: clearAll
   };

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { adminStore, type User } from '$lib/stores/admin';
   import { createEventDispatcher } from 'svelte';
+  import UserDisplay from '$lib/components/user/UserDisplay.svelte';
 
   const dispatch = createEventDispatcher<{
     viewProfile: { user: User };
@@ -46,10 +47,6 @@
       }
       return sortDesc ? comparison : -comparison;
     });
-
-  function truncatePubkey(pubkey: string): string {
-    return `${pubkey.slice(0, 10)}...${pubkey.slice(-10)}`;
-  }
 
   function formatTimestamp(ts: number): string {
     return new Date(ts * 1000).toLocaleDateString();
@@ -192,14 +189,14 @@
             {#each filteredUsers as user (user.pubkey)}
               <tr class:opacity-50={user.isBanned}>
                 <td>
-                  <div class="flex flex-col">
-                    <span class="font-medium">
-                      {user.name || 'Anonymous'}
-                    </span>
-                    <span class="text-xs font-mono text-base-content/50">
-                      {truncatePubkey(user.pubkey)}
-                    </span>
-                  </div>
+                  <UserDisplay
+                    pubkey={user.pubkey}
+                    showAvatar={true}
+                    showName={true}
+                    showFullName={true}
+                    avatarSize="sm"
+                    clickable={false}
+                  />
                 </td>
                 <td>
                   <div class="flex flex-wrap gap-1">

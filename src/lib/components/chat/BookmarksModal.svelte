@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import { bookmarkStore } from '$lib/stores/bookmarks';
   import { channelStore } from '$lib/stores/channelStore';
   import { authStore } from '$lib/stores/auth';
@@ -7,7 +7,22 @@
 
   const dispatch = createEventDispatcher<{ close: void; navigate: { channelId: string; messageId: string } }>();
 
+  let previousFocusElement: HTMLElement | null = null;
+
   $: bookmarks = bookmarkStore.getBookmarks();
+
+  onMount(() => {
+    previousFocusElement = document.activeElement as HTMLElement;
+    const firstButton = document.querySelector('.modal.modal-open button') as HTMLElement;
+    if (firstButton) {
+      firstButton.focus();
+    }
+    return () => {
+      if (previousFocusElement) {
+        previousFocusElement.focus();
+      }
+    };
+  });
 
   function formatTime(timestamp: number): string {
     const date = new Date(timestamp);
@@ -53,12 +68,37 @@
     const channel = $channelStore.channels.find(c => c.id === channelId);
     return channel?.name || 'Unknown Channel';
   }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      handleClose();
+    }
+
+    if (e.key === 'Tab') {
+      const modal = document.querySelector('.modal.modal-open');
+      if (!modal) return;
+
+      const focusableElements = modal.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey && document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      } else if (!e.shiftKey && document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    }
+  }
 </script>
 
-<div class="modal modal-open">
+<div class="modal modal-open" on:keydown={handleKeydown} role="dialog" aria-modal="true" aria-labelledby="bookmarks-modal-title">
   <div class="modal-box max-w-3xl max-h-[80vh]">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="font-bold text-lg">Bookmarked Messages</h3>
+      <h3 id="bookmarks-modal-title" class="font-bold text-lg">Bookmarked Messages</h3>
       <button
         class="btn btn-sm btn-circle btn-ghost"
         on:click={handleClose}
@@ -144,7 +184,7 @@
       <button class="btn" on:click={handleClose}>Close</button>
     </div>
   </div>
-  <div class="modal-backdrop bg-base-300/50" on:click={handleClose}></div>
+  <div class="modal-backdrop bg-base-300/50" on:click={handleClose} aria-hidden="true"></div>
 </div>
 
 <style>

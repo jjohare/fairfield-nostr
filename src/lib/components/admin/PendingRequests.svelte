@@ -1,6 +1,7 @@
 <script lang="ts">
   import { adminStore, type PendingRequest } from '$lib/stores/admin';
   import { createEventDispatcher } from 'svelte';
+  import UserDisplay from '$lib/components/user/UserDisplay.svelte';
 
   const dispatch = createEventDispatcher<{
     approve: { request: PendingRequest };
@@ -75,10 +76,6 @@
     dispatch('batchReject', { requests });
     selectedRequests.clear();
     selectedRequests = selectedRequests;
-  }
-
-  function truncatePubkey(pubkey: string): string {
-    return `${pubkey.slice(0, 12)}...${pubkey.slice(-12)}`;
   }
 
   function formatTimestamp(ts: number): string {
@@ -224,9 +221,14 @@
                   </label>
                 </td>
                 <td>
-                  <div class="font-mono text-xs">
-                    {truncatePubkey(request.pubkey)}
-                  </div>
+                  <UserDisplay
+                    pubkey={request.pubkey}
+                    showAvatar={true}
+                    showName={true}
+                    showFullName={true}
+                    avatarSize="xs"
+                    clickable={false}
+                  />
                 </td>
                 <td>
                   <div class="badge badge-outline">{request.channelName}</div>
