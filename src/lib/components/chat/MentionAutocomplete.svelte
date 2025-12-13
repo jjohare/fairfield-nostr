@@ -2,6 +2,7 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { formatPubkey } from '$lib/utils/mentions';
   import type { UserProfile } from '$lib/stores/user';
+  import { getAvatarUrl } from '$lib/utils/identicon';
 
   export let searchQuery: string = '';
   export let users: UserProfile[] = [];
@@ -82,7 +83,7 @@
   }
 
   function getAvatar(user: UserProfile): string {
-    return user.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.pubkey}`;
+    return user.avatar || getAvatarUrl(user.pubkey, 48);
   }
 
   onMount(() => {

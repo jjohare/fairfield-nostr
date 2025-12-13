@@ -2,6 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import MuteButton from '$lib/components/chat/MuteButton.svelte';
   import { nip19 } from 'nostr-tools';
+  import { getAvatarUrl } from '$lib/utils/identicon';
 
   export let pubkey: string;
   export let name: string | null = null;
@@ -14,7 +15,7 @@
 
   $: npub = nip19.npubEncode(pubkey);
   $: displayName = name || `${pubkey.slice(0, 8)}...${pubkey.slice(-4)}`;
-  $: avatarUrl = avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${pubkey}`;
+  $: avatarUrl = avatar || getAvatarUrl(pubkey, 80);
 
   function handleClose() {
     show = false;

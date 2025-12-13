@@ -3,6 +3,7 @@
   import { bookmarkStore } from '$lib/stores/bookmarks';
   import { channelStore } from '$lib/stores/channelStore';
   import { authStore } from '$lib/stores/auth';
+  import { getAvatarUrl } from '$lib/utils/identicon';
 
   const dispatch = createEventDispatcher<{ close: void; navigate: { channelId: string; messageId: string } }>();
 
@@ -28,7 +29,7 @@
   }
 
   function getAuthorAvatar(pubkey: string): string {
-    return `https://api.dicebear.com/7.x/identicon/svg?seed=${pubkey}`;
+    return getAvatarUrl(pubkey, 48);
   }
 
   function handleNavigate(channelId: string, messageId: string) {

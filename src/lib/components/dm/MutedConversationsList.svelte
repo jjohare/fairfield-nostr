@@ -2,6 +2,7 @@
   import { mutedConversations } from '$lib/stores/dm';
   import { muteStore } from '$lib/stores/mute';
   import { goto } from '$app/navigation';
+  import { getAvatarUrl } from '$lib/utils/identicon';
 
   $: conversations = $mutedConversations;
 
@@ -18,7 +19,7 @@
   }
 
   function getAvatar(pubkey: string): string {
-    return `https://api.dicebear.com/7.x/identicon/svg?seed=${pubkey}`;
+    return getAvatarUrl(pubkey, 48);
   }
 
   function formatTime(timestamp: number): string {

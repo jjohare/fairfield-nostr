@@ -2,6 +2,7 @@
   import { muteStore, mutedUsersList } from '$lib/stores/mute';
   import { nip19 } from 'nostr-tools';
   import { goto } from '$app/navigation';
+  import { getAvatarUrl } from '$lib/utils/identicon';
 
   $: mutedUsers = $mutedUsersList;
 
@@ -110,7 +111,7 @@
               <div class="avatar">
                 <div class="w-12 h-12 rounded-full ring ring-base-300 ring-offset-base-100 ring-offset-2">
                   <img
-                    src="https://api.dicebear.com/7.x/identicon/svg?seed={user.pubkey}"
+                    src={getAvatarUrl(user.pubkey, 48)}
                     alt={formatPubkey(user.pubkey)}
                   />
                 </div>
