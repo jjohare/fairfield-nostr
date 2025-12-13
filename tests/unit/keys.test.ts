@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import * as bip39 from '@scure/bip39';
-import { wordlist } from '@scure/bip39/wordlists/english.js';
+import { wordlist } from '@scure/bip39/wordlists/english';
 import { HDKey } from '@scure/bip32';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import { TEST_VECTORS, isValidSecp256k1PrivateKey, isValidSecp256k1PublicKey } from '../setup';

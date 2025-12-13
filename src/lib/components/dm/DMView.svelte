@@ -3,6 +3,7 @@
   import { dmStore, currentConversation } from '$lib/stores/dm';
   import type { DMMessage } from '$lib/stores/dm';
   import { authStore } from '$lib/stores/auth';
+  import { draftStore } from '$lib/stores/drafts';
 
   /**
    * Relay instance (would be passed as prop in real implementation)
@@ -12,6 +13,65 @@
   let messageInput = '';
   let messagesContainer: HTMLDivElement;
   let isSending = false;
+  let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  let hasDraft = false;
+
+  /**
+   * Load draft when conversation changes
+   */
+  $: if ($currentConversation) {
+    loadDraft($currentConversation.pubkey);
+    hasDraft = draftStore.hasDraft($currentConversation.pubkey);
+  }
+
+  /**
+   * Load draft for current conversation
+   */
+  function loadDraft(pubkey: string) {
+    const draft = draftStore.getDraft(pubkey);
+    if (draft !== null) {
+      messageInput = draft;
+    } else {
+      messageInput = '';
+    }
+  }
+
+  /**
+   * Save draft with debounce
+   */
+  function saveDraftDebounced() {
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
+
+    saveTimeout = setTimeout(() => {
+      saveDraftImmediately();
+    }, 1000);
+  }
+
+  /**
+   * Save draft immediately
+   */
+  function saveDraftImmediately() {
+    if ($currentConversation) {
+      draftStore.saveDraft($currentConversation.pubkey, messageInput, true);
+      hasDraft = draftStore.hasDraft($currentConversation.pubkey);
+    }
+  }
+
+  /**
+   * Handle input change
+   */
+  function handleInputChange() {
+    saveDraftDebounced();
+  }
+
+  /**
+   * Handle blur
+   */
+  function handleBlur() {
+    saveDraftImmediately();
+  }
 
   /**
    * Scroll to bottom of messages
@@ -36,6 +96,7 @@
     if (!messageInput.trim() || isSending || !relay) return;
 
     const content = messageInput.trim();
+    const recipientPubkey = $currentConversation?.pubkey;
     messageInput = '';
     isSending = true;
 
@@ -50,6 +111,12 @@
       const userPrivkey = new Uint8Array(privateKey.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []);
 
       await dmStore.sendDM(content, relay, userPrivkey);
+
+      // Clear draft after successful send
+      if (recipientPubkey) {
+        draftStore.clearDraft(recipientPubkey);
+        hasDraft = false;
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
       // Restore message input on error
@@ -111,6 +178,31 @@
 
   onMount(() => {
     scrollToBottom();
+
+    // Load initial draft if conversation is selected
+    if ($currentConversation) {
+      loadDraft($currentConversation.pubkey);
+    }
+
+    // Save draft on beforeunload
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', saveDraftImmediately);
+    }
+  });
+
+  onDestroy(() => {
+    // Save draft before unmount
+    saveDraftImmediately();
+
+    // Clear timeout
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
+
+    // Remove event listener
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('beforeunload', saveDraftImmediately);
+    }
   });
 </script>
 
@@ -222,14 +314,28 @@
     <!-- Input -->
     <div class="p-4 border-t border-base-300">
       <div class="flex gap-2">
-        <textarea
-          bind:value={messageInput}
-          on:keypress={handleKeyPress}
-          placeholder="Type a message..."
-          class="textarea textarea-bordered flex-1 resize-none"
-          rows="1"
-          disabled={isSending}
-        />
+        <div class="flex-1">
+          <textarea
+            bind:value={messageInput}
+            on:keypress={handleKeyPress}
+            on:input={handleInputChange}
+            on:blur={handleBlur}
+            placeholder="Type a message..."
+            class="textarea textarea-bordered w-full resize-none"
+            rows="1"
+            disabled={isSending}
+          />
+          {#if hasDraft && messageInput.trim()}
+            <div class="text-xs text-base-content/60 mt-1 px-1">
+              <span class="badge badge-xs badge-warning gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                </svg>
+                Draft saved
+              </span>
+            </div>
+          {/if}
+        </div>
         <button
           class="btn btn-primary"
           on:click={handleSend}

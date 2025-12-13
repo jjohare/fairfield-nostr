@@ -28,6 +28,15 @@ export {
 export type { StoredKeys } from '../utils/storage';
 
 export {
+  notificationStore,
+  unreadNotifications,
+  unreadCount,
+  recentNotifications,
+  shouldNotify
+} from './notifications';
+export type { Notification, NotificationType, NotificationState } from './notifications';
+
+export {
   installPrompt,
   updateAvailable,
   isOnline,
@@ -44,3 +53,11 @@ export {
   clearMessageQueue,
   triggerBackgroundSync
 } from './pwa';
+
+export {
+  muteStore,
+  mutedCount,
+  mutedUsersList,
+  createIsMutedStore
+} from './mute';
+export type { MutedUser, MuteState } from './mute';

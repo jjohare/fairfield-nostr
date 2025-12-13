@@ -3,6 +3,7 @@ import type { Event } from 'nostr-tools';
 import { receiveDM, sendDM, createDMFilter, type DMContent, type Relay } from '$lib/nostr/dm';
 import { authStore } from './auth';
 import { getPublicKey } from 'nostr-tools';
+import { muteStore } from './mute';
 
 /**
  * DM Conversation with another user
@@ -371,14 +372,28 @@ export const dmStore = createDMStore();
 
 /**
  * Derived store for sorted conversations (pinned first, then by last message time)
+ * Filters out conversations with muted users
  */
-export const sortedConversations = derived(dmStore, $dm => {
-  const conversations = Array.from($dm.conversations.values());
+export const sortedConversations = derived([dmStore, muteStore], ([$dm, $mute]) => {
+  const conversations = Array.from($dm.conversations.values()).filter(
+    conv => !$mute.mutedUsers.has(conv.pubkey)
+  );
   return conversations.sort((a, b) => {
     if (a.isPinned && !b.isPinned) return -1;
     if (!a.isPinned && b.isPinned) return 1;
     return b.lastMessageTimestamp - a.lastMessageTimestamp;
   });
+});
+
+/**
+ * Derived store for muted conversations
+ * Shows conversations with muted users separately
+ */
+export const mutedConversations = derived([dmStore, muteStore], ([$dm, $mute]) => {
+  const conversations = Array.from($dm.conversations.values()).filter(
+    conv => $mute.mutedUsers.has(conv.pubkey)
+  );
+  return conversations.sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
 });
 
 /**

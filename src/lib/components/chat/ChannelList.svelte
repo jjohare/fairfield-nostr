@@ -1,17 +1,28 @@
 <script lang="ts">
   import { channelStore, selectedChannel } from '$lib/stores/channelStore';
   import { authStore } from '$lib/stores/auth';
+  import { draftStore } from '$lib/stores/drafts';
+  import { lastReadStore } from '$lib/stores/readPosition';
+  import { formatUnreadCount } from '$lib/utils/readPosition';
+  import DraftIndicator from './DraftIndicator.svelte';
   import type { Channel, MemberStatus } from '$lib/types/channel';
 
   export let cohortFilter: string[] = [];
 
+  $: readPositions = $lastReadStore;
+
   let filteredChannels: Channel[] = [];
+  let draftChannels: Set<string> = new Set();
 
   $: {
     filteredChannels = $channelStore.channels.filter(channel => {
       if (cohortFilter.length === 0) return true;
       return channel.cohortTags.some(tag => cohortFilter.includes(tag));
     });
+
+    // Update draft channels set
+    const channels = draftStore.getDraftChannels();
+    draftChannels = new Set(channels);
   }
 
   function getMemberStatus(channel: Channel): MemberStatus {
@@ -53,6 +64,11 @@
     if (description.length <= maxLength) return description;
     return description.slice(0, maxLength) + '...';
   }
+
+  function getUnreadCount(channel: Channel): number {
+    const messages = $channelStore.messages[channel.id] || [];
+    return lastReadStore.getUnreadCount(channel.id, messages);
+  }
 </script>
 
 <div class="flex flex-col h-full bg-base-100">
@@ -83,6 +99,7 @@
         {#each filteredChannels as channel (channel.id)}
           {@const status = getMemberStatus(channel)}
           {@const isSelected = $selectedChannel?.id === channel.id}
+          {@const unreadCount = getUnreadCount(channel)}
           <button
             class="w-full text-left p-4 hover:bg-base-200 transition-colors {isSelected ? 'bg-base-200' : ''}"
             on:click={() => selectChannel(channel)}
@@ -95,6 +112,17 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                       <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
                     </svg>
+                  {/if}
+                  {#if draftChannels.has(channel.id)}
+                    {@const draftPreview = draftStore.getDraftPreview(channel.id)}
+                    {#if draftPreview}
+                      <DraftIndicator draftPreview={draftPreview} tooltipPosition="right" />
+                    {/if}
+                  {/if}
+                  {#if unreadCount > 0}
+                    <span class="badge badge-primary badge-sm rounded-full">
+                      {formatUnreadCount(unreadCount)}
+                    </span>
                   {/if}
                 </div>
                 <p class="text-sm text-base-content/70 line-clamp-2">

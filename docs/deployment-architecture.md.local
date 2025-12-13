@@ -1,0 +1,376 @@
+# Deployment Architecture
+
+This document describes the deployment architecture for Fairfield Nostr, including the Docker container structure, network topology, and deployment options.
+
+## Container Architecture
+
+```mermaid
+graph TB
+    subgraph Container["Docker Container: fairfield-nostr"]
+        direction TB
+
+        subgraph Processes["Process Management"]
+            Supervisord["supervisord"]
+        end
+
+        subgraph Web["Web Layer"]
+            Nginx["nginx :80"]
+            Static["/var/www/html<br/>SvelteKit SPA"]
+        end
+
+        subgraph Relay["Nostr Relay"]
+            Strfry["strfry :7777"]
+            Plugin["auth-whitelist.js<br/>NIP-42 Plugin"]
+        end
+
+        subgraph Storage["Data Storage"]
+            LMDB[("LMDB<br/>/app/strfry-db")]
+            Whitelist["whitelist.json"]
+        end
+
+        Supervisord -->|"manages"| Nginx
+        Supervisord -->|"manages"| Strfry
+        Nginx -->|"serves"| Static
+        Nginx -->|"proxies /relay"| Strfry
+        Strfry -->|"stores events"| LMDB
+        Strfry -->|"validates writes"| Plugin
+        Plugin -->|"checks"| Whitelist
+    end
+
+    style Container fill:#1a1a2e,stroke:#16213e,color:#fff
+    style Nginx fill:#009639,stroke:#007530,color:#fff
+    style Strfry fill:#9945ff,stroke:#7b36cc,color:#fff
+```
+
+## Network Topology
+
+### Production with Cloudflared
+
+```mermaid
+sequenceDiagram
+    participant User as Browser
+    participant CF as Cloudflare Edge
+    participant Tunnel as cloudflared
+    participant Docker as Docker Container
+    participant Nginx as nginx :80
+    participant Strfry as strfry :7777
+
+    User->>CF: HTTPS Request
+    CF->>Tunnel: Tunnel Connection
+    Tunnel->>Docker: HTTP :80
+    Docker->>Nginx: Route Request
+
+    alt Static File
+        Nginx->>Nginx: Serve from /var/www/html
+        Nginx-->>User: HTML/JS/CSS
+    else WebSocket /relay
+        Nginx->>Strfry: Proxy WebSocket
+        Strfry-->>User: Nostr Events
+    end
+```
+
+### Development Mode
+
+```mermaid
+graph LR
+    Browser["Browser<br/>localhost:5173"]
+    Vite["Vite Dev Server<br/>:5173"]
+    HMR["HMR WebSocket"]
+
+    Browser -->|"HTTP"| Vite
+    Browser <-->|"WebSocket"| HMR
+    Vite -->|"serves"| SvelteKit["SvelteKit App"]
+```
+
+## Docker Build Stages
+
+```mermaid
+flowchart TD
+    subgraph Stage1["Stage 1: Builder"]
+        Node["node:20-alpine"]
+        NPM["npm ci"]
+        Build["npm run build"]
+        Node --> NPM --> Build
+    end
+
+    subgraph Stage2["Stage 2: Relay Builder"]
+        Alpine1["alpine:3.19"]
+        Git["git clone strfry"]
+        Make["make -j\$(nproc)"]
+        Alpine1 --> Git --> Make
+    end
+
+    subgraph Stage3["Stage 3: Production"]
+        Alpine2["alpine:3.19"]
+        CopyWeb["COPY --from=builder"]
+        CopyRelay["COPY --from=relay-builder"]
+        Config["Configure nginx + supervisord"]
+        Alpine2 --> CopyWeb
+        Alpine2 --> CopyRelay
+        CopyWeb --> Config
+        CopyRelay --> Config
+    end
+
+    Stage1 -->|"build artifacts"| Stage3
+    Stage2 -->|"strfry binary"| Stage3
+```
+
+## Port Mapping
+
+| Internal Port | Service | Purpose |
+|---------------|---------|---------|
+| 80 | nginx | HTTP server (external) |
+| 7777 | strfry | Nostr relay (internal only) |
+
+| External Port | Container Port | Protocol |
+|---------------|----------------|----------|
+| 8080 | 80 | HTTP/WebSocket |
+
+## Volume Mounts
+
+```mermaid
+graph LR
+    subgraph Host
+        HostData["./strfry-data"]
+        HostWhitelist["./relay/whitelist.json"]
+    end
+
+    subgraph Container
+        ContainerData["/app/strfry-db"]
+        ContainerWhitelist["/etc/strfry/whitelist.json"]
+    end
+
+    HostData -->|"volume"| ContainerData
+    HostWhitelist -->|"bind mount :ro"| ContainerWhitelist
+```
+
+## Health Checks
+
+```mermaid
+sequenceDiagram
+    participant Docker
+    participant Health as healthcheck.sh
+    participant Nginx as nginx :80
+    participant Strfry as strfry :7777
+
+    loop Every 30s
+        Docker->>Health: Execute check
+        Health->>Nginx: curl localhost/health
+        Nginx-->>Health: 200 OK
+        Health->>Strfry: nc -z localhost 7777
+        Strfry-->>Health: Connection OK
+        Health-->>Docker: Exit 0 (healthy)
+    end
+```
+
+## Deployment Options
+
+### Option 1: Docker Compose (Recommended)
+
+```yaml
+# docker-compose.yml
+services:
+  fairfield:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - strfry-data:/app/strfry-db
+    healthcheck:
+      test: ["/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+```
+
+### Option 2: Docker Run
+
+```bash
+docker run -d \
+  --name fairfield-nostr \
+  -p 8080:80 \
+  -v fairfield-data:/app/strfry-db \
+  fairfield-nostr:latest
+```
+
+### Option 3: With Cloudflared
+
+```yaml
+services:
+  fairfield:
+    # ... as above
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARED_TOKEN}
+    depends_on:
+      fairfield:
+        condition: service_healthy
+```
+
+## Security Model
+
+```mermaid
+flowchart TD
+    subgraph External["External Network"]
+        User["User"]
+        Cloudflare["Cloudflare<br/>(HTTPS termination)"]
+    end
+
+    subgraph Internal["Docker Network"]
+        Nginx["nginx<br/>(HTTP only)"]
+        Strfry["strfry<br/>(127.0.0.1 only)"]
+    end
+
+    User -->|"HTTPS"| Cloudflare
+    Cloudflare -->|"HTTP tunnel"| Nginx
+    Nginx -->|"proxy"| Strfry
+
+    style Cloudflare fill:#f48120,stroke:#c6680a,color:#fff
+```
+
+### Security Features
+
+1. **No TLS in Container** - Cloudflared handles HTTPS termination
+2. **Internal Relay** - strfry binds to 127.0.0.1, not exposed externally
+3. **NIP-42 Auth** - Write operations require authentication
+4. **Whitelist Support** - Optional pubkey whitelist for private relays
+
+## Scaling Considerations
+
+### Single Node (Current)
+
+```mermaid
+graph TB
+    LB["Load Balancer / Cloudflare"]
+    Node1["Docker Node<br/>website + relay"]
+    DB1[("LMDB")]
+
+    LB --> Node1
+    Node1 --> DB1
+```
+
+### Future: Multi-Node
+
+```mermaid
+graph TB
+    LB["Load Balancer"]
+
+    subgraph Node1["Node 1"]
+        Web1["website"]
+        Relay1["strfry"]
+    end
+
+    subgraph Node2["Node 2"]
+        Web2["website"]
+        Relay2["strfry"]
+    end
+
+    DB[("Shared Storage<br/>or Negentropy Sync")]
+
+    LB --> Web1
+    LB --> Web2
+    Relay1 <-->|"sync"| Relay2
+    Relay1 --> DB
+    Relay2 --> DB
+```
+
+## Monitoring
+
+### Logs
+
+```bash
+# View all logs
+docker-compose logs -f
+
+# View specific service
+docker-compose logs -f fairfield
+
+# View nginx access logs
+docker exec fairfield-nostr tail -f /var/log/nginx/access.log
+
+# View strfry logs
+docker exec fairfield-nostr tail -f /var/log/supervisor/strfry.log
+```
+
+### Metrics
+
+- **nginx**: Access logs with response times
+- **strfry**: Event counts, connection stats
+- **supervisord**: Process status, restart counts
+
+## Backup & Recovery
+
+### Backup LMDB Database
+
+```bash
+# Stop writes (optional)
+docker exec fairfield-nostr supervisorctl stop strfry
+
+# Backup
+docker run --rm \
+  -v fairfield-nostr_strfry-data:/data \
+  -v $(pwd)/backup:/backup \
+  alpine tar czf /backup/strfry-$(date +%Y%m%d).tar.gz /data
+
+# Restart
+docker exec fairfield-nostr supervisorctl start strfry
+```
+
+### Restore
+
+```bash
+# Stop container
+docker-compose down
+
+# Restore data
+docker run --rm \
+  -v fairfield-nostr_strfry-data:/data \
+  -v $(pwd)/backup:/backup \
+  alpine sh -c "rm -rf /data/* && tar xzf /backup/strfry-YYYYMMDD.tar.gz -C /"
+
+# Start container
+docker-compose up -d
+```
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TZ` | `UTC` | Timezone for logs |
+| `CLOUDFLARED_TOKEN` | - | Cloudflare tunnel token |
+
+## Troubleshooting
+
+### Container won't start
+
+```bash
+# Check logs
+docker-compose logs fairfield
+
+# Check supervisord status
+docker exec fairfield-nostr supervisorctl status
+```
+
+### Relay not accepting connections
+
+```bash
+# Check strfry is running
+docker exec fairfield-nostr pgrep strfry
+
+# Check nginx proxy config
+docker exec fairfield-nostr nginx -t
+
+# Test internal connectivity
+docker exec fairfield-nostr curl -v http://localhost:7777
+```
+
+### WebSocket connection fails
+
+```bash
+# Check nginx WebSocket config
+docker exec fairfield-nostr cat /etc/nginx/nginx.conf | grep -A5 "location /relay"
+
+# Test from host
+curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" http://localhost:8080/relay
+```

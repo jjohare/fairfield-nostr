@@ -20,6 +20,9 @@ export interface Message {
   createdAt: number;
   isEncrypted: boolean;
   decryptedContent?: string;
+  tags?: string[][];
+  replyTo?: string;
+  quotedMessages?: string[];
 }
 
 export interface JoinRequest {

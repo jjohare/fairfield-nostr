@@ -11,6 +11,8 @@ import {
   type EventTemplate,
 } from 'nostr-tools';
 import { hexToBytes, bytesToHex } from '@noble/hashes/utils.js';
+import { schnorr } from '@noble/curves/secp256k1';
+import { sha256 } from '@noble/hashes/sha256';
 import type {
   NostrEvent,
   Filter,
@@ -174,12 +176,41 @@ export function signEvent(
 }
 
 /**
+ * Compute event hash (ID) according to NIP-01
+ * @param event - Event to hash
+ * @returns Hex-encoded event hash
+ */
+function computeEventHash(event: NostrEvent): string {
+  const serialized = JSON.stringify([
+    0,
+    event.pubkey,
+    event.created_at,
+    event.kind,
+    event.tags,
+    event.content,
+  ]);
+  const hash = sha256(new TextEncoder().encode(serialized));
+  return bytesToHex(hash);
+}
+
+/**
  * Verify an event's signature
+ * Always performs fresh verification (no caching) to ensure tampered events are detected.
  * @param event - Event to verify
  * @returns True if signature is valid
  */
 export function verifyEventSignature(event: NostrEvent): boolean {
-  return verifyEvent(event as Event);
+  try {
+    // First verify the event ID matches the content hash
+    const computedId = computeEventHash(event);
+    if (computedId !== event.id) {
+      return false;
+    }
+    // Verify the schnorr signature against the event ID
+    return schnorr.verify(event.sig, event.id, event.pubkey);
+  } catch {
+    return false;
+  }
 }
 
 // ============================================================================

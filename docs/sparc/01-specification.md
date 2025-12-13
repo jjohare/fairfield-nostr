@@ -226,18 +226,15 @@ AND approved users immediately gain channel access
 
 ## 7. Cohort Visibility Matrix
 
-```
-┌─────────────────────┬─────────────┬──────────────┬─────────────┐
-│ Channel             │ Moomaa-tribe│ Business     │ Dual-cohort │
-├─────────────────────┼─────────────┼──────────────┼─────────────┤
-│ General Chat        │ ✓ Listed    │ ✗ Hidden     │ ✓ (moomaa)  │
-│ Retreat Updates     │ ✓ Listed    │ ✓ Listed     │ ✓ (both)    │
-│ Course: Batch 2024A │ ✗ Hidden    │ ✓ Listed     │ ✓ (business)│
-│ Private: Founders   │ ✓ Listed    │ ✗ Hidden     │ ✓ (moomaa)  │
-│ Event: Summer 2025  │ ✓ Preview*  │ ✓ Preview*   │ ✓ (both)    │
-└─────────────────────┴─────────────┴──────────────┴─────────────┘
-* Preview = visible but read-only until approved member
-```
+| Channel | Moomaa-tribe | Business | Dual-cohort |
+|---------|--------------|----------|-------------|
+| General Chat | ✓ Listed | ✗ Hidden | ✓ (moomaa) |
+| Retreat Updates | ✓ Listed | ✓ Listed | ✓ (both) |
+| Course: Batch 2024A | ✗ Hidden | ✓ Listed | ✓ (business) |
+| Private: Founders | ✓ Listed | ✗ Hidden | ✓ (moomaa) |
+| Event: Summer 2025 | ✓ Preview* | ✓ Preview* | ✓ (both) |
+
+*Preview = visible but read-only until approved member*
 
 ---
 
