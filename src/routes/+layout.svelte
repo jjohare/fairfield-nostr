@@ -27,7 +27,7 @@
 	let showUpdateBanner = false;
 	let showProfileModal = false;
 
-	$: showNav = $page.url.pathname !== `${base}/` && $page.url.pathname !== base && $page.url.pathname !== `${base}/signup` && $page.url.pathname !== `${base}/setup`;
+	$: showNav = $page.url.pathname !== `${base}/` && $page.url.pathname !== base && $page.url.pathname !== `${base}/signup` && $page.url.pathname !== `${base}/login` && $page.url.pathname !== `${base}/pending`;
 
 	canInstall.subscribe(value => {
 		showInstallBanner = value;

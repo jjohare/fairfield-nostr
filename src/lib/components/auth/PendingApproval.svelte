@@ -1,24 +1,55 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { encodePubkey } from '$lib/nostr/keys';
+  import { checkWhitelistStatus } from '$lib/nostr/whitelist';
 
   export let publicKey: string;
+
+  const dispatch = createEventDispatcher<{ approved: void }>();
 
   let copiedPubkey = false;
   let dots = 0;
   let intervalId: number;
+  let pollIntervalId: number;
+  let checkingStatus = false;
 
   const npub = encodePubkey(publicKey);
 
   onMount(() => {
+    // Animate loading dots
     intervalId = setInterval(() => {
       dots = (dots + 1) % 4;
     }, 500) as unknown as number;
+
+    // Poll for approval status every 10 seconds
+    pollIntervalId = setInterval(async () => {
+      await checkApprovalStatus();
+    }, 10000) as unknown as number;
+
+    // Initial check
+    checkApprovalStatus();
   });
 
   onDestroy(() => {
     if (intervalId) clearInterval(intervalId);
+    if (pollIntervalId) clearInterval(pollIntervalId);
   });
+
+  async function checkApprovalStatus() {
+    if (checkingStatus) return;
+    checkingStatus = true;
+
+    try {
+      const status = await checkWhitelistStatus(publicKey);
+      if (status.isApproved || status.isAdmin) {
+        dispatch('approved');
+      }
+    } catch (error) {
+      console.error('Failed to check approval status:', error);
+    } finally {
+      checkingStatus = false;
+    }
+  }
 
   async function copyPubkey() {
     try {

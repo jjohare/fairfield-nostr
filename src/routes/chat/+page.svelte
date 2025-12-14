@@ -28,6 +28,12 @@
       return;
     }
 
+    // Redirect to pending page if user is awaiting approval
+    if ($authStore.isPending) {
+      goto(`${base}/pending`);
+      return;
+    }
+
     try {
       // Set up signer if we have a private key
       if ($authStore.privateKey) {

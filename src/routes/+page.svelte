@@ -36,7 +36,7 @@
 					<a href="{base}/signup" class="btn btn-primary btn-lg">
 						Create Account
 					</a>
-					<a href="{base}/setup" class="btn btn-outline btn-lg">
+					<a href="{base}/login" class="btn btn-outline btn-lg">
 						Login
 					</a>
 				</div>

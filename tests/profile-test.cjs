@@ -22,7 +22,7 @@ const { chromium } = require('playwright');
 
   // Step 1: Login with test mnemonic
   console.log('STEP 1: Login with test mnemonic');
-  await page.goto('https://jjohare.github.io/minimoonoir-nostr/setup', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.goto('https://jjohare.github.io/minimoonoir-nostr/login', { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(3000);
 
   const testMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';

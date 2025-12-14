@@ -1,14 +1,19 @@
 <script lang="ts">
   import Signup from '$lib/components/auth/Signup.svelte';
   import MnemonicDisplay from '$lib/components/auth/MnemonicDisplay.svelte';
+  import KeyBackup from '$lib/components/auth/KeyBackup.svelte';
+  import PendingApproval from '$lib/components/auth/PendingApproval.svelte';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
   import { authStore } from '$lib/stores/auth';
+  import { checkWhitelistStatus } from '$lib/nostr/whitelist';
 
-  let step = 1;
+  type FlowStep = 'signup' | 'mnemonic' | 'backup' | 'pending';
+  let step: FlowStep = 'signup';
   let mnemonic = '';
   let publicKey = '';
   let privateKey = '';
+  let isApproved = false;
 
   function handleNext(event: CustomEvent<{ mnemonic: string; publicKey: string; privateKey: string }>) {
     const data = event.detail;
@@ -16,16 +21,36 @@
       mnemonic = data.mnemonic;
       publicKey = data.publicKey;
       privateKey = data.privateKey;
-      step = 2;
+      step = 'mnemonic';
     } else {
-      goto(`${base}/setup`);
+      goto(`${base}/login`);
     }
   }
 
-  async function handleContinue() {
+  function handleMnemonicContinue() {
+    step = 'backup';
+  }
+
+  async function handleBackupContinue() {
     await authStore.setKeys(publicKey, privateKey, mnemonic);
-    // Confirm backup was shown to clear mnemonic from storage
     authStore.confirmMnemonicBackup();
+
+    // Check if user is pre-approved (admin or on whitelist)
+    const whitelistStatus = await checkWhitelistStatus(publicKey);
+    isApproved = whitelistStatus.isApproved || whitelistStatus.isAdmin;
+
+    if (isApproved) {
+      // Skip pending approval for pre-approved users
+      goto(`${base}/chat`);
+    } else {
+      // Show pending approval screen
+      authStore.setPending(true);
+      step = 'pending';
+    }
+  }
+
+  async function handleApproved() {
+    authStore.setPending(false);
     goto(`${base}/chat`);
   }
 </script>
@@ -34,8 +59,12 @@
   <title>Sign Up - Minimoomaa Noir</title>
 </svelte:head>
 
-{#if step === 1}
+{#if step === 'signup'}
   <Signup on:next={handleNext} />
-{:else if step === 2}
-  <MnemonicDisplay {mnemonic} on:continue={handleContinue} />
+{:else if step === 'mnemonic'}
+  <MnemonicDisplay {mnemonic} on:continue={handleMnemonicContinue} />
+{:else if step === 'backup'}
+  <KeyBackup {publicKey} {mnemonic} on:continue={handleBackupContinue} />
+{:else if step === 'pending'}
+  <PendingApproval {publicKey} on:approved={handleApproved} />
 {/if}

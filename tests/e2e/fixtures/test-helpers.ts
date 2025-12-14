@@ -35,7 +35,7 @@ export function generateTestMnemonic(): string {
 export async function loginAsAdmin(page: Page): Promise<void> {
   await page.goto('/');
 
-  // Navigate to login/setup page
+  // Navigate to login/login page
   const loginButton = page.getByRole('link', { name: /login|setup/i });
   await loginButton.click();
 
@@ -63,7 +63,7 @@ export async function loginAsUser(page: Page, mnemonic?: string): Promise<string
 
   await page.goto('/');
 
-  // Navigate to login/setup page
+  // Navigate to login/login page
   const loginButton = page.getByRole('link', { name: /login|setup/i });
   await loginButton.click();
 

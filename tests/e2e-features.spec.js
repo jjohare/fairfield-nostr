@@ -28,7 +28,7 @@ import { chromium } from 'playwright';
   try {
     // STEP 1: Login with test mnemonic
     console.log('STEP 1: Login with test account');
-    await page.goto(`${BASE}/setup`, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle', timeout: 30000 });
     await page.waitForTimeout(2000);
 
     const testMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';

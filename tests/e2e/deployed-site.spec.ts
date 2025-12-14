@@ -48,7 +48,7 @@ test.describe('Deployed Site - Minimoonoir PWA', () => {
   });
 
   test('setup page loads', async ({ page }) => {
-    await page.goto(`${DEPLOYED_URL}/setup`, { waitUntil: 'networkidle' });
+    await page.goto(`${DEPLOYED_URL}/login`, { waitUntil: 'networkidle' });
     await page.screenshot({ path: '/tmp/playwright-screenshots/04-setup.png', fullPage: true });
 
     const content = await page.locator('body').textContent();

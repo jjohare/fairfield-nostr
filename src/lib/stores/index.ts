@@ -3,7 +3,7 @@
  */
 
 export { authStore } from './auth';
-export type { AuthState, AppState } from './auth';
+export type { AuthState } from './auth';
 
 export {
   userStore,

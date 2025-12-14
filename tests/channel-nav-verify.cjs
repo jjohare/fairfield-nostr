@@ -22,7 +22,7 @@ const { chromium } = require('playwright');
 
   // Step 1: Login with test mnemonic
   console.log('STEP 1: Login with test mnemonic');
-  await page.goto('http://localhost:4350/setup', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:4350/login', { waitUntil: 'networkidle' });
   await page.waitForTimeout(2000);
 
   const testMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
