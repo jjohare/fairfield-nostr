@@ -1,30 +1,58 @@
 # Minimoonoir
 
-A privacy-first community messaging platform built on the Nostr protocol. Features NIP-52 calendar events, NIP-28 public chat channels, NIP-17/59 encrypted direct messages, and a built-in strfry relay in a single Docker container.
+A privacy-first community messaging platform built on the Nostr protocol. Features NIP-52 calendar events, NIP-28 public chat channels, NIP-17/59 encrypted direct messages, and cohort-based access control.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Nostr](https://img.shields.io/badge/Nostr-Protocol-purple.svg)](https://nostr.com)
 [![SvelteKit](https://img.shields.io/badge/SvelteKit-5.x-orange.svg)](https://kit.svelte.dev)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://docker.com)
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange.svg)](https://workers.cloudflare.com)
+
+> **Note:** This branch contains the legacy Docker-based architecture.
+>
+> **For the current serverless implementation, see the [`cloudflare-serverless`](https://github.com/jjohare/minimoonoir/tree/cloudflare-serverless) branch.**
+>
+> The serverless architecture uses:
+> - **GitHub Pages** for PWA hosting (free)
+> - **Cloudflare Workers** with nosflare relay
+> - **D1 Database** for whitelist/cohort access control
+> - **Durable Objects** for event storage
+> - **Zero infrastructure costs** on free tier
 
 ## Features
 
-- **Public Chat Channels** - NIP-28 group messaging with admin-managed channels
+- **Public Chat Channels** - NIP-28 group messaging with cohort-based access control
 - **Calendar Events** - NIP-52 event scheduling with RSVP support
 - **Encrypted DMs** - NIP-17/59 gift-wrapped private messages
 - **PWA Support** - Installable app with offline message queue
-- **Single Container** - Website + strfry relay in one Docker image
-- **Cloudflared Ready** - HTTP exposed for tunnel-based HTTPS termination
+- **Serverless Architecture** - Zero infrastructure costs on free tier
+- **Cohort-Based Access** - Business, moomaa-tribe, and admin roles
 
 ## Quick Start
 
-### Docker Deployment (Recommended)
+**Recommended: Use the [`cloudflare-serverless`](https://github.com/jjohare/minimoonoir/tree/cloudflare-serverless) branch for the latest implementation.**
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/minimoonoir.git
+# Clone and switch to serverless branch
+git clone https://github.com/jjohare/minimoonoir.git
 cd minimoonoir
+git checkout cloudflare-serverless
 
+# Install dependencies
+npm install
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your relay URL and admin pubkey
+
+# Start development server
+npm run dev
+
+# Access: http://localhost:5173
+```
+
+### Legacy Docker Deployment (This Branch)
+
+```bash
 # Build the PWA
 npm install
 npm run build
@@ -35,22 +63,6 @@ docker-compose up -d
 # Access the application
 # Website: http://localhost:8080
 # Relay:   ws://localhost:8080/relay
-```
-
-### Local Development
-
-```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
 ```
 
 ## Architecture
