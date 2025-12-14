@@ -28,7 +28,7 @@ A privacy-first community messaging platform built on the Nostr protocol. Featur
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/minimoonoir.git
+git clone https://github.com/jjohare/minimoonoir.git
 cd minimoonoir
 
 # Install dependencies
@@ -59,26 +59,9 @@ npm run deploy
 
 **Backend (Cloudflare Workers):**
 
-```bash
-# Navigate to relay directory
-cd relay/nosflare
+The relay is already deployed at `wss://nosflare.solitary-paper-764d.workers.dev`
 
-# Install wrangler globally
-npm install -g wrangler
-
-# Login to Cloudflare
-wrangler login
-
-# Create D1 database
-wrangler d1 create nosflare-db
-
-# Update wrangler.toml with database ID
-# Then deploy
-wrangler deploy
-
-# Your relay will be available at:
-# wss://nosflare.solitary-paper-764d.workers.dev
-```
+To deploy your own relay, see the [nosflare repository](https://github.com/Spl0itable/nosflare) and follow the Cloudflare Workers deployment instructions.
 
 ## Architecture
 
@@ -456,15 +439,15 @@ minimoonoir/
 │   │   ├── admin/           # Admin dashboard
 │   │   └── settings/        # User settings
 │   └── service-worker.ts    # PWA service worker
-├── relay/
-│   └── nosflare/            # Cloudflare Workers relay
-│       ├── src/
-│       │   ├── index.ts     # Worker entry point
-│       │   ├── websocket.ts # WebSocket handling
-│       │   ├── auth.ts      # NIP-42 authentication
-│       │   └── cohorts.ts   # Access control
-│       ├── wrangler.toml    # Cloudflare config
-│       └── schema.sql       # D1 database schema
+├── nosflare/                # Cloudflare Workers relay (customized)
+│   ├── worker.js            # Compiled relay worker
+│   ├── wrangler.toml        # Free tier configuration
+│   ├── schema.sql           # D1 database schema
+│   └── CUSTOMIZATION.md     # Our customizations documentation
+├── .github/
+│   └── workflows/
+│       ├── deploy-pages.yml  # Frontend deployment to GitHub Pages
+│       └── deploy-relay.yml  # Backend deployment to Cloudflare Workers
 ├── static/                  # Static assets
 │   ├── manifest.json        # PWA manifest
 │   └── icon-*.png           # PWA icons
@@ -472,9 +455,6 @@ minimoonoir/
 │   ├── unit/                # Unit tests
 │   └── e2e/                 # E2E tests
 ├── docs/                    # Documentation
-├── .github/
-│   └── workflows/
-│       └── deploy.yml       # GitHub Actions deployment
 ├── svelte.config.js         # SvelteKit config (adapter-static)
 └── package.json             # Node dependencies
 ```
@@ -495,29 +475,14 @@ CLOUDFLARE_API_TOKEN=<your-api-token>        # For relay deployment
 ADMIN_PUBKEY=<hex-pubkey>                    # Admin public key
 ```
 
-### Cloudflare Workers Configuration
+### Relay Configuration
 
-The relay is configured in `relay/nosflare/wrangler.toml`:
+The Cloudflare Workers relay is deployed separately. Key configuration:
 
-```toml
-name = "nosflare"
-main = "src/index.ts"
-compatibility_date = "2024-01-01"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "nosflare-db"
-database_id = "<your-database-id>"
-
-[durable_objects]
-bindings = [
-  { name = "WEBSOCKET_MANAGER", class_name = "WebSocketManager" }
-]
-
-[[migrations]]
-tag = "v1"
-new_sqlite_classes = ["WebSocketManager"]
-```
+- **Relay URL:** `wss://nosflare.solitary-paper-764d.workers.dev`
+- **Admin Pubkey:** Set via `VITE_ADMIN_PUBKEY` environment variable
+- **Access Control:** D1 database whitelist with cohort support
+- **Storage:** Durable Objects (SQLite-backed) for event storage
 
 ### PWA Configuration
 
@@ -587,46 +552,43 @@ The frontend is automatically deployed via GitHub Actions on every push to `main
 
 ### Cloudflare Workers (Backend)
 
-Deploy the relay to Cloudflare Workers:
+The relay is pre-deployed at `wss://nosflare.solitary-paper-764d.workers.dev`.
+
+For custom deployments using our customized relay:
 
 ```bash
-cd relay/nosflare
+cd nosflare/
 
-# First time setup
-npm install -g wrangler
-wrangler login
+# Create D1 database (first time only)
+wrangler d1 create minimoonoir
+# Update database_id in wrangler.toml with the returned ID
 
-# Create D1 database
-wrangler d1 create nosflare-db
-# Copy the database_id to wrangler.toml
+# Apply schema
+wrangler d1 execute minimoonoir --file=schema.sql
 
-# Initialize database schema
-wrangler d1 execute nosflare-db --file=./schema.sql
+# Add admin to whitelist
+wrangler d1 execute minimoonoir --command="INSERT INTO whitelist (pubkey, cohorts, added_at, added_by) VALUES ('YOUR_HEX_PUBKEY', '[\"admin\"]', unixepoch(), 'system')"
 
-# Deploy relay
+# Deploy
 wrangler deploy
-
-# View logs
-wrangler tail
-
-# Your relay URL:
-# wss://nosflare.solitary-paper-764d.workers.dev
 ```
 
-### Access Control Configuration
+See also:
+- [nosflare/CUSTOMIZATION.md](nosflare/CUSTOMIZATION.md) - Our free tier customizations
+- [nosflare](https://github.com/Spl0itable/nosflare) - Original Cloudflare Workers relay by @Spl0itable
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Full deployment guide
 
-Update the whitelist in D1 database:
+### Access Control
 
-```bash
-# Add user to business cohort
-wrangler d1 execute nosflare-db --command="
-INSERT INTO whitelist (pubkey, cohort)
-VALUES ('npub1...', 'business')
-"
+Users are managed via D1 database whitelist with cohort-based access:
 
-# View whitelist
-wrangler d1 execute nosflare-db --command="SELECT * FROM whitelist"
-```
+| Cohort | Access Level |
+|--------|--------------|
+| `admin` | Full access, can manage users/channels |
+| `business` | Business community members |
+| `moomaa-tribe` | Community group members |
+
+Contact admin to be added to the whitelist.
 
 ## Testing
 
@@ -825,15 +787,40 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- [Nostr Protocol](https://nostr.com) - The protocol specification
-- [NDK](https://github.com/nostr-dev-kit/ndk) - Nostr Development Kit
-- [nosflare](https://github.com/Spl0itable/nosflare) - Cloudflare Workers relay implementation
+### Core Technologies
+
+- [Nostr Protocol](https://nostr.com) - Decentralized social protocol specification
+- [NDK](https://github.com/nostr-dev-kit/ndk) - Nostr Development Kit by @pablof7z
 - [SvelteKit](https://kit.svelte.dev) - Web application framework
 - [Tailwind CSS](https://tailwindcss.com) - Utility-first CSS framework
+
+### Infrastructure
+
+- [nosflare](https://github.com/Spl0itable/nosflare) - Cloudflare Workers relay by [@Spl0itable](https://github.com/Spl0itable)
 - [Cloudflare Workers](https://workers.cloudflare.com) - Edge computing platform
+- [Cloudflare D1](https://developers.cloudflare.com/d1) - Serverless SQLite database
+- [Cloudflare Durable Objects](https://developers.cloudflare.com/workers/runtime-apis/durable-objects) - Stateful serverless storage
+- [GitHub Pages](https://pages.github.com) - Static site hosting
+
+### Development Tools
+
+- [Agentic QE Fleet](https://github.com/proffesor-for-testing/agentic-qe) - AI-powered quality engineering agents (31 QE agents, 53 QE skills)
+- [Claude Code](https://claude.ai/claude-code) - AI-assisted development by Anthropic
+- [Claude Flow](https://github.com/ruvnet/claude-flow) - Swarm coordination for parallel development
+- [ruv-swarm](https://github.com/ruv/ruv-swarm) - Multi-agent orchestration
+
+### NIPs Implemented
+
+Special thanks to the Nostr community for the NIP specifications:
+- NIP-01, NIP-02, NIP-09, NIP-11, NIP-17, NIP-25, NIP-28, NIP-42, NIP-44, NIP-52, NIP-59
+
+### Contributors
+
+- John O'Hare ([@jjohare](https://github.com/jjohare)) - Project lead
+- Claude Opus 4.5 / Claude Sonnet 4.5 - AI development assistance
 
 ## Support
 
 - Documentation: See [docs/](docs/) directory
-- Issues: [GitHub Issues](https://github.com/your-username/minimoonoir/issues)
-- Discussions: [GitHub Discussions](https://github.com/your-username/minimoonoir/discussions)
+- Issues: [GitHub Issues](https://github.com/jjohare/minimoonoir/issues)
+- Discussions: [GitHub Discussions](https://github.com/jjohare/minimoonoir/discussions)

@@ -1,0 +1,59 @@
+# Minimoonoir Private Community Relay Configuration
+# Free Tier Compatible - No Queues Required
+name = "nosflare"
+compatibility_date = "2024-09-23"
+main = "worker.js"
+
+# Environment Variables - Private Relay Configuration
+[vars]
+# Admin public key (hex format) - can also be set via wrangler secret for security
+ADMIN_PUBKEY = "49dfa09158b64f1c42c584a7e3e9adb4c9e8ea9d391ff11c2ac262d1bebbc5a2"
+# Authentication required for all connections
+AUTH_REQUIRED = "true"
+# Disable external relay synchronization
+EXTERNAL_RELAY_SYNC = "false"
+# Disable pay-to-relay functionality
+PAY_TO_RELAY_ENABLED = "false"
+# Free tier mode - direct DO communication instead of queues
+FREE_TIER_MODE = "true"
+
+# Durable Objects - Core Architecture
+
+# One Durable Object per WebSocket connection
+[[durable_objects.bindings]]
+name = "CONNECTION_DO"
+class_name = "ConnectionDO"
+
+# Session management (centralized subscription tracking)
+[[durable_objects.bindings]]
+name = "SESSION_MANAGER_DO"
+class_name = "SessionManagerDO"
+
+# CFNDB (CloudFlare Nostr Database) - Sharded architecture
+[[durable_objects.bindings]]
+name = "EVENT_SHARD_DO"
+class_name = "EventShardDO"
+
+# D1 Database - Whitelist and Cohort Access Control
+[[d1_databases]]
+binding = "DB"
+database_name = "minimoonoir"
+database_id = "0109643b-b214-4509-8bf2-6a181a391ebc"
+
+# R2 Storage - Event Archive (OPTIONAL - enable R2 in Cloudflare dashboard first)
+# [[r2_buckets]]
+# binding = "NOSTR_ARCHIVE"
+# bucket_name = "nostr-archive"
+
+# NOTE: Queues require Workers Paid plan ($5/month)
+# For free tier, events are processed synchronously via DO-to-DO calls
+# Uncomment below if you upgrade to paid plan:
+
+# [[queues.producers]]
+# binding = "BROADCAST_QUEUE_0"
+# queue = "event-broadcast-queue-0"
+
+# Durable Object Migrations (SQLite-backed for free tier)
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ConnectionDO", "SessionManagerDO", "EventShardDO"]

@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nosflare CFNDB Architecture</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .diagram-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 14px;
+        }
+
+        svg {
+            width: 100%;
+            height: auto;
+        }
+
+        .component-box {
+            fill: #ffffff;
+            stroke: #333;
+            stroke-width: 2;
+        }
+
+        .client-box { fill: #e3f2fd; }
+        .worker-box { fill: #fff3e0; }
+        .do-box { fill: #f3e5f5; }
+        .session-box { fill: #e8f5e9; }
+        .broadcast-box { fill: #fff8e1; }
+        .queue-box { fill: #fce4ec; }
+        .storage-box { fill: #e0f2f1; }
+
+        .arrow {
+            stroke: #666;
+            stroke-width: 2;
+            fill: none;
+            marker-end: url(#arrowhead);
+        }
+
+        .arrow-event {
+            stroke: #1976d2;
+        }
+
+        .arrow-event-write {
+            stroke: #1976d2;
+            stroke-dasharray: 5,5;
+        }
+
+        .arrow-broadcast {
+            stroke: #d32f2f;
+            stroke-dasharray: 5,5;
+        }
+
+        .arrow-query {
+            stroke: #388e3c;
+        }
+
+        .arrow-req-read {
+            stroke: #388e3c;
+            stroke-dasharray: 5,5;
+        }
+
+        .arrow-queue {
+            stroke: #7b1fa2;
+            stroke-dasharray: 8,3;
+        }
+
+        text {
+            font-size: 13px;
+            fill: #333;
+        }
+
+        .component-title {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .small-text {
+            font-size: 11px;
+            fill: #666;
+        }
+
+        .flow-label {
+            font-size: 10px;
+            fill: #666;
+            font-style: italic;
+        }
+
+        .highlight-text {
+            font-weight: bold;
+            fill: #d32f2f;
+            font-size: 12px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            font-size: 12px;
+            fill: #555;
+        }
+
+        .stats-grid {
+            margin-top: 30px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .stats-item {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #1976d2;
+        }
+
+        .stats-item h4 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+            font-size: 14px;
+        }
+
+        .stats-item p {
+            margin: 0;
+            font-size: 13px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="diagram-container">
+        <h1>CFNDB Architecture</h1>
+        <p class="subtitle">Distributed Durable Objects with Queue-Based Event Processing</p>
+
+        <svg viewBox="0 0 1200 920" xmlns="http://www.w3.org/2000/svg">
+            <!-- Arrow marker definitions -->
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+                </marker>
+                <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1976d2" />
+                </marker>
+                <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#d32f2f" />
+                </marker>
+                <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#388e3c" />
+                </marker>
+                <marker id="arrowhead-purple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#7b1fa2" />
+                </marker>
+            </defs>
+
+            <!-- ==================== CLIENT LAYER ==================== -->
+            <g id="clients">
+                <rect x="50" y="30" width="300" height="80" rx="5" class="component-box client-box"/>
+                <text x="200" y="55" text-anchor="middle" class="component-title">Nostr Clients</text>
+                <text x="200" y="75" text-anchor="middle" class="small-text">WebSocket connections (WSS)</text>
+                <text x="200" y="90" text-anchor="middle" class="small-text">Damus, Amethyst, Coracle, etc.</text>
+            </g>
+
+            <!-- ==================== CONNECTION DO LAYER ==================== -->
+            <g id="connection-dos">
+                <rect x="50" y="170" width="300" height="120" rx="5" class="component-box do-box"/>
+                <text x="200" y="195" text-anchor="middle" class="component-title">ConnectionDO</text>
+                <text x="200" y="215" text-anchor="middle" class="highlight-text">One per WebSocket connection</text>
+                <text x="70" y="235" class="small-text">- WebSocket Hibernation API</text>
+                <text x="70" y="250" class="small-text">- Local subscription state</text>
+                <text x="70" y="265" class="small-text">- Event validation and routing</text>
+                <text x="70" y="280" class="small-text">- Filter matching for broadcasts</text>
+            </g>
+
+            <!-- ==================== WORKER LAYER ==================== -->
+            <g id="worker">
+                <rect x="400" y="30" width="250" height="80" rx="5" class="component-box worker-box"/>
+                <text x="525" y="55" text-anchor="middle" class="component-title">Cloudflare Worker</text>
+                <text x="525" y="75" text-anchor="middle" class="small-text">HTTP routing, static content</text>
+                <text x="525" y="90" text-anchor="middle" class="small-text">NIP-05, NIP-11, payment pages</text>
+            </g>
+
+            <!-- ==================== QUEUE LAYER ==================== -->
+            <g id="queues">
+                <rect x="400" y="170" width="350" height="120" rx="5" class="component-box queue-box"/>
+                <text x="575" y="195" text-anchor="middle" class="component-title">Cloudflare Queues</text>
+
+                <rect x="415" y="210" width="100" height="35" rx="3" fill="#fff" stroke="#7b1fa2"/>
+                <text x="465" y="230" text-anchor="middle" class="small-text">Broadcast</text>
+                <text x="465" y="242" text-anchor="middle" class="small-text">(50 queues)</text>
+
+                <rect x="525" y="210" width="100" height="35" rx="3" fill="#fff" stroke="#7b1fa2"/>
+                <text x="575" y="230" text-anchor="middle" class="small-text">Indexing</text>
+                <text x="575" y="242" text-anchor="middle" class="small-text">(200 queues)</text>
+
+                <rect x="635" y="210" width="100" height="35" rx="3" fill="#fff" stroke="#7b1fa2"/>
+                <text x="685" y="230" text-anchor="middle" class="small-text">R2 Archive</text>
+                <text x="685" y="242" text-anchor="middle" class="small-text">(1 queue)</text>
+
+                <text x="575" y="278" text-anchor="middle" class="small-text">kind % 50 sharding | batch processing | dead-letter queues</text>
+            </g>
+
+            <!-- ==================== SESSION MANAGER LAYER ==================== -->
+            <g id="session-manager">
+                <rect x="50" y="370" width="300" height="100" rx="5" class="component-box session-box"/>
+                <text x="200" y="395" text-anchor="middle" class="component-title">SessionManagerDO</text>
+                <text x="200" y="415" text-anchor="middle" class="highlight-text">50 shards (kind % 50)</text>
+                <text x="70" y="435" class="small-text">- In-memory subscription indices</text>
+                <text x="70" y="450" class="small-text">- O(1) lookups: kind, author, tag, global</text>
+                <text x="70" y="465" class="small-text">- Global subscription cap: 500/event</text>
+            </g>
+
+            <!-- ==================== BROADCAST CONSUMER (in SessionManager) ==================== -->
+            <g id="broadcast-consumer">
+                <rect x="400" y="370" width="350" height="100" rx="5" class="component-box broadcast-box"/>
+                <text x="575" y="395" text-anchor="middle" class="component-title">Broadcast Consumer</text>
+                <text x="575" y="415" text-anchor="middle" class="highlight-text">Queue consumer → SessionManagerDO</text>
+                <text x="420" y="435" class="small-text">- Batches events to matching ConnectionDOs</text>
+                <text x="420" y="450" class="small-text">- Pre-serialized JSON (serialize once, send to N)</text>
+                <text x="420" y="465" class="small-text">- Max 900 connections per batch</text>
+            </g>
+
+            <!-- ==================== EVENT SHARD LAYER ==================== -->
+            <g id="event-shards">
+                <rect x="800" y="170" width="350" height="260" rx="5" class="component-box do-box"/>
+                <text x="975" y="195" text-anchor="middle" class="component-title">EventShardDO</text>
+                <text x="975" y="215" text-anchor="middle" class="highlight-text">24-hour time windows with 4 replicas</text>
+
+                <!-- Time window visualization -->
+                <text x="820" y="240" class="section-title">24-hour time windows:</text>
+
+                <rect x="820" y="250" width="70" height="50" rx="3" fill="#fff" stroke="#666"/>
+                <text x="855" y="270" text-anchor="middle" class="small-text">Day N</text>
+                <text x="855" y="285" text-anchor="middle" class="small-text">r0-r3</text>
+
+                <rect x="900" y="250" width="70" height="50" rx="3" fill="#fff" stroke="#666"/>
+                <text x="935" y="270" text-anchor="middle" class="small-text">Day N-1</text>
+                <text x="935" y="285" text-anchor="middle" class="small-text">r0-r3</text>
+
+                <rect x="980" y="250" width="70" height="50" rx="3" fill="#fff" stroke="#666"/>
+                <text x="1015" y="270" text-anchor="middle" class="small-text">Day N-2</text>
+                <text x="1015" y="285" text-anchor="middle" class="small-text">r0-r3</text>
+
+                <rect x="1060" y="250" width="70" height="50" rx="3" fill="#fff" stroke="#666"/>
+                <text x="1095" y="270" text-anchor="middle" class="small-text">...</text>
+                <text x="1095" y="285" text-anchor="middle" class="small-text">7 days</text>
+
+                <text x="820" y="320" class="small-text">1 shard per 24-hour window</text>
+                <text x="820" y="335" class="small-text">4 read replicas per shard</text>
+
+                <text x="820" y="375" class="section-title">Index limits:</text>
+                <text x="820" y="390" class="small-text">100k per kind/author/tag index</text>
+                <text x="820" y="405" class="small-text">500k for global time-sorted (createdIndex)</text>
+                <text x="820" y="420" class="small-text">NIP-09, NIP-16, NIP-33, NIP-50 support</text>
+            </g>
+
+            <!-- ==================== PAYMENT DO ==================== -->
+            <g id="payment-do">
+                <rect x="800" y="450" width="160" height="80" rx="5" class="component-box session-box"/>
+                <text x="880" y="475" text-anchor="middle" class="component-title">PaymentDO</text>
+                <text x="880" y="495" text-anchor="middle" class="small-text">Pay-to-relay tracking</text>
+                <text x="880" y="510" text-anchor="middle" class="small-text">SQLite storage</text>
+            </g>
+
+            <!-- ==================== R2 STORAGE ==================== -->
+            <g id="r2-storage">
+                <rect x="990" y="450" width="160" height="80" rx="5" class="component-box storage-box"/>
+                <text x="1070" y="475" text-anchor="middle" class="component-title">R2 Storage</text>
+                <text x="1070" y="495" text-anchor="middle" class="small-text">Event archive backup</text>
+                <text x="1070" y="510" text-anchor="middle" class="small-text">Rate-limited writes</text>
+            </g>
+
+            <!-- ==================== DATA FLOW SECTION ==================== -->
+            <g id="flow-section">
+                <rect x="50" y="590" width="1100" height="120" rx="5" fill="#fafafa" stroke="#ddd"/>
+                <text x="600" y="612" text-anchor="middle" class="component-title">Event Write Flow (Broadcast to Subscribers)</text>
+
+                <!-- Flow boxes -->
+                <rect x="70" y="630" width="120" height="45" rx="3" class="component-box client-box"/>
+                <text x="130" y="648" text-anchor="middle" class="small-text">1. Client sends</text>
+                <text x="130" y="662" text-anchor="middle" class="small-text">EVENT via Worker</text>
+
+                <rect x="220" y="630" width="120" height="45" rx="3" class="component-box do-box"/>
+                <text x="280" y="648" text-anchor="middle" class="small-text">2. ConnectionDO</text>
+                <text x="280" y="662" text-anchor="middle" class="small-text">validates → OK</text>
+
+                <rect x="370" y="630" width="120" height="45" rx="3" class="component-box queue-box"/>
+                <text x="430" y="648" text-anchor="middle" class="small-text">3. Queue to</text>
+                <text x="430" y="662" text-anchor="middle" class="small-text">broadcast + index</text>
+
+                <rect x="520" y="630" width="120" height="45" rx="3" class="component-box session-box"/>
+                <text x="580" y="648" text-anchor="middle" class="small-text">4. SessionManagerDO</text>
+                <text x="580" y="662" text-anchor="middle" class="small-text">matches subs</text>
+
+                <rect x="670" y="630" width="120" height="45" rx="3" class="component-box do-box"/>
+                <text x="730" y="648" text-anchor="middle" class="small-text">5. Subscriber</text>
+                <text x="730" y="662" text-anchor="middle" class="small-text">ConnectionDOs</text>
+
+                <rect x="820" y="630" width="120" height="45" rx="3" class="component-box worker-box"/>
+                <text x="880" y="648" text-anchor="middle" class="small-text">6. Worker</text>
+                <text x="880" y="662" text-anchor="middle" class="small-text">WebSocket</text>
+
+                <rect x="970" y="630" width="120" height="45" rx="3" class="component-box client-box"/>
+                <text x="1030" y="648" text-anchor="middle" class="small-text">7. Subscribed</text>
+                <text x="1030" y="662" text-anchor="middle" class="small-text">clients receive</text>
+
+                <!-- Flow arrows - consistent blue dashed for EVENT write flow -->
+                <path d="M 190 652 L 220 652" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+                <path d="M 340 652 L 370 652" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+                <path d="M 490 652 L 520 652" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+                <path d="M 640 652 L 670 652" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+                <path d="M 790 652 L 820 652" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+                <path d="M 940 652 L 970 652" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+
+                <!-- Parallel indexing note (connection shown in main diagram) -->
+                <text x="600" y="698" text-anchor="middle" class="small-text">Sender receives OK after step 2  |  Parallel: Index to EventShardDO (4 replicas)</text>
+            </g>
+
+            <!-- ==================== REQ READ FLOW SECTION ==================== -->
+            <g id="req-flow-section">
+                <rect x="50" y="730" width="1100" height="120" rx="5" fill="#f0fff0" stroke="#388e3c"/>
+                <text x="600" y="752" text-anchor="middle" class="component-title">REQ Read Flow (Subscriptions &amp; Queries)</text>
+
+                <!-- Flow boxes -->
+                <rect x="100" y="770" width="130" height="45" rx="3" class="component-box client-box"/>
+                <text x="165" y="788" text-anchor="middle" class="small-text">1. Client sends</text>
+                <text x="165" y="802" text-anchor="middle" class="small-text">REQ via Worker</text>
+
+                <rect x="270" y="770" width="130" height="45" rx="3" class="component-box do-box"/>
+                <text x="335" y="788" text-anchor="middle" class="small-text">2. ConnectionDO</text>
+                <text x="335" y="802" text-anchor="middle" class="small-text">registers sub</text>
+
+                <rect x="440" y="770" width="130" height="45" rx="3" class="component-box session-box"/>
+                <text x="505" y="788" text-anchor="middle" class="small-text">3. SessionManagerDO</text>
+                <text x="505" y="802" text-anchor="middle" class="small-text">stores in index</text>
+
+                <rect x="610" y="770" width="130" height="45" rx="3" class="component-box do-box"/>
+                <text x="675" y="788" text-anchor="middle" class="small-text">4. EventShardDO</text>
+                <text x="675" y="802" text-anchor="middle" class="small-text">returns history</text>
+
+                <rect x="780" y="770" width="130" height="45" rx="3" class="component-box do-box"/>
+                <text x="845" y="788" text-anchor="middle" class="small-text">5. ConnectionDO</text>
+                <text x="845" y="802" text-anchor="middle" class="small-text">sends to client</text>
+
+                <rect x="950" y="770" width="130" height="45" rx="3" class="component-box client-box"/>
+                <text x="1015" y="788" text-anchor="middle" class="small-text">6. Client receives</text>
+                <text x="1015" y="802" text-anchor="middle" class="small-text">EVENTs + EOSE</text>
+
+                <!-- Flow arrows - consistent green dashed for REQ read flow -->
+                <path d="M 230 792 L 270 792" class="arrow arrow-req-read" marker-end="url(#arrowhead-green)"/>
+                <path d="M 400 792 L 440 792" class="arrow arrow-req-read" marker-end="url(#arrowhead-green)"/>
+                <path d="M 570 792 L 610 792" class="arrow arrow-req-read" marker-end="url(#arrowhead-green)"/>
+                <path d="M 740 792 L 780 792" class="arrow arrow-req-read" marker-end="url(#arrowhead-green)"/>
+                <path d="M 910 792 L 950 792" class="arrow arrow-req-read" marker-end="url(#arrowhead-green)"/>
+            </g>
+
+            <!-- ==================== MAIN DIAGRAM ARROWS ==================== -->
+            <!-- Client to Worker (WebSocket request) -->
+            <path d="M 350 70 L 400 70" class="arrow" marker-end="url(#arrowhead)"/>
+
+            <!-- Worker to ConnectionDO (WebSocket upgrade - creates new ConnectionDO) -->
+            <path d="M 525 110 L 525 150 L 200 150 L 200 170" class="arrow" marker-end="url(#arrowhead)"/>
+            <text x="380" y="163" class="flow-label">creates unique ConnectionDO</text>
+
+            <!-- ConnectionDO to Queues (EVENT write) -->
+            <path d="M 350 220 L 400 220" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+            <text x="365" y="210" class="flow-label">EVENT</text>
+
+            <!-- ConnectionDO to PaymentDO (payment check during EVENT validation) -->
+            <path d="M 350 270 L 380 270 L 380 330 L 790 330 L 790 470 L 800 470" class="arrow" stroke-dasharray="3,3" marker-end="url(#arrowhead)"/>
+            <text x="580" y="323" class="flow-label">payment check (if enabled)</text>
+
+            <!-- Queues to SessionManager (broadcast flow) -->
+            <path d="M 465 290 L 465 350 L 200 350 L 200 370" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+            <text x="330" y="343" class="flow-label">broadcast queue</text>
+
+            <!-- SessionManager to Broadcast Consumer -->
+            <path d="M 350 420 L 400 420" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+            <text x="355" y="410" class="flow-label">matches</text>
+
+            <!-- Broadcast Consumer back to ConnectionDO -->
+            <path d="M 400 440 L 380 440 L 380 540 L 40 540 L 40 230 L 50 230" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+            <text x="200" y="553" class="flow-label">pre-serialized events</text>
+
+            <!-- ConnectionDO back to Worker (EVENT response) -->
+            <path d="M 280 170 L 280 130 L 450 130 L 450 110" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+            <text x="335" y="123" class="flow-label">EVENT response</text>
+
+            <!-- Worker back to Client (WebSocket) -->
+            <path d="M 400 55 L 350 55" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+
+            <!-- Queues to EventShardDO (indexing) -->
+            <path d="M 750 220 L 800 220" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+            <text x="765" y="210" class="flow-label">index</text>
+
+            <!-- Queues to R2 -->
+            <path d="M 685 290 L 685 310 L 760 310 L 760 440 L 1070 440 L 1070 450" class="arrow arrow-event-write" marker-end="url(#arrowhead-blue)"/>
+
+            <!-- REQ read flow: ConnectionDO to SessionManager (register subscription) -->
+            <path d="M 200 290 L 200 370" class="arrow arrow-req-read" marker-end="url(#arrowhead-green)"/>
+            <text x="210" y="335" class="flow-label">register sub</text>
+
+            <!-- REQ read flow: ConnectionDO to EventShardDO (routes above Queues box) -->
+            <path d="M 350 190 L 370 190 L 370 145 L 975 145 L 975 170" class="arrow arrow-req-read" marker-end="url(#arrowhead-green)"/>
+            <text x="670" y="137" class="flow-label">REQ query history</text>
+
+            <!-- REQ read flow: EventShardDO response back to ConnectionDO -->
+            <path d="M 800 400 L 770 400 L 770 560 L 30 560 L 30 240 L 50 240" class="arrow arrow-req-read" marker-end="url(#arrowhead-green)"/>
+            <text x="400" y="573" class="flow-label">historical events</text>
+
+            <!-- REQ read flow: ConnectionDO response through Worker to Client -->
+            <path d="M 100 170 L 100 155 L 430 155 L 430 110" class="arrow arrow-req-read" marker-end="url(#arrowhead-green)"/>
+            <text x="60" y="163" class="flow-label">EOSE + &nbsp;events</text>
+
+            <!-- Worker back to Client (REQ response) -->
+            <path d="M 400 45 L 350 45" class="arrow arrow-req-read" marker-end="url(#arrowhead-green)"/>
+            <text x="375" y="37" class="flow-label">WSS</text>
+
+            <!-- ==================== LEGEND ==================== -->
+            <g id="legend">
+                <rect x="700" y="30" width="200" height="90" rx="5" fill="#fff" stroke="#ccc"/>
+                <text x="800" y="50" text-anchor="middle" class="section-title">Flow Legend</text>
+
+                <!-- EVENT write flow -->
+                <line x1="715" y1="70" x2="755" y2="70" stroke="#1976d2" stroke-width="2" stroke-dasharray="5,5"/>
+                <text x="765" y="74" class="small-text">EVENT write flow</text>
+
+                <!-- REQ read flow -->
+                <line x1="715" y1="90" x2="755" y2="90" stroke="#388e3c" stroke-width="2" stroke-dasharray="5,5"/>
+                <text x="765" y="94" class="small-text">REQ read flow</text>
+
+                <!-- Solid lines -->
+                <line x1="715" y1="110" x2="755" y2="110" stroke="#666" stroke-width="2"/>
+                <text x="765" y="114" class="small-text">Control/setup</text>
+            </g>
+
+        </svg>
+
+        <div class="stats-grid">
+            <div class="stats-item">
+                <h4>Write Throughput</h4>
+                <p>50 broadcast queues at 5,000 msg/sec each provides 250,000 events/sec capacity. Events are sharded by kind for parallel processing.</p>
+            </div>
+
+            <div class="stats-item">
+                <h4>Event Storage</h4>
+                <p>1 shard per 24-hour window with 4 replicas each (4 EventShardDO instances per day). Write quorum requires 2 of 4 replicas for durability.</p>
+            </div>
+
+            <div class="stats-item">
+                <h4>Index Capacity</h4>
+                <p>100,000 entries per kind/author/tag index. 500,000 entries for global time-sorted queries. Warnings at 80% capacity.</p>
+            </div>
+
+            <div class="stats-item">
+                <h4>Broadcast Efficiency</h4>
+                <p>Events are JSON-serialized once, then sent to N subscribers via SessionManagerDO (max 900 connections per batch). Msgpack used for internal DO communication.</p>
+            </div>
+
+            <div class="stats-item">
+                <h4>Subscription Tracking</h4>
+                <p>50 SessionManagerDO shards with in-memory indices. O(1) lookups for kind, author, tag filters. Global subscriptions capped at 500 per event.</p>
+            </div>
+
+            <div class="stats-item">
+                <h4>Query Distribution</h4>
+                <p>Reads from single replica (deterministic selection). Queries limited to 7-day window. Targeted shard queries based on event kinds.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

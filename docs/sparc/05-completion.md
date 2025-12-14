@@ -515,38 +515,102 @@ async function checkRelay(env: Env): Promise<{ healthy: boolean }> {
 }
 ```
 
-### 7.2 Monitoring Stack (Optional)
+### 7.2 Monitoring Stack
 
+**Cloudflare Analytics Dashboard:**
 ```mermaid
 flowchart TB
     subgraph Services["Application Services"]
-        PWA[PWA :3000]
-        Relay[Relay :7777]
+        PWA[Cloudflare Pages]
+        Relay[Cloudflare Workers]
     end
 
-    subgraph Monitoring["Monitoring Stack"]
-        Prom[Prometheus :9090]
-        Graf[Grafana :3001]
-        Alert[Alertmanager :9093]
+    subgraph Monitoring["Cloudflare Analytics"]
+        Pages[Pages Analytics]
+        Workers[Workers Analytics]
+        Logs[Workers Logs]
+        Insights[Web Analytics]
     end
 
-    PWA --> Prom
-    Relay --> Prom
-    Prom --> Graf
-    Prom --> Alert
-    Alert --> Email[Email Alerts]
+    subgraph External["External Monitoring"]
+        UptimeRobot[UptimeRobot]
+        Sentry[Sentry Error Tracking]
+    end
+
+    PWA --> Pages
+    PWA --> Insights
+    Relay --> Workers
+    Relay --> Logs
+
+    Relay --> UptimeRobot
+    PWA --> UptimeRobot
+    Relay --> Sentry
+    PWA --> Sentry
+```
+
+**Cloudflare Logpush Configuration:**
+```toml
+# Add to wrangler.toml
+[logpush]
+enabled = true
+
+# Configure via Cloudflare Dashboard or API
+# - Workers Trace Events
+# - HTTP Requests
+# - Errors and exceptions
 ```
 
 ### 7.3 Key Metrics to Monitor
 
-| Metric | Alert Threshold | Severity |
-|--------|-----------------|----------|
+| Metric | Alert Threshold | Severity | Monitoring Tool |
+|--------|-----------------|----------|-----------------|
 | Worker CPU Time | >50ms avg | Warning | Workers Analytics |
 | Worker Error Rate | >1% | Critical | Workers Analytics |
+| WebSocket Connections | >1000 concurrent | Warning | Workers Analytics |
+| D1 Query Time | >100ms avg | Warning | D1 Analytics |
 | D1 Storage | >80% quota | Critical | D1 Analytics |
-| PWA response time | >2s | Warning |
-| SSL certificate expiry | <14 days | Critical |
-| Backup age | >48 hours | Critical |
+| R2 Storage | >80% quota | Warning | R2 Analytics |
+| Pages Build Time | >5 min | Warning | Pages Analytics |
+| Frontend Error Rate | >0.5% | Critical | Web Analytics |
+| Backup Age | >48 hours | Critical | Custom Script |
+
+**Custom Monitoring Worker:**
+```typescript
+// monitoring/src/index.ts
+export default {
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+    // Check backup age
+    const backups = await env.BACKUP_BUCKET.list({
+      prefix: 'backups/',
+      limit: 1
+    });
+
+    if (backups.objects.length === 0) {
+      await sendAlert('No backups found!', 'critical');
+      return;
+    }
+
+    const latestBackup = backups.objects[0];
+    const backupAge = Date.now() - latestBackup.uploaded.getTime();
+    const maxAge = 48 * 60 * 60 * 1000; // 48 hours
+
+    if (backupAge > maxAge) {
+      await sendAlert(`Backup is ${Math.round(backupAge / 3600000)} hours old`, 'critical');
+    }
+
+    // Check relay health
+    const healthCheck = await fetch('https://relay.minimoonoir.workers.dev/health');
+    if (!healthCheck.ok) {
+      await sendAlert('Relay health check failed', 'critical');
+    }
+  }
+};
+
+async function sendAlert(message: string, severity: string) {
+  // Send to Slack, Discord, email, etc.
+  console.error(`[${severity.toUpperCase()}] ${message}`);
+}
+```
 
 ---
 
@@ -765,25 +829,41 @@ gantt
 ## Appendix A: Quick Reference Commands
 
 ```bash
-# Service Management (Cloudflare)
-wrangler pages deploy build           # Deploy frontend
-wrangler deploy                        # Deploy relay worker
-wrangler tail                          # View real-time logs
+# Cloudflare Deployment
+wrangler pages deploy build --project-name=minimoonoir-chat  # Deploy frontend
+wrangler deploy                                               # Deploy relay worker
+wrangler tail                                                 # Stream live logs
 
-# Backup & Restore
-curl -X POST https://relay.minimoonoir.workers.dev/backup      # Trigger backup
-curl https://relay.minimoonoir.workers.dev/backups             # List backups
-curl -X POST https://relay.minimoonoir.workers.dev/restore/... # Restore
+# Worker Management
+wrangler dev                                      # Local development
+wrangler publish                                  # Deploy to production
+wrangler tail --format=pretty                     # View live logs
+wrangler secret put ADMIN_PUBKEY                  # Set secret
+
+# D1 Database Management
+wrangler d1 list                                              # List databases
+wrangler d1 execute minimoonoir-relay-db --command="SELECT COUNT(*) FROM events"
+wrangler d1 execute minimoonoir-relay-db --file=query.sql     # Execute SQL file
+wrangler d1 export minimoonoir-relay-db --output=backup.sql   # Export database
+
+# R2 Backup Management
+wrangler r2 bucket list                                       # List buckets
+wrangler r2 object list minimoonoir-backups                   # List backups
+wrangler r2 object get minimoonoir-backups backups/latest.json --file=backup.json
+wrangler r2 object put minimoonoir-backups backups/manual.json --file=backup.json
+
+# Pages Management
+wrangler pages deployment list --project-name=minimoonoir-chat
+wrangler pages deployment tail --project-name=minimoonoir-chat
+wrangler pages secret put VITE_ADMIN_PUBKEY --project-name=minimoonoir-chat
 
 # Health Checks
-curl https://chat.minimoonoir.pages.dev/health
+curl https://minimoonoir-chat.pages.dev
 curl https://relay.minimoonoir.workers.dev/health
 
-# Database Inspection (Cloudflare Dashboard)
-# View Durable Objects state in Cloudflare Dashboard > Workers > Durable Objects
-
-# Metrics
-# View in Cloudflare Dashboard > Analytics
+# Monitoring & Logs
+wrangler tail --format=json | jq                  # JSON formatted logs
+wrangler pages deployment tail | grep ERROR       # Filter errors
 ```
 
 ---
@@ -792,13 +872,39 @@ curl https://relay.minimoonoir.workers.dev/health
 
 | Symptom | Likely Cause | Resolution |
 |---------|--------------|------------|
-| "Connection refused" on WSS | Worker not deployed | `wrangler deploy` |
-| Messages not appearing | WebSocket disconnected | Refresh page, check relay logs |
+| "Connection refused" on WSS | Worker not deployed | `wrangler deploy` to publish worker |
+| Messages not appearing | WebSocket disconnected | Refresh page, check `wrangler tail` logs |
 | "AUTH required" error | User not authenticated | Re-authenticate, check localStorage |
-| Mnemonic not generating | Entropy source issue | Try different browser |
-| PWA not installing | Missing manifest | Check `/manifest.webmanifest` exists |
-| Slow message delivery | Network latency | Check server location, use CDN |
-| Admin can't see requests | Wrong pubkey in config | Verify `ADMIN_PUBKEY` in .env |
+| Mnemonic not generating | Entropy source issue | Try different browser, check HTTPS |
+| PWA not installing | Missing manifest | Check `static/manifest.json` exists |
+| Slow message delivery | Cold start latency | Workers warm up after first request |
+| Admin can't see requests | Wrong pubkey in config | Verify `ADMIN_PUBKEY` secret in Workers |
+| Worker crashes on deploy | Durable Object migration | Check `wrangler.toml` migrations config |
+| D1 query errors | Database not created | Run `wrangler d1 create` and update ID |
+| CORS errors | Missing headers | Check Workers response headers |
+| Build fails | Node version mismatch | Use Node 18+ (`node --version`) |
+| Pages deploy timeout | Large bundle size | Optimize bundle with `npm run build` |
+
+**Common Worker Errors:**
+```bash
+# Error: "Durable Object not found"
+# Fix: Ensure migrations are configured in wrangler.toml
+[[migrations]]
+tag = "v1"
+new_classes = ["RelayState"]
+
+# Error: "D1 database binding not found"
+# Fix: Create database and update wrangler.toml
+wrangler d1 create minimoonoir-relay-db
+# Copy database_id to wrangler.toml
+
+# Error: "R2 bucket not found"
+# Fix: Create bucket
+wrangler r2 bucket create minimoonoir-backups
+
+# Error: "Exceeded CPU time limit"
+# Fix: Optimize queries or split into multiple requests
+```
 
 ---
 
