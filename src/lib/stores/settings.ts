@@ -10,9 +10,10 @@ export interface AppSettings {
 const STORAGE_KEY = 'minimoonoir-settings';
 
 /**
- * Private relay URL - Cloudflare Workers deployment
+ * Private relay URL from environment variable
+ * Set via VITE_RELAY_URL in .env file
  */
-const PRIVATE_RELAY_URL = 'wss://nosflare.solitary-paper-764d.workers.dev';
+const PRIVATE_RELAY_URL = import.meta.env.VITE_RELAY_URL || 'wss://localhost:7777';
 
 /**
  * Get the private relay URL
