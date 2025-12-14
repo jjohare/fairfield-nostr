@@ -6,6 +6,7 @@
   import { setSigner, connectNDK, getRelayUrls, reconnectNDK } from '$lib/nostr/ndk';
   import { createChannel, fetchChannels, type CreatedChannel } from '$lib/nostr/channels';
   import { settingsStore } from '$lib/stores/settings';
+  import { SECTION_CONFIG, type ChannelSection } from '$lib/types/channel';
 
   let stats = {
     totalUsers: 0,
@@ -26,6 +27,7 @@
   let formVisibility: 'public' | 'cohort' | 'private' = 'public';
   let formCohorts = '';
   let formEncrypted = false;
+  let formSection: ChannelSection = 'fairfield-guests';
 
   // Relay settings
   let isPrivateMode = $settingsStore.relayMode === 'private';
@@ -94,6 +96,7 @@
         visibility: formVisibility,
         cohorts,
         encrypted: formEncrypted,
+        section: formSection,
       });
 
       channels = [newChannel, ...channels];
@@ -105,6 +108,7 @@
       formVisibility = 'public';
       formCohorts = '';
       formEncrypted = false;
+      formSection = 'fairfield-guests';
       showCreateForm = false;
 
     } catch (e) {
@@ -298,6 +302,22 @@
             ></textarea>
           </div>
 
+          <div class="form-control mb-3">
+            <label class="label">
+              <span class="label-text">Section (Area)</span>
+            </label>
+            <select class="select select-bordered" bind:value={formSection}>
+              {#each Object.entries(SECTION_CONFIG) as [key, config]}
+                <option value={key}>{config.icon} {config.name}</option>
+              {/each}
+            </select>
+            <label class="label">
+              <span class="label-text-alt text-base-content/60">
+                {SECTION_CONFIG[formSection]?.description || ''}
+              </span>
+            </label>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
             <div class="form-control">
               <label class="label">
@@ -373,6 +393,9 @@
                     <p class="text-sm text-base-content/70 line-clamp-2">{channel.description}</p>
                   {/if}
                   <div class="flex flex-wrap gap-1 mt-2">
+                    <span class="badge badge-neutral badge-sm" title="Section">
+                      {SECTION_CONFIG[channel.section]?.icon || '👋'} {SECTION_CONFIG[channel.section]?.name || 'Guest Area'}
+                    </span>
                     <span class="badge {getVisibilityBadge(channel.visibility)} badge-sm">
                       {channel.visibility}
                     </span>

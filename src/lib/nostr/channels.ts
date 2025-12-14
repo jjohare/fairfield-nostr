@@ -5,6 +5,7 @@
 import { NDKEvent, type NDKFilter } from '@nostr-dev-kit/ndk';
 import { ndk, connectNDK, hasSigner } from './ndk';
 import { browser } from '$app/environment';
+import type { ChannelSection } from '$lib/types/channel';
 
 // NIP-28 Event Kinds for Public Chat
 export const CHANNEL_KINDS = {
@@ -28,6 +29,7 @@ export interface ChannelCreateOptions {
 	visibility?: 'public' | 'cohort' | 'private';
 	cohorts?: string[];
 	encrypted?: boolean;
+	section?: ChannelSection;
 }
 
 export interface CreatedChannel {
@@ -37,6 +39,7 @@ export interface CreatedChannel {
 	visibility: 'public' | 'cohort' | 'private';
 	cohorts: string[];
 	encrypted: boolean;
+	section: ChannelSection;
 	createdAt: number;
 	creatorPubkey: string;
 }
@@ -80,6 +83,10 @@ export async function createChannel(options: ChannelCreateOptions): Promise<Crea
 		event.tags.push(['encrypted', 'true']);
 	}
 
+	// Add section tag (default to fairfield-guests)
+	const section = options.section || 'fairfield-guests';
+	event.tags.push(['section', section]);
+
 	// Sign and publish
 	await event.sign();
 	await event.publish();
@@ -91,6 +98,7 @@ export async function createChannel(options: ChannelCreateOptions): Promise<Crea
 		visibility: options.visibility || 'public',
 		cohorts: options.cohorts || [],
 		encrypted: options.encrypted || false,
+		section: section,
 		createdAt: event.created_at || Math.floor(Date.now() / 1000),
 		creatorPubkey: event.pubkey,
 	};
@@ -179,6 +187,7 @@ export async function fetchChannels(limit = 100): Promise<CreatedChannel[]> {
 			const visibilityTag = event.tags.find(t => t[0] === 'visibility');
 			const cohortTag = event.tags.find(t => t[0] === 'cohort');
 			const encryptedTag = event.tags.find(t => t[0] === 'encrypted');
+			const sectionTag = event.tags.find(t => t[0] === 'section');
 
 			channels.push({
 				id: event.id,
@@ -187,6 +196,7 @@ export async function fetchChannels(limit = 100): Promise<CreatedChannel[]> {
 				visibility: (visibilityTag?.[1] as any) || 'public',
 				cohorts: cohortTag?.[1]?.split(',').filter(Boolean) || [],
 				encrypted: encryptedTag?.[1] === 'true',
+				section: (sectionTag?.[1] as ChannelSection) || 'fairfield-guests',
 				createdAt: event.created_at || 0,
 				creatorPubkey: event.pubkey,
 			});

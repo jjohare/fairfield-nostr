@@ -1,6 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import type { Event as NostrEvent } from 'nostr-tools';
 import type { NDKRelay } from '@nostr-dev-kit/ndk';
+import type { ChannelSection } from '$lib/types/channel';
 
 export interface PendingRequest {
   id: string;
@@ -28,6 +29,7 @@ export interface Channel {
   cohorts: string[];
   visibility: 'public' | 'cohort' | 'private';
   encrypted: boolean;
+  section: ChannelSection;
   createdAt: number;
   memberCount: number;
   creatorPubkey: string;
@@ -294,6 +296,7 @@ export async function fetchAllChannels(relay: NDKRelay): Promise<void> {
         const cohortTag = event.tags.find(t => t[0] === 'cohort');
         const visibilityTag = event.tags.find(t => t[0] === 'visibility');
         const encryptedTag = event.tags.find(t => t[0] === 'encrypted');
+        const sectionTag = event.tags.find(t => t[0] === 'section');
 
         channelMap.set(event.id, {
           id: event.id,
@@ -302,6 +305,7 @@ export async function fetchAllChannels(relay: NDKRelay): Promise<void> {
           cohorts: cohortTag?.[1]?.split(',') || [],
           visibility: (visibilityTag?.[1] as any) || 'public',
           encrypted: encryptedTag?.[1] === 'true',
+          section: (sectionTag?.[1] as ChannelSection) || 'fairfield-guests',
           createdAt: event.created_at,
           memberCount: 0,
           creatorPubkey: event.pubkey,

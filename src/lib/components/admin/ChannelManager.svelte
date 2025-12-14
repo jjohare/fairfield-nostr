@@ -1,6 +1,7 @@
 <script lang="ts">
   import { adminStore, type Channel } from '$lib/stores/admin';
   import { createEventDispatcher } from 'svelte';
+  import { SECTION_CONFIG, type ChannelSection } from '$lib/types/channel';
 
   const dispatch = createEventDispatcher<{
     createChannel: { channel: Omit<Channel, 'id' | 'createdAt' | 'memberCount' | 'creatorPubkey'> };
@@ -19,6 +20,7 @@
   let formCohorts = '';
   let formVisibility: 'public' | 'cohort' | 'private' = 'public';
   let formEncrypted = false;
+  let formSection: ChannelSection = 'fairfield-guests';
 
   let filterVisibility = '';
   let searchQuery = '';
@@ -54,6 +56,7 @@
     formCohorts = '';
     formVisibility = 'public';
     formEncrypted = false;
+    formSection = 'fairfield-guests';
     editingChannel = null;
   }
 
@@ -67,6 +70,7 @@
         cohorts: formCohorts.split(',').map(c => c.trim()).filter(Boolean),
         visibility: formVisibility,
         encrypted: formEncrypted,
+        section: formSection,
       }
     });
 
@@ -81,6 +85,7 @@
     formCohorts = channel.cohorts.join(', ');
     formVisibility = channel.visibility;
     formEncrypted = channel.encrypted;
+    formSection = channel.section || 'fairfield-guests';
     showCreateForm = true;
   }
 
@@ -95,6 +100,7 @@
         cohorts: formCohorts.split(',').map(c => c.trim()).filter(Boolean),
         visibility: formVisibility,
         encrypted: formEncrypted,
+        section: formSection,
       }
     });
 
@@ -185,6 +191,22 @@
             rows="3"
             bind:value={formDescription}
           ></textarea>
+        </div>
+
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Section (Area)</span>
+          </label>
+          <select class="select select-bordered" bind:value={formSection}>
+            {#each Object.entries(SECTION_CONFIG) as [key, config]}
+              <option value={key}>{config.icon} {config.name}</option>
+            {/each}
+          </select>
+          <label class="label">
+            <span class="label-text-alt text-base-content/60">
+              {SECTION_CONFIG[formSection]?.description || ''}
+            </span>
+          </label>
         </div>
 
         <div class="form-control">
@@ -326,6 +348,9 @@
             {/if}
 
             <div class="flex flex-wrap gap-2 mt-2">
+              <span class="badge badge-neutral" title="Section">
+                {SECTION_CONFIG[channel.section]?.icon || '👋'} {SECTION_CONFIG[channel.section]?.name || 'Guest Area'}
+              </span>
               <span class="badge {getVisibilityBadge(channel.visibility)}">
                 {channel.visibility}
               </span>
