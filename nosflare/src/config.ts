@@ -90,7 +90,10 @@ export const blockedPubkeys = new Set([
 // Allowed pubkeys
 // Add pubkeys in hex format to allow write access
 export const allowedPubkeys = new Set<string>([
-  // ... pubkeys that are explicitly allowed
+  // Admin pubkey
+  "d2508ff0e0f4f0791d25fac8a8e400fa2930086c2fe50c7dbb7f265aeffe2031",
+  // Test user for DeepSeek evaluation
+  "8d70f935c1a795588306a1a4ae36b44a378ec00acfbfcf428d198b4575f7e3d3",
 ]);
 
 // Blocked event kinds
