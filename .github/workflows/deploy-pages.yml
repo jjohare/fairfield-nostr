@@ -20,8 +20,9 @@ concurrency:
 
 env:
   NODE_VERSION: '20'
-  # Private relay URL
-  VITE_RELAY_URL: wss://nosflare.solitary-paper-764d.workers.dev
+  # Update these URLs once Cloud Run services are deployed
+  VITE_RELAY_URL: ${{ vars.RELAY_URL || 'wss://nosflare-relay-PLACEHOLDER.run.app' }}
+  VITE_EMBEDDING_API_URL: ${{ vars.EMBEDDING_API_URL || 'https://embedding-api-PLACEHOLDER.run.app' }}
   VITE_ADMIN_PUBKEY: ${{ vars.ADMIN_PUBKEY }}
   VITE_APP_NAME: Minimoonoir
   VITE_NDK_DEBUG: false

@@ -5,8 +5,9 @@
 
 import { db } from '$lib/db';
 
-// R2 bucket public URL (configured via environment)
-const R2_BASE_URL = import.meta.env.VITE_R2_EMBEDDINGS_URL || 'https://pub-minimoonoir.r2.dev';
+// Google Cloud Storage public URL (configured via environment)
+// Embeddings stored in public GCS bucket: minimoonoir-vectors
+const GCS_BASE_URL = import.meta.env.VITE_GCS_EMBEDDINGS_URL || 'https://storage.googleapis.com/minimoonoir-vectors';
 
 export interface EmbeddingManifest {
   version: number;
@@ -65,11 +66,11 @@ export function shouldSync(): boolean {
 }
 
 /**
- * Fetch the current manifest from R2
+ * Fetch the current manifest from Google Cloud Storage
  */
 export async function fetchManifest(): Promise<EmbeddingManifest | null> {
   try {
-    const response = await fetch(`${R2_BASE_URL}/latest/manifest.json`, {
+    const response = await fetch(`${GCS_BASE_URL}/latest/manifest.json`, {
       cache: 'no-cache'
     });
 
@@ -115,12 +116,12 @@ async function downloadIndex(manifest: EmbeddingManifest): Promise<boolean> {
     console.log(`Downloading HNSW index (${(manifest.index_size_bytes / 1024 / 1024).toFixed(1)} MB)...`);
 
     // Download index.bin
-    const indexResponse = await fetch(`${R2_BASE_URL}/${manifest.latest.index}`);
+    const indexResponse = await fetch(`${GCS_BASE_URL}/${manifest.latest.index}`);
     if (!indexResponse.ok) throw new Error('Failed to download index');
     const indexBuffer = await indexResponse.arrayBuffer();
 
     // Download mapping
-    const mappingResponse = await fetch(`${R2_BASE_URL}/${manifest.latest.index_mapping}`);
+    const mappingResponse = await fetch(`${GCS_BASE_URL}/${manifest.latest.index_mapping}`);
     if (!mappingResponse.ok) throw new Error('Failed to download mapping');
     const mappingBuffer = await mappingResponse.arrayBuffer();
 

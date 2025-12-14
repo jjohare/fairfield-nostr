@@ -1,5 +1,10 @@
 name: Generate Note Embeddings
 
+# Required GitHub Secrets:
+# - GCP_PROJECT_ID: Google Cloud Project ID
+# - GCP_SA_KEY: Service Account JSON key with Storage Object Admin role
+# - GCP_REGION: GCP region (default: us-central1)
+
 on:
   schedule:
     # Run nightly at 3 AM UTC
@@ -16,7 +21,7 @@ env:
   PYTHON_VERSION: '3.11'
   EMBEDDING_MODEL: 'sentence-transformers/all-MiniLM-L6-v2'
   EMBEDDING_DIM: 384
-  R2_BUCKET: 'minimoonoir-embeddings'
+  GCS_BUCKET_NAME: 'minimoonoir-vectors'
 
 jobs:
   generate-embeddings:
@@ -37,19 +42,19 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install \
-            sentence-transformers \
-            numpy \
-            websockets \
-            boto3 \
-            hnswlib \
-            tqdm
+          pip install -r scripts/embeddings/requirements-gcp.txt
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Download previous manifest
         env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_R2_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY }}
-          CLOUDFLARE_R2_SECRET_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
         run: |
           python scripts/embeddings/download_manifest.py || echo '{"version": 0, "last_event_id": null}' > manifest.json
           cat manifest.json
@@ -89,14 +94,12 @@ jobs:
             --embeddings embeddings.npz \
             --output manifest.json
 
-      - name: Upload to Cloudflare R2
+      - name: Upload to Google Cloud Storage
         env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_R2_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY }}
-          CLOUDFLARE_R2_SECRET_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
         run: |
-          python scripts/embeddings/upload_to_r2.py \
-            --bucket "$R2_BUCKET" \
+          python scripts/embeddings/upload_to_gcs.py \
+            --bucket "$GCS_BUCKET_NAME" \
             --files index.bin embeddings.npz manifest.json \
             --prefix "v$(jq -r '.version' manifest.json)"
 
@@ -111,4 +114,5 @@ jobs:
           echo "- **Total vectors**: $(jq -r '.total_vectors' manifest.json)" >> $GITHUB_STEP_SUMMARY
           echo "- **Index size**: $(du -h index.bin | cut -f1)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Files uploaded to R2 bucket: $R2_BUCKET" >> $GITHUB_STEP_SUMMARY
+          echo "Files uploaded to GCS bucket: gs://$GCS_BUCKET_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "Public URL: https://storage.googleapis.com/$GCS_BUCKET_NAME/latest/manifest.json" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,56 @@
+# Cloud Build configuration for automated deployment to Cloud Run
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/embedding-api:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/embedding-api:latest'
+      - '.'
+    dir: 'services/embedding-api'
+
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'gcr.io/$PROJECT_ID/embedding-api'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'embedding-api'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/embedding-api:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '2Gi'
+      - '--cpu'
+      - '2'
+      - '--max-instances'
+      - '10'
+      - '--min-instances'
+      - '0'
+      - '--timeout'
+      - '60'
+      - '--set-env-vars'
+      - 'ALLOWED_ORIGINS=*'
+
+images:
+  - 'gcr.io/$PROJECT_ID/embedding-api:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/embedding-api:latest'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '1200s'

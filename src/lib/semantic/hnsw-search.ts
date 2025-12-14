@@ -111,14 +111,16 @@ function parseNpzMapping(data: Uint8Array): Map<number, string> {
   return mapping;
 }
 
-// Embedding API URL (deployed Cloudflare Worker)
-const EMBEDDING_API_URL = import.meta.env.VITE_EMBEDDING_API_URL || 'https://minimoonoir-embedding-api.solitary-paper-764d.workers.dev';
+// Embedding API URL (deployed on Google Cloud Run)
+// Default URL pattern: https://embedding-api-{HASH}-uc.a.run.app
+// Configure via VITE_EMBEDDING_API_URL environment variable
+const EMBEDDING_API_URL = import.meta.env.VITE_EMBEDDING_API_URL || 'https://embedding-api-uc.a.run.app';
 
 // Cache for embedding results
 const embeddingCache = new Map<string, number[]>();
 
 /**
- * Generate query embedding via Cloudflare Worker API
+ * Generate query embedding via Cloud Run API
  * Uses Xenova/all-MiniLM-L6-v2 ONNX model (384 dimensions)
  */
 async function embedQuery(query: string): Promise<number[]> {

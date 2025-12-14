@@ -52,8 +52,10 @@ def update_manifest(
         manifest["last_event_id"] = notes[0]["id"]
         manifest["last_event_timestamp"] = notes[0]["created_at"]
 
-    # File URLs (will be set relative to R2 bucket)
+    # File URLs (will be set relative to GCS bucket)
     version = manifest["version"]
+    bucket_name = os.environ.get('GCS_BUCKET_NAME', 'minimoonoir-vectors')
+
     manifest["files"] = {
         "index": f"v{version}/index.bin",
         "index_mapping": f"v{version}/index_mapping.npz",
@@ -67,6 +69,15 @@ def update_manifest(
         "index_mapping": "latest/index_mapping.npz",
         "embeddings": "latest/embeddings.npz",
         "manifest": "latest/manifest.json"
+    }
+
+    # GCS public URLs
+    manifest["gcs_bucket"] = bucket_name
+    manifest["public_urls"] = {
+        "index": f"https://storage.googleapis.com/{bucket_name}/latest/index.bin",
+        "index_mapping": f"https://storage.googleapis.com/{bucket_name}/latest/index_mapping.npz",
+        "embeddings": f"https://storage.googleapis.com/{bucket_name}/latest/embeddings.npz",
+        "manifest": f"https://storage.googleapis.com/{bucket_name}/latest/manifest.json"
     }
 
     # Compute file sizes
