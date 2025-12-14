@@ -9,13 +9,15 @@ main = "worker.js"
 # Admin public key (hex format) - can also be set via wrangler secret for security
 ADMIN_PUBKEY = "REDACTED_PUBKEY"
 # Authentication required for all connections
-AUTH_REQUIRED = "true"
+AUTH_REQUIRED = "false"
 # Disable external relay synchronization
 EXTERNAL_RELAY_SYNC = "false"
 # Disable pay-to-relay functionality
 PAY_TO_RELAY_ENABLED = "false"
 # Free tier mode - direct DO communication instead of queues
 FREE_TIER_MODE = "true"
+# Whitelist mode - only whitelisted pubkeys can write
+WHITELIST_MODE = "true"
 
 # Durable Objects - Core Architecture
 
