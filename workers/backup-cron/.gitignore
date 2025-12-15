@@ -1,6 +1,0 @@
-node_modules/
-.wrangler/
-worker.js
-*.log
-.env
-.dev.vars
