@@ -61,11 +61,17 @@
 
   async function handleKeyBackupContinue() {
     if (tempKeys) {
-      await authStore.setKeys(tempKeys.publicKey, tempKeys.privateKey, tempKeys.mnemonic);
-      saveKeysToStorage(tempKeys.publicKey, tempKeys.privateKey);
+      const { publicKey, privateKey, mnemonic } = tempKeys;
+      await authStore.setKeys(publicKey, privateKey, mnemonic);
+      saveKeysToStorage(publicKey, privateKey);
       // Confirm backup was shown to clear mnemonic from storage
       authStore.confirmMnemonicBackup();
       authStore.setPending(true);
+
+      // Clear mnemonic from memory immediately after key derivation is complete
+      // This prevents the sensitive mnemonic from lingering in memory
+      tempKeys = { mnemonic: '', publicKey, privateKey };
+
       currentStep = 'pending-approval';
     }
   }

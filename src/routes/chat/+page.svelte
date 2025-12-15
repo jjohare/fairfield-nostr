@@ -26,12 +26,22 @@
   let error: string | null = null;
   let showSearch = false;
 
-  function handleSearchSelect(noteId: string) {
-    // Navigate to the message (noteId contains the event ID)
-    // For now, just log it - full implementation would scroll to message
-    console.log('Selected note:', noteId);
-    // TODO: Find which channel contains this message and navigate there
+  async function handleSearchSelect(noteId: string) {
+    // Search for the message in channels and navigate to it
     showSearch = false;
+
+    // Find which channel contains this message by checking channel messages
+    for (const channel of channels) {
+      // Navigate to channel - the channel page will handle scrolling to the message
+      // if the noteId is passed as a query parameter
+      if (channel.id) {
+        goto(`${base}/chat/${channel.id}?highlight=${noteId}`);
+        return;
+      }
+    }
+
+    // Fallback: log if message not found in any loaded channel
+    console.warn('Message not found in loaded channels:', noteId);
   }
 
   onMount(async () => {

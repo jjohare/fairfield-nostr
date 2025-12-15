@@ -79,12 +79,16 @@ export function verifySignature(event: {
 
 /**
  * NIP-04 encrypt (simplified)
+ *
+ * @deprecated NIP-04 is deprecated. Use NIP-44 for new implementations.
+ * This function remains for backward compatibility with existing messages.
  */
 export async function nip04Encrypt(
   privkey: string,
   pubkey: string,
   text: string
 ): Promise<string> {
+  console.warn('[DEPRECATED] nip04Encrypt is deprecated. Use NIP-44 for new messages.');
   const sharedPoint = secp256k1.getSharedSecret(privkey, '02' + pubkey);
   const sharedX = sharedPoint.slice(1, 33);
 
@@ -112,6 +116,9 @@ export async function nip04Encrypt(
 
 /**
  * NIP-04 decrypt (simplified)
+ *
+ * @deprecated NIP-04 is deprecated. Use NIP-44 for new implementations.
+ * This function remains for backward compatibility with existing messages.
  */
 export async function nip04Decrypt(
   privkey: string,

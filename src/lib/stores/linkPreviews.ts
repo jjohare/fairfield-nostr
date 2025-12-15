@@ -199,12 +199,49 @@ function parseOpenGraphTags(html: string, url: string): LinkPreviewData {
 }
 
 /**
- * Decode HTML entities
+ * Decode HTML entities safely without using innerHTML
+ * Prevents XSS attacks from malicious HTML entities
  */
 function decodeHtmlEntities(text: string): string {
-	const textarea = document.createElement('textarea');
-	textarea.innerHTML = text;
-	return textarea.value;
+	// Common HTML entities mapping
+	const entities: Record<string, string> = {
+		'&amp;': '&',
+		'&lt;': '<',
+		'&gt;': '>',
+		'&quot;': '"',
+		'&#39;': "'",
+		'&apos;': "'",
+		'&nbsp;': ' ',
+		'&copy;': '©',
+		'&reg;': '®',
+		'&trade;': '™',
+		'&mdash;': '—',
+		'&ndash;': '–',
+		'&hellip;': '…',
+		'&lsquo;': ''',
+		'&rsquo;': ''',
+		'&ldquo;': '"',
+		'&rdquo;': '"',
+	};
+
+	// Replace named entities
+	let decoded = text;
+	for (const [entity, char] of Object.entries(entities)) {
+		decoded = decoded.replace(new RegExp(entity, 'gi'), char);
+	}
+
+	// Replace numeric entities (&#123; or &#x7B;)
+	decoded = decoded.replace(/&#(\d+);/g, (_, num) => {
+		const code = parseInt(num, 10);
+		return code > 0 && code < 0x10FFFF ? String.fromCodePoint(code) : '';
+	});
+
+	decoded = decoded.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+		const code = parseInt(hex, 16);
+		return code > 0 && code < 0x10FFFF ? String.fromCodePoint(code) : '';
+	});
+
+	return decoded;
 }
 
 /**
