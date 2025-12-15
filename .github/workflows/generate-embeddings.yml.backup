@@ -4,10 +4,6 @@ name: Generate Note Embeddings
 # - GCP_PROJECT_ID: Google Cloud Project ID
 # - GCP_SA_KEY: Service Account JSON key with Storage Object Admin role
 # - GCP_REGION: GCP region (default: us-central1)
-#
-# Required GitHub Variables (Settings -> Secrets and variables -> Actions -> Variables):
-# - RELAY_URL: WebSocket URL of the Nostr relay (e.g., wss://nosflare-relay-xxx.run.app)
-#              Fallback: wss://nosflare-relay-PLACEHOLDER.run.app
 
 on:
   schedule:
@@ -46,7 +42,13 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r scripts/embeddings/requirements-gcp.txt
+          pip install \
+            sentence-transformers \
+            numpy \
+            websockets \
+            google-cloud-storage \
+            hnswlib \
+            tqdm
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -65,7 +67,7 @@ jobs:
 
       - name: Fetch notes from relay
         env:
-          RELAY_URL: ${{ vars.RELAY_URL || 'wss://nosflare-relay-PLACEHOLDER.run.app' }}
+          RELAY_URL: ${{ vars.RELAY_URL || 'wss://nosflare.solitary-paper-764d.workers.dev' }}
         run: |
           python scripts/embeddings/fetch_notes.py \
             --relay "$RELAY_URL" \
@@ -118,5 +120,4 @@ jobs:
           echo "- **Total vectors**: $(jq -r '.total_vectors' manifest.json)" >> $GITHUB_STEP_SUMMARY
           echo "- **Index size**: $(du -h index.bin | cut -f1)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Files uploaded to GCS bucket: gs://$GCS_BUCKET_NAME" >> $GITHUB_STEP_SUMMARY
-          echo "Public URL: https://storage.googleapis.com/$GCS_BUCKET_NAME/latest/manifest.json" >> $GITHUB_STEP_SUMMARY
+          echo "Files uploaded to GCS bucket: $GCS_BUCKET_NAME" >> $GITHUB_STEP_SUMMARY

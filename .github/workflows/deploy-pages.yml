@@ -1,5 +1,10 @@
 name: Deploy to GitHub Pages
 
+# Required GitHub Variables (Settings -> Secrets and variables -> Actions -> Variables):
+# - RELAY_URL: WebSocket URL of Nostr relay (e.g., wss://nosflare-relay-xxx.run.app)
+# - EMBEDDING_API_URL: HTTPS URL of embedding API (e.g., https://embedding-api-xxx.run.app)
+# - ADMIN_PUBKEY: Nostr public key for admin access (hex format)
+
 on:
   push:
     branches:
@@ -7,6 +12,7 @@ on:
     paths-ignore:
       - 'nosflare/**'
       - '.github/workflows/deploy-relay.yml'
+      - '.github/workflows/deploy-relay-gcp.yml'
   workflow_dispatch:
 
 permissions:
@@ -20,7 +26,8 @@ concurrency:
 
 env:
   NODE_VERSION: '20'
-  # Update these URLs once Cloud Run services are deployed
+  # These URLs should be set in GitHub repository variables after GCP deployment
+  # Settings -> Secrets and variables -> Actions -> Variables
   VITE_RELAY_URL: ${{ vars.RELAY_URL || 'wss://nosflare-relay-PLACEHOLDER.run.app' }}
   VITE_EMBEDDING_API_URL: ${{ vars.EMBEDDING_API_URL || 'https://embedding-api-PLACEHOLDER.run.app' }}
   VITE_ADMIN_PUBKEY: ${{ vars.ADMIN_PUBKEY }}

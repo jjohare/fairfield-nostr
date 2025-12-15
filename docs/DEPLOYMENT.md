@@ -4,7 +4,7 @@
 
 ## Architecture
 
-Serverless deployment using GitHub Pages and Cloudflare Workers:
+**Private Community Platform** with Internal Nostr Relay and Google Cloud Platform:
 
 ```mermaid
 flowchart TB
@@ -18,31 +18,47 @@ flowchart TB
         Assets["Assets & Service Worker"]
     end
 
-    subgraph Cloudflare["Cloudflare Workers"]
-        Worker["nosflare Worker<br/>Nostr Relay"]
-        D1["D1 Database<br/>Whitelist & Cohorts"]
+    subgraph Docker["Docker Container (Internal)"]
+        Relay["Nostr Relay<br/>ws://localhost:8008"]
+        PG["PostgreSQL<br/>Whitelist & Events"]
+    end
+
+    subgraph GCP["Google Cloud Platform"]
+        CloudRun["Cloud Run<br/>Embedding API"]
+        Storage["Cloud Storage<br/>Vector Index"]
     end
 
     Browser --> Static
     Mobile --> Static
-    Static <-->|WebSocket| Worker
-    Worker <--> D1
+    Static <-->|WebSocket| Relay
+    Relay <--> PG
+    Static -->|HTTPS POST /embed| CloudRun
+    CloudRun --> Storage
 
     style GitHub fill:#2d3748,color:#fff
-    style Cloudflare fill:#f6821f,color:#fff
+    style Docker fill:#2496ed,color:#fff
+    style GCP fill:#4285f4,color:#fff
     style Internet fill:#064e3b,color:#fff
 ```
+
+### Architecture Components
+
+1. **Frontend (GitHub Pages)**: SvelteKit PWA with static site generation
+2. **Relay (Docker)**: Private Nostr relay with PostgreSQL (whitelist-only, no federation)
+3. **Embedding API (GCP Cloud Run)**: Semantic search vector generation
+4. **Storage (GCP Cloud Storage)**: Vector index files
 
 ## Prerequisites
 
 ### Required
 - **Node.js 20+** - JavaScript runtime
-- **Cloudflare Account** - Free tier works (https://dash.cloudflare.com/sign-up)
 - **GitHub Account** - With Pages enabled (free)
+- **Docker & Docker Compose** - Container runtime
+- **Google Cloud Account** - Free tier available (https://cloud.google.com/free)
 - **Git** - Version control
 
 ### Optional
-- **Wrangler CLI** - For local development and manual deployments
+- **gcloud CLI** - For local GCP development and deployment
 - **Custom Domain** - For production use
 
 ## Quick Start
@@ -66,8 +82,11 @@ cp .env.example .env
 Edit `.env` with your configuration:
 
 ```bash
-# Cloudflare Workers relay URL (update after deployment)
-VITE_RELAY_URL=wss://your-worker.your-subdomain.workers.dev
+# Internal Docker relay (no external connections)
+VITE_RELAY_URL=ws://localhost:8008
+
+# GCP Cloud Run embedding API URL (update after deployment)
+VITE_EMBEDDING_API_URL=https://your-service.us-central1.run.app
 
 # Admin pubkey in hex format (64 characters)
 VITE_ADMIN_PUBKEY=your-hex-pubkey-here
@@ -76,10 +95,10 @@ VITE_ADMIN_PUBKEY=your-hex-pubkey-here
 VITE_APP_NAME=Minimoonoir
 VITE_NDK_DEBUG=false
 
-# Cloudflare credentials (for local development only)
+# GCP credentials (for local development only)
 # ⚠️ DO NOT commit these! Use GitHub Secrets for CI/CD
-CLOUDFLARE_ACCOUNT_ID=your-account-id
-CLOUDFLARE_API_TOKEN=your-api-token
+GCP_PROJECT_ID=your-project-id
+GCP_REGION=us-central1
 ```
 
 ### 3. Generate Admin Keypair
@@ -98,142 +117,126 @@ npx nostr-tools-cli generate
 
 **Important**: Save your `nsec` (private key) securely. You'll need the hex public key for `VITE_ADMIN_PUBKEY`.
 
-## Cloudflare Workers Setup
+## Docker Relay Setup
 
-### Step 1: Install Wrangler
-
-```bash
-npm install -g wrangler
-# or use the local version
-npx wrangler --version
-```
-
-### Step 2: Authenticate with Cloudflare
+### Step 1: Start Docker Services
 
 ```bash
-wrangler login
+cd services/nostr-relay
+
+# Start PostgreSQL and Nostr relay
+docker compose up -d
+
+# View logs
+docker compose logs -f
 ```
 
-This opens your browser to authenticate.
-
-### Step 3: Create D1 Database
+### Step 2: Verify Relay is Running
 
 ```bash
-wrangler d1 create minimoonoir
-```
+# Check service status
+docker compose ps
 
-Output:
-```
-✅ Successfully created DB 'minimoonoir'
-Database ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-```
-
-**Save the Database ID** - you'll need it for `wrangler.toml`.
-
-### Step 4: Update wrangler.toml
-
-Navigate to the nosflare directory (once created) and update `wrangler.toml`:
-
-```toml
-name = "nosflare"
-main = "worker.js"
-compatibility_date = "2024-01-01"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "minimoonoir"
-database_id = "your-database-id-here"  # From Step 3
-
-[env.production]
-name = "nosflare-production"
-vars = { ENVIRONMENT = "production" }
-
-[[env.production.d1_databases]]
-binding = "DB"
-database_name = "minimoonoir"
-database_id = "your-database-id-here"
-```
-
-### Step 5: Create Database Schema
-
-Create `schema.sql` in the nosflare directory:
-
-```sql
--- Whitelist table for access control
-CREATE TABLE IF NOT EXISTS whitelist (
-  pubkey TEXT PRIMARY KEY,
-  cohorts TEXT NOT NULL DEFAULT '[]',
-  added_at INTEGER NOT NULL,
-  added_by TEXT NOT NULL
-);
-
--- Cohorts table for group management
-CREATE TABLE IF NOT EXISTS cohorts (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  description TEXT,
-  created_at INTEGER NOT NULL,
-  created_by TEXT NOT NULL
-);
-
--- Create default admin cohort
-INSERT OR IGNORE INTO cohorts (id, name, description, created_at, created_by)
-VALUES ('admin', 'Administrators', 'System administrators', strftime('%s','now'), 'system');
-```
-
-Apply the schema:
-
-```bash
-cd nosflare
-wrangler d1 execute minimoonoir --file=schema.sql
-```
-
-### Step 6: Add Admin to Whitelist
-
-```bash
-# Replace with your admin pubkey (hex format)
-wrangler d1 execute minimoonoir --command \
-  "INSERT INTO whitelist (pubkey, cohorts, added_at, added_by) \
-   VALUES ('your-hex-pubkey', '[\"admin\"]', strftime('%s','now'), 'system')"
-```
-
-Verify:
-
-```bash
-wrangler d1 execute minimoonoir --command "SELECT * FROM whitelist"
-```
-
-### Step 7: Deploy Worker
-
-```bash
-cd nosflare
-npm install
-npm run build
-wrangler deploy --env production
-```
-
-Output:
-```
-✅ Deployment complete
-Worker URL: https://nosflare.your-subdomain.workers.dev
-```
-
-**Save the Worker URL** - you'll use it as `VITE_RELAY_URL`.
-
-### Step 8: Test Worker
-
-```bash
 # Test WebSocket connection
-curl -H "Upgrade: websocket" \
-     -H "Connection: Upgrade" \
+curl -i -N -H "Connection: Upgrade" \
+     -H "Upgrade: websocket" \
      -H "Sec-WebSocket-Version: 13" \
      -H "Sec-WebSocket-Key: test" \
-     https://nosflare.your-subdomain.workers.dev
+     http://localhost:8008
 
 # Test NIP-11 relay info
-curl -H "Accept: application/nostr+json" \
-     https://nosflare.your-subdomain.workers.dev
+curl http://localhost:8008 -H "Accept: application/nostr+json"
 ```
+
+Expected response:
+```json
+{
+  "name": "Minimoonoir Relay",
+  "description": "Private community relay with whitelist access",
+  "supported_nips": [1, 2, 9, 11, 17, 25, 28, 42, 44, 52, 59],
+  "software": "minimoonoir-relay",
+  "version": "1.0.0"
+}
+```
+
+### Step 3: Add Admin to Whitelist
+
+```bash
+# Connect to PostgreSQL
+docker compose exec postgres psql -U nostr -d nostr_relay
+
+# Add admin user
+INSERT INTO whitelist (pubkey, cohorts, added_at, added_by)
+VALUES ('your-hex-pubkey-here', '["admin"]', EXTRACT(EPOCH FROM NOW()), 'system');
+
+# Verify
+SELECT * FROM whitelist;
+
+# Exit
+\q
+```
+
+### Step 4: Database Management
+
+**View Whitelist**:
+```bash
+docker compose exec postgres psql -U nostr -d nostr_relay -c "SELECT * FROM whitelist;"
+```
+
+**Add User**:
+```bash
+docker compose exec postgres psql -U nostr -d nostr_relay -c \
+  "INSERT INTO whitelist (pubkey, cohorts, added_at, added_by) \
+   VALUES ('user-pubkey-hex', '[\"members\"]', EXTRACT(EPOCH FROM NOW()), 'admin-pubkey');"
+```
+
+**Remove User**:
+```bash
+docker compose exec postgres psql -U nostr -d nostr_relay -c \
+  "DELETE FROM whitelist WHERE pubkey = 'user-pubkey-hex';"
+```
+
+**Backup Database**:
+```bash
+docker compose exec postgres pg_dump -U nostr nostr_relay > backup.sql
+```
+
+**Restore Database**:
+```bash
+docker compose exec -T postgres psql -U nostr nostr_relay < backup.sql
+```
+
+## Google Cloud Platform Setup
+
+For detailed GCP deployment instructions, see **[GCP Deployment Guide](./GCP_DEPLOYMENT.md)**.
+
+### Quick GCP Setup
+
+```bash
+# 1. Enable APIs
+gcloud services enable run.googleapis.com storage.googleapis.com \
+  cloudbuild.googleapis.com artifactregistry.googleapis.com
+
+# 2. Create infrastructure
+gcloud artifacts repositories create logseq-repo \
+  --repository-format=docker --location=us-central1
+
+gcloud storage buckets create gs://YOUR_PROJECT_ID-models \
+  --location=us-central1 --storage-class=STANDARD
+
+# 3. Deploy embedding API
+gcloud builds submit --config cloudbuild.yaml
+
+# 4. Get service URL
+gcloud run services describe logseq-embeddings \
+  --region us-central1 --format 'value(status.url)'
+```
+
+**Save the Cloud Run URL** - you'll use it as `VITE_EMBEDDING_API_URL`.
+
+For complete GCP setup, troubleshooting, and cost optimization, see:
+- **[GCP Deployment Guide](./GCP_DEPLOYMENT.md)** - Step-by-step Cloud Run deployment
+- **[GCP Architecture](./gcp-architecture.md)** - Architecture design and verification
 
 ## GitHub Pages Setup
 
@@ -243,26 +246,7 @@ curl -H "Accept: application/nostr+json" \
 2. Source: **GitHub Actions**
 3. No custom build needed (using workflow)
 
-### Step 2: Add GitHub Secrets
-
-Go to **Settings** > **Secrets and variables** > **Actions** > **New repository secret**:
-
-| Secret Name | Value | Where to Find |
-|-------------|-------|---------------|
-| `CLOUDFLARE_ACCOUNT_ID` | Your account ID | Cloudflare Dashboard > Workers & Pages > Overview |
-| `CLOUDFLARE_API_TOKEN` | API token | Cloudflare Dashboard > Profile > API Tokens |
-
-**Creating API Token**:
-1. Go to Cloudflare Dashboard > Profile > API Tokens
-2. Click "Create Token"
-3. Template: "Edit Cloudflare Workers"
-4. Permissions:
-   - Account > Workers Scripts > Edit
-   - Account > D1 > Edit
-5. Continue to summary > Create Token
-6. **Copy the token** (shown only once)
-
-### Step 3: Set GitHub Repository Variables
+### Step 2: Set GitHub Repository Variables
 
 Go to your GitHub repository → Settings → Secrets and variables → Actions → Variables tab.
 
@@ -279,13 +263,13 @@ Relay URL and app name are set directly in `.github/workflows/deploy-pages.yml`:
 ```yaml
 env:
   NODE_VERSION: '20'
-  VITE_RELAY_URL: wss://nosflare.your-subdomain.workers.dev
+  VITE_RELAY_URL: ws://localhost:8008
   VITE_ADMIN_PUBKEY: ${{ vars.ADMIN_PUBKEY }}
   VITE_APP_NAME: Minimoonoir
   VITE_NDK_DEBUG: false
 ```
 
-### Step 4: Deploy
+### Step 3: Deploy
 
 ```bash
 # Commit and push to trigger deployment
@@ -299,13 +283,13 @@ GitHub Actions will:
 2. Build SvelteKit PWA
 3. Deploy to GitHub Pages
 
-### Step 5: Verify Deployment
+### Step 4: Verify Deployment
 
 1. Check Actions tab for build status
 2. Once complete, visit: `https://your-username.github.io/minimoonoir-nostr/`
-3. PWA should load and connect to your relay
+3. PWA should load and connect to your Docker relay
 
-### Step 6: Configure Custom Domain (Optional)
+### Step 5: Configure Custom Domain (Optional)
 
 1. Go to **Settings** > **Pages**
 2. **Custom domain**: `chat.yourdomain.com`
@@ -326,7 +310,12 @@ GitHub Actions will:
 # Install dependencies
 npm install
 
-# Start dev server
+# Start Docker relay (first terminal)
+cd services/nostr-relay
+docker compose up -d
+
+# Start dev server (second terminal)
+cd ../..
 npm run dev
 
 # Access at http://localhost:5173
@@ -334,25 +323,14 @@ npm run dev
 
 The dev server will:
 - Hot reload on file changes
-- Connect to your deployed Cloudflare Workers relay
+- Connect to local Docker relay at ws://localhost:8008
 - Use environment variables from `.env`
-
-### Development with Local Worker
-
-```bash
-# Terminal 1: Start worker locally
-cd nosflare
-wrangler dev --local
-
-# Terminal 2: Update .env and start PWA
-VITE_RELAY_URL=ws://localhost:8787 npm run dev
-```
 
 ### Testing
 
 ```bash
-# Unit tests
-npm run test
+# Run all tests
+npm test
 
 # Type checking
 npm run check
@@ -360,43 +338,8 @@ npm run check
 # Linting
 npm run lint
 
-# E2E tests (requires deployed worker)
+# E2E tests (requires Docker relay running)
 npm run test:e2e
-```
-
-## Deployment Workflows
-
-### Automatic Deployments
-
-Two separate GitHub Actions workflows:
-
-#### 1. Frontend (PWA) - `.github/workflows/deploy-pages.yml`
-Triggers on:
-- Push to `main` (excluding `nosflare/**`)
-- Manual workflow dispatch
-
-Deploys to: GitHub Pages
-
-#### 2. Backend (Relay) - `.github/workflows/deploy-relay.yml`
-Triggers on:
-- Push to `main` with changes in `nosflare/**`
-- Manual workflow dispatch
-
-Deploys to: Cloudflare Workers
-
-### Manual Deployments
-
-#### Deploy PWA Only
-```bash
-npm run build
-# Manually upload ./build to GitHub Pages
-```
-
-#### Deploy Worker Only
-```bash
-cd nosflare
-npm run build
-wrangler deploy --env production
 ```
 
 ## Environment Variables Reference
@@ -405,17 +348,19 @@ wrangler deploy --env production
 
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|
-| `VITE_RELAY_URL` | Yes | Cloudflare Workers relay URL | `wss://nosflare.workers.dev` |
+| `VITE_RELAY_URL` | Yes | Internal Docker relay URL | `ws://localhost:8008` |
+| `VITE_EMBEDDING_API_URL` | Yes | GCP Cloud Run embedding API | `https://service.us-central1.run.app` |
 | `VITE_ADMIN_PUBKEY` | Yes | Admin public key (hex) | `49dfa09...` (64 chars) |
 | `VITE_APP_NAME` | No | Application name | `Minimoonoir` |
 | `VITE_NDK_DEBUG` | No | Enable NDK debug logs | `false` |
 
-### Cloudflare (GitHub Secrets)
+### Docker Relay (.env in services/nostr-relay)
 
-| Secret | Required | Description | Where to Find |
-|--------|----------|-------------|---------------|
-| `CLOUDFLARE_ACCOUNT_ID` | Yes | Account identifier | Dashboard > Workers & Pages |
-| `CLOUDFLARE_API_TOKEN` | Yes | API authentication | Dashboard > Profile > API Tokens |
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `DATABASE_URL` | Yes | PostgreSQL connection | `postgresql://nostr:password@postgres:5432/nostr_relay` |
+| `RELAY_PORT` | No | WebSocket port | `8008` |
+| `RELAY_NAME` | No | Relay name (NIP-11) | `Minimoonoir Relay` |
 
 ### Build Variables (.github/workflows)
 
@@ -424,128 +369,31 @@ wrangler deploy --env production
 | `NODE_VERSION` | Node.js version | `20` |
 | `BASE_PATH` | GitHub Pages base path | `/${{ github.event.repository.name }}` |
 
-## Database Management
-
-### View Whitelist
-
-```bash
-wrangler d1 execute minimoonoir --command "SELECT * FROM whitelist"
-```
-
-### Add User to Whitelist
-
-```bash
-wrangler d1 execute minimoonoir --command \
-  "INSERT INTO whitelist (pubkey, cohorts, added_at, added_by) \
-   VALUES ('user-pubkey-hex', '[\"members\"]', strftime('%s','now'), 'admin-pubkey')"
-```
-
-### Remove User from Whitelist
-
-```bash
-wrangler d1 execute minimoonoir --command \
-  "DELETE FROM whitelist WHERE pubkey = 'user-pubkey-hex'"
-```
-
-### Create Cohort
-
-```bash
-wrangler d1 execute minimoonoir --command \
-  "INSERT INTO cohorts (id, name, description, created_at, created_by) \
-   VALUES ('cohort-id', 'Cohort Name', 'Description', strftime('%s','now'), 'admin-pubkey')"
-```
-
-### View All Cohorts
-
-```bash
-wrangler d1 execute minimoonoir --command "SELECT * FROM cohorts"
-```
-
-### Backup Database
-
-```bash
-# Export data
-wrangler d1 execute minimoonoir --command "SELECT * FROM whitelist" > whitelist_backup.json
-wrangler d1 execute minimoonoir --command "SELECT * FROM cohorts" > cohorts_backup.json
-```
-
-### Restore Database
-
-```bash
-# Re-create and apply schema
-wrangler d1 execute minimoonoir --file=schema.sql
-
-# Import data (requires manual SQL statements)
-```
-
-## Monitoring and Debugging
-
-### View Worker Logs
-
-```bash
-# Real-time logs
-wrangler tail
-
-# Specific deployment
-wrangler tail --env production
-```
-
-### Check Deployment Status
-
-```bash
-# List deployments
-wrangler deployments list
-
-# Worker details
-wrangler whoami
-```
-
-### Debug WebSocket Connection
-
-```javascript
-// Browser console
-const ws = new WebSocket('wss://nosflare.your-subdomain.workers.dev');
-ws.onopen = () => console.log('Connected');
-ws.onmessage = (msg) => console.log('Message:', msg.data);
-ws.onerror = (err) => console.error('Error:', err);
-
-// Test with Nostr REQ
-ws.send(JSON.stringify(["REQ", "test", {"kinds": [1], "limit": 10}]));
-```
-
-### Check GitHub Pages Build
-
-1. Go to **Actions** tab
-2. Click latest workflow run
-3. View logs for each step
-4. Check **Deploy to GitHub Pages** step
-
 ## Production Checklist
 
 ### Pre-Deployment
 - [ ] Generate admin keypair and save securely
-- [ ] Create Cloudflare account and get credentials
 - [ ] Configure GitHub repository secrets
 - [ ] Update environment variables in workflows
 - [ ] Test local build: `npm run build`
 
-### Cloudflare Setup
-- [ ] Create D1 database: `wrangler d1 create minimoonoir`
-- [ ] Apply database schema: `wrangler d1 execute minimoonoir --file=schema.sql`
+### Docker Relay Setup
+- [ ] Start Docker services: `docker compose up -d`
+- [ ] Verify PostgreSQL is running
+- [ ] Apply database schema
 - [ ] Add admin to whitelist
-- [ ] Verify whitelist: `wrangler d1 execute minimoonoir --command "SELECT * FROM whitelist"`
-- [ ] Deploy worker: `wrangler deploy --env production`
-- [ ] Test worker WebSocket connection
+- [ ] Verify whitelist: `docker compose exec postgres psql ...`
+- [ ] Test relay WebSocket connection
 - [ ] Test NIP-11 relay info endpoint
 
 ### GitHub Pages Setup
 - [ ] Enable Pages in repository settings
-- [ ] Add Cloudflare secrets to GitHub
+- [ ] Add variables to GitHub
 - [ ] Update workflow environment variables
 - [ ] Push to `main` branch
 - [ ] Verify GitHub Actions workflow succeeds
 - [ ] Test PWA loads at GitHub Pages URL
-- [ ] Verify WebSocket connects to Cloudflare relay
+- [ ] Verify WebSocket connects to Docker relay
 
 ### Post-Deployment
 - [ ] Test PWA installation on mobile
@@ -555,15 +403,16 @@ ws.send(JSON.stringify(["REQ", "test", {"kinds": [1], "limit": 10}]));
 - [ ] Enable HTTPS enforcement
 - [ ] Test admin authentication
 - [ ] Create additional users and cohorts
-- [ ] Monitor worker logs: `wrangler tail`
+- [ ] Monitor relay logs: `docker compose logs -f relay`
 
 ### Security
 - [ ] Verify admin pubkey matches your keypair
 - [ ] Confirm whitelist enforces access control
 - [ ] Test unauthorized access is blocked
 - [ ] Enable rate limiting (if needed)
-- [ ] Review worker logs for suspicious activity
-- [ ] Rotate API tokens periodically
+- [ ] Review relay logs for suspicious activity
+- [ ] Secure PostgreSQL with strong passwords
+- [ ] Restrict Docker network access
 
 ## Troubleshooting
 
@@ -591,17 +440,19 @@ ls -la build/
 
 **Solutions**:
 ```bash
-# Verify worker is deployed
-wrangler deployments list
+# Verify Docker services are running
+docker compose ps
 
-# Test worker endpoint
-curl -H "Upgrade: websocket" https://your-worker.workers.dev
+# Check relay logs
+docker compose logs relay
 
-# Check VITE_RELAY_URL in .env and workflow
-# Must be wss:// (not ws://)
+# Test relay endpoint
+curl -i -N -H "Connection: Upgrade" \
+     -H "Upgrade: websocket" \
+     http://localhost:8008
 
-# Verify CORS headers in worker
-wrangler tail
+# Verify VITE_RELAY_URL in .env
+# Must be ws://localhost:8008 (not wss://)
 ```
 
 ### Authentication Fails
@@ -614,79 +465,66 @@ wrangler tail
 echo $VITE_ADMIN_PUBKEY | wc -c  # Should be 65 (64 + newline)
 
 # Check whitelist
-wrangler d1 execute minimoonoir --command "SELECT * FROM whitelist"
+docker compose exec postgres psql -U nostr -d nostr_relay -c "SELECT * FROM whitelist;"
 
 # Add admin if missing
-wrangler d1 execute minimoonoir --command \
+docker compose exec postgres psql -U nostr -d nostr_relay -c \
   "INSERT INTO whitelist (pubkey, cohorts, added_at, added_by) \
-   VALUES ('your-hex-pubkey', '[\"admin\"]', strftime('%s','now'), 'system')"
+   VALUES ('your-hex-pubkey', '[\"admin\"]', EXTRACT(EPOCH FROM NOW()), 'system');"
 ```
 
-### D1 Database Errors
+### Database Connection Errors
 
-**Symptom**: Worker logs show database errors
+**Symptom**: Relay logs show PostgreSQL connection errors
 
 **Solutions**:
 ```bash
-# Verify database exists
-wrangler d1 list
+# Verify PostgreSQL is running
+docker compose ps postgres
 
-# Check schema
-wrangler d1 execute minimoonoir --command "SELECT sql FROM sqlite_master WHERE type='table'"
+# Check database logs
+docker compose logs postgres
 
-# Re-apply schema if needed
-wrangler d1 execute minimoonoir --file=schema.sql
+# Verify connection string
+docker compose exec relay env | grep DATABASE_URL
 
-# Verify binding in wrangler.toml
-cat wrangler.toml | grep -A 3 d1_databases
+# Restart services
+docker compose restart
 ```
 
-### GitHub Actions Workflow Fails
+### Docker Services Won't Start
 
-**Symptom**: Red X in Actions tab
+**Symptom**: `docker compose up` fails
 
 **Solutions**:
 ```bash
-# Check secrets are configured
-# Go to Settings > Secrets and variables > Actions
+# Check for port conflicts
+lsof -i :8008  # Relay port
+lsof -i :5432  # PostgreSQL port
 
-# Verify secret names match workflow
-# - CLOUDFLARE_ACCOUNT_ID
-# - CLOUDFLARE_API_TOKEN
+# View detailed logs
+docker compose up
 
-# Test locally
-npm run build
-cd nosflare && npm run build
-
-# Re-run workflow
-# Actions tab > Re-run jobs
+# Reset and rebuild
+docker compose down -v
+docker compose build --no-cache
+docker compose up -d
 ```
-
-### Custom Domain Not Working
-
-**Symptom**: Domain shows GitHub 404
-
-**Solutions**:
-1. Verify DNS CNAME record:
-   ```bash
-   dig chat.yourdomain.com
-   # Should point to your-username.github.io
-   ```
-
-2. Wait for DNS propagation (up to 24 hours)
-
-3. Check GitHub Pages settings:
-   - Custom domain: `chat.yourdomain.com`
-   - HTTPS enforced: Yes
-
-4. Clear browser cache and retry
 
 ## Cost Estimation
 
-### Cloudflare Workers Free Tier
-- **Requests**: 100,000/day (more than enough for small communities)
-- **D1 Database**: 5 GB storage, 5 million reads/day
-- **Cost**: $0/month
+### Docker Relay (Self-Hosted)
+- **Hosting**: Free (local development) or ~$5-10/month (VPS)
+- **Storage**: Minimal (<1GB for small community)
+- **Cost**: $0-10/month
+
+### Google Cloud Platform Free Tier
+- **Cloud Run Requests**: 2 million/month
+- **Cloud Run CPU**: 2M vCPU-seconds/month
+- **Cloud Run Memory**: 360K vCPU-seconds/month
+- **Cloud Storage**: 5 GB/month
+- **Network Egress**: 1 GB/month
+- **Cost**: $0/month (for typical small community usage)
 
 ### GitHub Pages
 - **Bandwidth**: 100 GB/month
@@ -697,7 +535,9 @@ cd nosflare && npm run build
 - **Domain registration**: ~$10-15/year
 - **DNS**: Usually included with domain
 
-**Total estimated cost**: **$0-15/year** (domain only)
+**Total estimated cost**: **$0-25/year** (domain + optional VPS)
+
+**Note**: With current usage patterns (1K requests/day), all services remain within free tier limits. See [GCP Architecture](./gcp-architecture.md) for detailed cost analysis.
 
 ## Next Steps
 
@@ -707,19 +547,19 @@ After successful deployment:
 2. **Create Cohorts**: Organize users into groups
 3. **Configure Channels**: Set up NIP-28 chat channels
 4. **Schedule Events**: Create NIP-52 calendar events
-5. **Monitor Usage**: Check worker analytics in Cloudflare Dashboard
-6. **Backup Data**: Regularly export D1 database
+5. **Monitor Usage**: Check Docker relay logs and GCP metrics
+6. **Backup Data**: Regularly export PostgreSQL database
 
 ## Support
 
 - **Issues**: https://github.com/your-username/minimoonoir-nostr/issues
 - **Nostr Protocol**: https://nostr.com
-- **Cloudflare Workers**: https://developers.cloudflare.com/workers
+- **Docker**: https://docs.docker.com
 - **SvelteKit**: https://kit.svelte.dev
 
 ---
 
-**Architecture**: Serverless (GitHub Pages + Cloudflare Workers)
-**Database**: Cloudflare D1
-**Cost**: Free tier available
-**Maintenance**: Minimal (serverless platform manages infrastructure)
+**Architecture**: Private Internal Relay (Docker + PostgreSQL) + GitHub Pages + GCP Cloud Run
+**Database**: PostgreSQL
+**Cost**: Free tier available ($0-25/year)
+**Maintenance**: Minimal (serverless platform + containerized relay)

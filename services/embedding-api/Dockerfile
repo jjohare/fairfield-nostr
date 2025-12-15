@@ -9,7 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python dependencies
+# Install PyTorch CPU-only first (smaller image, no GPU needed)
+RUN pip install --no-cache-dir --user torch==2.1.2 --index-url https://download.pytorch.org/whl/cpu
+
+# Copy and install other Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 

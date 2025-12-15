@@ -137,21 +137,12 @@ Connect Cloud Build trigger to repository:
 - **CPU**: 2 vCPU recommended
 - **Concurrency**: 4 threads per worker
 
-## Migration from Cloudflare Worker
+## API Usage
 
-Replace worker URL with Cloud Run URL:
+Cloud Run deployment endpoint:
 
-**Before:**
 ```javascript
-const response = await fetch('https://worker.example.workers.dev', {
-  method: 'POST',
-  body: JSON.stringify({ text: 'Hello' })
-});
-```
-
-**After:**
-```javascript
-const response = await fetch('https://embedding-api-xxx.run.app/embed', {
+const response = await fetch('https://embedding-api-617806532906.us-central1.run.app/embed', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ text: 'Hello' })

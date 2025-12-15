@@ -1,11 +1,11 @@
 # Minimoonoir
 
-A privacy-first community messaging platform built on the Nostr protocol. Features NIP-52 calendar events, NIP-28 public chat channels, NIP-17/59 encrypted direct messages, and cohort-based access control. Fully serverless architecture with SvelteKit PWA on GitHub Pages and Cloudflare Workers relay.
+A privacy-first community messaging platform built on the Nostr protocol. Features NIP-52 calendar events, NIP-28 public chat channels, NIP-17/59 encrypted direct messages, and cohort-based access control. Fully serverless architecture with SvelteKit PWA on GitHub Pages and Google Cloud Platform backend.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Nostr](https://img.shields.io/badge/Nostr-Protocol-purple.svg)](https://nostr.com)
 [![SvelteKit](https://img.shields.io/badge/SvelteKit-5.x-orange.svg)](https://kit.svelte.dev)
-[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange.svg)](https://workers.cloudflare.com)
+[![Google Cloud](https://img.shields.io/badge/Google_Cloud-Platform-blue.svg)](https://cloud.google.com)
 
 ## Features
 
@@ -22,7 +22,7 @@ A privacy-first community messaging platform built on the Nostr protocol. Featur
 ### Prerequisites
 
 - Node.js 18+ and npm
-- Cloudflare account (free tier)
+- Google Cloud Platform account (free tier)
 - GitHub account (for deployment)
 
 ### Local Development
@@ -58,11 +58,11 @@ npm run build
 npm run deploy
 ```
 
-**Backend (Cloudflare Workers):**
+**Backend (Google Cloud Run):**
 
-The relay is already deployed at `wss://nosflare.solitary-paper-764d.workers.dev`
+The embedding service is deployed at: `https://embedding-api-617806532906.us-central1.run.app`
 
-To deploy your own relay, see the [nosflare repository](https://github.com/Spl0itable/nosflare) and follow the Cloudflare Workers deployment instructions.
+To deploy your own instance, see the [Deployment](#deployment) section below for Google Cloud Platform setup instructions.
 
 ## Architecture
 
@@ -75,11 +75,14 @@ graph TB
         CDN["GitHub Pages<br/>(Static CDN)"]
     end
 
-    subgraph Cloudflare["Cloudflare Edge Network"]
-        Worker["Workers Relay<br/>(nosflare)"]
-        DO["Durable Objects<br/>(WebSocket Manager)"]
-        D1["D1 Database<br/>(SQLite)"]
-        KV["KV Storage<br/>(Optional Cache)"]
+    subgraph Docker["Docker Container (Internal)"]
+        Relay["Nostr Relay<br/>(ws://localhost:8008)"]
+        DB["PostgreSQL<br/>(Whitelist + Events)"]
+    end
+
+    subgraph GCP["Google Cloud Platform"]
+        CloudRun["Cloud Run<br/>(Embedding API)"]
+        GCS["Cloud Storage<br/>(Vector Index)"]
     end
 
     subgraph Frontend["SvelteKit PWA"]
@@ -93,14 +96,15 @@ graph TB
     Static -->|Registers| SW
     SW -->|Caches| IDB
 
-    User -.->|WSS| Worker
-    Worker <-->|Manages| DO
-    Worker <-->|Query| D1
-    Worker -.->|Cache| KV
-    DO <-->|Store State| DO
+    Static <-->|WebSocket| Relay
+    Relay <-->|SQL| DB
+    Static -->|HTTPS API| CloudRun
+    CloudRun -->|Vector Index| GCS
+    IDB -.->|Sync| GCS
 
     style Internet fill:#064e3b,color:#fff
-    style Cloudflare fill:#f97316,color:#fff
+    style Docker fill:#2496ed,color:#fff
+    style GCP fill:#4285f4,color:#fff
     style Frontend fill:#1e3a8a,color:#fff
 ```
 
@@ -109,18 +113,22 @@ graph TB
 ```mermaid
 graph LR
     subgraph Development["Development"]
-        Dev["Local Dev<br/>localhost:5173"] -->|npm run dev| DevRelay["Local Relay<br/>(Optional)"]
+        Dev["Local Dev<br/>localhost:5173"] -->|npm run dev| Docker["Docker Relay<br/>localhost:8008"]
     end
 
     subgraph Production["Production"]
         Browser["Browser"] -->|HTTPS| GHP["GitHub Pages<br/>your-username.github.io"]
         GHP -->|Loads| PWA["SvelteKit PWA"]
-        PWA -.->|WSS| CFWorker["Cloudflare Workers<br/>wss://nosflare.*.workers.dev"]
+        PWA -->|WebSocket| Relay["Docker Relay<br/>(Internal Network)"]
+        PWA -->|HTTPS| CloudRun["Cloud Run API<br/>embedding-api-*.run.app"]
+        CloudRun -->|Store| GCS["Google Cloud Storage"]
+        Relay -->|SQL| PG["PostgreSQL"]
     end
 
     subgraph CI/CD["GitHub Actions"]
-        Push["git push main"] -->|Trigger| Workflow["Build & Deploy"]
-        Workflow -->|Deploy| GHP
+        Push["git push main"] -->|Trigger| GHWorkflow["GitHub Actions"]
+        GHWorkflow -->|Deploy Frontend| GHP
+        GHWorkflow -->|Build Docker| DockerHub["Docker Image"]
     end
 
     style Development fill:#065f46,color:#fff
@@ -134,20 +142,18 @@ graph LR
 graph TB
     subgraph Free["Free Tier Services"]
         GH["GitHub Pages<br/>✅ Unlimited bandwidth"]
-        CF["Cloudflare Workers<br/>✅ 100k req/day"]
-        D1DB["D1 Database<br/>✅ 5GB storage"]
-        DO["Durable Objects<br/>✅ 1M req/month"]
-        R2["Cloudflare R2<br/>✅ 10GB storage"]
+        Docker["Docker Hub<br/>✅ Free public images"]
+        CloudRun["Cloud Run<br/>✅ 2M requests/month<br/>✅ 360,000 GB-seconds"]
+        GCS["Cloud Storage<br/>✅ 5 GB storage<br/>✅ 5,000 Class A ops<br/>✅ 50,000 Class B ops"]
         GHA["GitHub Actions<br/>✅ 2000 min/month"]
     end
 
     subgraph Costs["Zero Cost Architecture"]
-        Storage["Event Storage"] -->|Free| D1DB
-        WS["WebSocket Connections"] -->|Free| DO
         Static["Static Hosting"] -->|Free| GH
-        Edge["Edge Computing"] -->|Free| CF
-        Embeddings["Vector Index"] -->|Free| R2
-        Pipeline["Nightly Embedding"] -->|Free| GHA
+        Relay["Nostr Relay"] -->|Free| Docker
+        API["Embedding API"] -->|Free| CloudRun
+        VectorIndex["Vector Index"] -->|Free| GCS
+        Pipeline["CI/CD Pipeline"] -->|Free| GHA
     end
 
     style Free fill:#065f46,color:#fff
@@ -162,12 +168,12 @@ Minimoonoir includes AI-powered semantic search that understands meaning, not ju
 
 ```mermaid
 graph TB
-    subgraph Pipeline["Nightly Embedding Pipeline"]
-        GHA["GitHub Actions<br/>Cron 3 AM UTC"]
+    subgraph Pipeline["Cloud-Based Embedding Pipeline"]
+        CloudRun["Cloud Run API<br/>REST Endpoints"]
         Relay["Nostr Relay<br/>Fetch Messages"]
         ST["sentence-transformers<br/>all-MiniLM-L6-v2"]
         HNSW["hnswlib<br/>Build Index"]
-        R2["Cloudflare R2<br/>Store Index"]
+        GCS["Cloud Storage<br/>Store Index"]
     end
 
     subgraph PWA["PWA Client"]
@@ -178,19 +184,19 @@ graph TB
         UI["SemanticSearch<br/>Component"]
     end
 
-    GHA -->|1. Trigger| Relay
+    CloudRun -->|1. Trigger| Relay
     Relay -->|2. Kind 1,9| ST
     ST -->|3. 384d Vectors| HNSW
-    HNSW -->|4. Upload| R2
+    HNSW -->|4. Upload| GCS
 
     WiFi -->|5. Check Network| Sync
-    Sync -->|6. Download| R2
+    Sync -->|6. Download| GCS
     Sync -->|7. Store| IDB
     IDB -->|8. Load| WASM
     UI -->|9. Query| WASM
     WASM -->|10. Results| UI
 
-    style Pipeline fill:#7c2d12,color:#fff
+    style Pipeline fill:#4285f4,color:#fff
     style PWA fill:#1e40af,color:#fff
 ```
 
@@ -209,29 +215,29 @@ graph TB
 
 ```mermaid
 sequenceDiagram
-    participant GHA as GitHub Actions
+    participant API as Cloud Run API
     participant Relay as Nostr Relay
-    participant R2 as Cloudflare R2
+    participant GCS as Cloud Storage
     participant PWA as Browser PWA
     participant IDB as IndexedDB
     participant WASM as hnswlib-wasm
 
-    Note over GHA,R2: Nightly Pipeline (3 AM UTC)
-    GHA->>Relay: 1. Fetch kind 1 & 9 events
-    Relay-->>GHA: 2. Return messages
-    GHA->>GHA: 3. Generate embeddings (384d)
-    GHA->>GHA: 4. Quantize to int8
-    GHA->>GHA: 5. Build HNSW index
-    GHA->>R2: 6. Upload index + manifest
+    Note over API,GCS: On-Demand Pipeline (API Triggered)
+    API->>Relay: 1. Fetch kind 1 & 9 events
+    Relay-->>API: 2. Return messages
+    API->>API: 3. Generate embeddings (384d)
+    API->>API: 4. Quantize to int8
+    API->>API: 5. Build HNSW index
+    API->>GCS: 6. Upload index + manifest
 
     Note over PWA,WASM: User Opens App
     PWA->>PWA: 7. Check WiFi connection
-    PWA->>R2: 8. Fetch manifest.json
-    R2-->>PWA: 9. Return version info
+    PWA->>GCS: 8. Fetch manifest.json
+    GCS-->>PWA: 9. Return version info
 
     alt New Version Available
-        PWA->>R2: 10. Download index.bin
-        R2-->>PWA: 11. Return ~15MB index
+        PWA->>GCS: 10. Download index.bin
+        GCS-->>PWA: 11. Return ~15MB index
         PWA->>IDB: 12. Store in embeddings table
     end
 
@@ -262,8 +268,8 @@ HNSW Index:
   ef_search: 50
 
 Storage:
-  platform: Cloudflare R2
-  bucket: minimoonoir-embeddings
+  platform: Google Cloud Storage
+  bucket: fairfield-nostr-embeddings
   structure:
     - latest/manifest.json
     - latest/index.bin
@@ -280,10 +286,11 @@ Client Sync:
 
 | Resource | Limit | Usage (100k msgs) | Headroom |
 |----------|-------|-------------------|----------|
-| **GitHub Actions** | 2,000 min/month | ~60 min/month | 97% free |
-| **Cloudflare R2** | 10 GB storage | ~20 MB | 99.8% free |
-| **R2 Reads** | 10M reads/month | ~10k/month | 99.9% free |
-| **R2 Egress** | Unlimited | N/A | Always free |
+| **Cloud Run** | 2M requests/month | ~10k/month | 99.5% free |
+| **Cloud Storage** | 5 GB storage | ~20 MB | 99.6% free |
+| **GCS Reads** | 50k Class B ops/month | ~10k/month | 80% free |
+| **GCS Egress** | 1 GB/month (free tier) | ~500 MB | 50% free |
+| **Firestore** | 50k reads/day | ~1k/day | 98% free |
 
 ### Usage
 
@@ -437,7 +444,7 @@ sequenceDiagram
     participant User
     participant App as PWA
     participant Store as Local Storage
-    participant Relay as Cloudflare Workers
+    participant Relay as Docker Relay
 
     User->>App: 1. Click "Create Account"
     App->>App: 2. Generate BIP-39 Mnemonic
@@ -466,29 +473,30 @@ sequenceDiagram
     participant User
     participant App as PWA
     participant Cache as IndexedDB
-    participant Relay as Cloudflare Workers
-    participant DO as Durable Object
+    participant Relay as Docker Relay
+    participant DB as PostgreSQL
     participant Others as Other Users
 
     User->>App: 1. Join Channel
     App->>Relay: 2. Subscribe (Kind 40-42)
-    Relay->>DO: 3. Manage WebSocket Connection
-    DO->>App: 4. Stream Existing Messages
-    App->>Cache: 5. Cache Messages Locally
-    App->>User: 6. Display Channel
+    Relay->>DB: 3. Query Channel Events
+    DB->>Relay: 4. Return Matching Events
+    Relay->>App: 5. Stream Existing Messages
+    App->>Cache: 6. Cache Messages Locally
+    App->>User: 7. Display Channel
 
-    User->>App: 7. Type Message
-    App->>App: 8. Create Kind 42 Event
-    App->>App: 9. Sign with Private Key
-    App->>Relay: 10. Publish Event
+    User->>App: 8. Type Message
+    App->>App: 9. Create Kind 42 Event
+    App->>App: 10. Sign with Private Key
+    App->>Relay: 11. Publish Event
 
-    Relay->>Relay: 11. Validate Signature
-    Relay->>DO: 12. Store in Durable Object
-    DO->>Others: 13. Broadcast to Subscribers
-    Relay->>App: 14. Confirm Receipt
+    Relay->>Relay: 12. Validate Signature
+    Relay->>DB: 13. Store Event
+    Relay->>Others: 14. Broadcast to Subscribers
+    Relay->>App: 15. Confirm Receipt
 
-    App->>Cache: 15. Update Local Cache
-    Others->>Others: 16. Display Message
+    App->>Cache: 16. Update Local Cache
+    Others->>Others: 17. Display Message
 
     Note over Cache: Offline support via IndexedDB
     Note over Relay: NIP-42 auth + cohort check
@@ -500,7 +508,7 @@ sequenceDiagram
 sequenceDiagram
     participant Alice
     participant App as PWA
-    participant Relay as Cloudflare Workers
+    participant Relay as Docker Relay
     participant Bob
 
     Alice->>App: 1. Compose Private Message
@@ -535,7 +543,7 @@ sequenceDiagram
     participant App as PWA
     participant SW as Service Worker
     participant Queue as IndexedDB Queue
-    participant Relay as Cloudflare Workers
+    participant Relay as Docker Relay
 
     Note over App: User goes offline
 
@@ -565,7 +573,7 @@ sequenceDiagram
 ## Project Structure
 
 ```
-minimoonoir/
+fairfield-nostr/
 ├── src/
 │   ├── lib/
 │   │   ├── components/      # Svelte components
@@ -585,7 +593,7 @@ minimoonoir/
 │   │   │   ├── calendar.ts  # NIP-52 events
 │   │   │   └── relay.ts     # NDK relay manager
 │   │   ├── semantic/        # Semantic vector search
-│   │   │   ├── embeddings-sync.ts  # WiFi-only R2 sync
+│   │   │   ├── embeddings-sync.ts  # WiFi-only GCS sync
 │   │   │   ├── hnsw-search.ts      # WASM vector search
 │   │   │   ├── SemanticSearch.svelte # Search UI component
 │   │   │   └── index.ts            # Module exports
@@ -611,23 +619,21 @@ minimoonoir/
 │   │   ├── admin/           # Admin dashboard
 │   │   └── settings/        # User settings
 │   └── service-worker.ts    # PWA service worker
-├── nosflare/                # Cloudflare Workers relay (customized)
-│   ├── worker.js            # Compiled relay worker
-│   ├── wrangler.toml        # Free tier configuration
-│   ├── schema.sql           # D1 database schema
-│   └── CUSTOMIZATION.md     # Our customizations documentation
-├── scripts/
-│   └── embeddings/          # Embedding pipeline scripts
-│       ├── fetch_notes.py   # Fetch from Nostr relay
-│       ├── generate_embeddings.py  # sentence-transformers
-│       ├── build_index.py   # HNSW index builder
-│       ├── upload_to_r2.py  # Cloudflare R2 upload
-│       └── update_manifest.py  # Version manifest
+├── embedding-service/       # Google Cloud Run service
+│   ├── src/
+│   │   ├── main.py          # FastAPI application
+│   │   ├── embeddings.py    # Embedding generation
+│   │   ├── hnsw_index.py    # HNSW index builder
+│   │   ├── gcs_client.py    # Cloud Storage client
+│   │   └── firestore_client.py  # Firestore client
+│   ├── Dockerfile           # Container definition
+│   ├── requirements.txt     # Python dependencies
+│   ├── cloudbuild.yaml      # Cloud Build config
+│   └── .gcloudignore        # GCP ignore patterns
 ├── .github/
 │   └── workflows/
 │       ├── deploy-pages.yml  # Frontend deployment to GitHub Pages
-│       ├── deploy-relay.yml  # Backend deployment to Cloudflare Workers
-│       └── generate-embeddings.yml  # Nightly vector index pipeline
+│       └── deploy-backend.yml  # Backend deployment to Cloud Run
 ├── static/                  # Static assets
 │   ├── manifest.json        # PWA manifest
 │   └── icon-*.png           # PWA icons
@@ -645,18 +651,20 @@ minimoonoir/
 
 ```bash
 # .env (local development)
-VITE_RELAY_URL=wss://nosflare.solitary-paper-764d.workers.dev
+VITE_RELAY_URL=wss://your-nostr-relay.com
 VITE_ADMIN_PUBKEY=<hex-pubkey>              # Admin public key (64-char hex)
 VITE_NDK_DEBUG=false                         # Enable NDK debug logging
 
-# Semantic Search (R2 public URL)
-VITE_R2_EMBEDDINGS_URL=https://pub-minimoonoir.r2.dev
+# Semantic Search (Cloud Storage public URL)
+VITE_GCS_EMBEDDINGS_URL=https://storage.googleapis.com/fairfield-nostr-embeddings
 
-# Embedding Pipeline (GitHub Actions secrets)
-CLOUDFLARE_ACCOUNT_ID=<account-id>           # Cloudflare account ID
-CLOUDFLARE_R2_ACCESS_KEY=<access-key>        # R2 API token access key
-CLOUDFLARE_R2_SECRET_KEY=<secret-key>        # R2 API token secret key
-NOSTR_RELAY_URL=wss://nosflare.*.workers.dev # Relay for fetching messages
+# Cloud Run API
+VITE_EMBEDDING_API_URL=https://embedding-api-617806532906.us-central1.run.app
+
+# GCP Configuration (for deployment)
+GCP_PROJECT_ID=<your-project-id>
+GCP_REGION=us-central1
+GCS_BUCKET_NAME=fairfield-nostr-embeddings
 ```
 
 ### GitHub Configuration (for CI/CD)
@@ -671,21 +679,22 @@ NOSTR_RELAY_URL=wss://nosflare.*.workers.dev # Relay for fetching messages
 
 | Secret | Description |
 |--------|-------------|
-| `CLOUDFLARE_API_TOKEN` | For relay deployment |
-| `CLOUDFLARE_ACCOUNT_ID` | For R2 embedding storage |
-| `CLOUDFLARE_R2_ACCESS_KEY` | R2 API token access key |
-| `CLOUDFLARE_R2_SECRET_KEY` | R2 API token secret key |
+| `GCP_PROJECT_ID` | Google Cloud project ID |
+| `GCP_SA_KEY` | Service account JSON key (for Cloud Build) |
+| `GCS_BUCKET_NAME` | Cloud Storage bucket name |
 
 The deploy workflow uses `${{ vars.ADMIN_PUBKEY }}` to inject the admin key at build time.
 
-### Relay Configuration
+### Cloud Run API Configuration
 
-The Cloudflare Workers relay is deployed separately. Key configuration:
+The embedding service runs on Google Cloud Run. Key configuration:
 
-- **Relay URL:** `wss://nosflare.solitary-paper-764d.workers.dev`
-- **Admin Pubkey:** Set via `ADMIN_PUBKEY` repository variable
-- **Access Control:** D1 database whitelist with cohort support
-- **Storage:** Durable Objects (SQLite-backed) for event storage
+- **API URL:** `https://embedding-api-617806532906.us-central1.run.app`
+- **Region:** `us-central1`
+- **Concurrency:** 80 requests per instance
+- **Memory:** 2 GB
+- **CPU:** 2 vCPU
+- **Auto-scaling:** 0 to 10 instances
 
 ### PWA Configuration
 
@@ -713,6 +722,38 @@ PWA settings in `static/manifest.json`:
   ]
 }
 ```
+
+## Google Cloud Platform Free Tier
+
+This application is designed to run entirely on GCP's free tier:
+
+### Free Tier Limits
+
+**Cloud Run:**
+- 2 million requests per month
+- 360,000 GB-seconds of memory
+- 180,000 vCPU-seconds of compute
+- Scale to zero (no charges when idle)
+
+**Cloud Storage:**
+- 5 GB storage
+- 5,000 Class A operations (writes) per month
+- 50,000 Class B operations (reads) per month
+- 1 GB network egress per month
+
+**Firestore:**
+- 1 GiB storage
+- 50,000 reads per day
+- 20,000 writes per day
+- 20,000 deletes per day
+
+**Expected Usage (100k messages):**
+- Cloud Run: ~10k requests/month (0.5% of limit)
+- Storage: ~20 MB (0.4% of limit)
+- Reads: ~1k/day (2% of daily limit)
+- Egress: ~500 MB/month (50% of monthly limit)
+
+**Cost Estimate:** $0/month on free tier for typical usage
 
 ## Deployment
 
@@ -753,45 +794,67 @@ The frontend is automatically deployed via GitHub Actions on every push to `main
    npm run deploy
    ```
 
-### Cloudflare Workers (Backend)
+### Google Cloud Run (Backend)
 
-The relay is pre-deployed at `wss://nosflare.solitary-paper-764d.workers.dev`.
+The embedding API is deployed at `https://embedding-api-617806532906.us-central1.run.app`.
 
-For custom deployments using our customized relay:
+For custom deployments:
+
+**Prerequisites:**
+- Google Cloud SDK installed
+- GCP project created
+- Billing enabled (free tier available)
+
+**Deployment Steps:**
 
 ```bash
-cd nosflare/
+# Authenticate with GCP
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
 
-# Create D1 database (first time only)
-wrangler d1 create minimoonoir
-# Update database_id in wrangler.toml with the returned ID
+# Create Cloud Storage bucket (first time only)
+gsutil mb -l us-central1 gs://fairfield-nostr-embeddings
+gsutil iam ch allUsers:objectViewer gs://fairfield-nostr-embeddings
 
-# Apply schema
-wrangler d1 execute minimoonoir --file=schema.sql
+# Build and deploy to Cloud Run
+cd embedding-service/
+gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/embedding-api
+gcloud run deploy embedding-api \
+  --image gcr.io/YOUR_PROJECT_ID/embedding-api \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --memory 2Gi \
+  --cpu 2 \
+  --concurrency 80 \
+  --min-instances 0 \
+  --max-instances 10
+```
 
-# Add admin to whitelist
-wrangler d1 execute minimoonoir --command="INSERT INTO whitelist (pubkey, cohorts, added_at, added_by) VALUES ('YOUR_HEX_PUBKEY', '[\"admin\"]', unixepoch(), 'system')"
+**Environment Configuration:**
 
-# Deploy
-wrangler deploy
+```bash
+# Set environment variables for Cloud Run
+gcloud run services update embedding-api \
+  --region us-central1 \
+  --set-env-vars GCS_BUCKET_NAME=fairfield-nostr-embeddings
 ```
 
 See also:
-- [nosflare/CUSTOMIZATION.md](nosflare/CUSTOMIZATION.md) - Our free tier customizations
-- [nosflare](https://github.com/Spl0itable/nosflare) - Original Cloudflare Workers relay by @Spl0itable
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Full deployment guide
+- [Google Cloud Run Documentation](https://cloud.google.com/run/docs)
 
-### Access Control
+### API Endpoints
 
-Users are managed via D1 database whitelist with cohort-based access:
+The Cloud Run service provides the following REST endpoints:
 
-| Cohort | Access Level |
-|--------|--------------|
-| `admin` | Full access, can manage users/channels |
-| `business` | Business community members |
-| `moomaa-tribe` | Community group members |
-
-Contact admin to be added to the whitelist.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check endpoint |
+| `/api/embeddings/generate` | POST | Generate embeddings for messages |
+| `/api/embeddings/index` | POST | Build and upload HNSW index |
+| `/api/embeddings/manifest` | GET | Get current index version |
+| `/api/embeddings/sync` | POST | Trigger full sync pipeline |
 
 ## Testing
 
@@ -834,16 +897,17 @@ npm test -- --watch
 
 ### Network Security
 - HTTPS for GitHub Pages (automatic)
-- WebSocket Secure (WSS) for relay connections
+- HTTPS for Cloud Run (Google-managed certificates)
 - Content Security Policy headers
 - CORS configuration
-- Cloudflare edge protection
+- Google Cloud Armor protection (available)
 
 ### Serverless Security Benefits
 - No server to compromise
-- Durable Objects provide isolated execution
-- D1 database with prepared statements (SQL injection prevention)
-- Cloudflare DDoS protection
+- Cloud Run provides isolated container execution
+- Automatic HTTPS with Google-managed certificates
+- Google Cloud's DDoS protection
+- IAM-based access control
 - Zero-trust architecture
 
 ## GitHub Labels
@@ -866,7 +930,7 @@ Our project uses a comprehensive labeling system for issue and PR management:
 - `type: security` - Security-related issues
 
 ### Area Labels
-- `area: relay` - Cloudflare Workers relay, NIP implementation
+- `area: api` - Cloud Run API, backend services
 - `area: pwa` - Progressive Web App, service worker
 - `area: ui/ux` - User interface and experience
 - `area: encryption` - NIP-44, NIP-17/59 encryption
@@ -874,7 +938,8 @@ Our project uses a comprehensive labeling system for issue and PR management:
 - `area: dm` - Direct messaging (NIP-17/59)
 - `area: calendar` - NIP-52 calendar events
 - `area: admin` - Admin panel and moderation
-- `area: deployment` - GitHub Pages, Cloudflare Workers
+- `area: deployment` - GitHub Pages, Google Cloud Platform
+- `area: embeddings` - Semantic search, vector embeddings
 
 ### Status Labels
 - `status: needs triage` - Needs review and classification
@@ -896,8 +961,8 @@ Our project uses a comprehensive labeling system for issue and PR management:
 ```typescript
 import { connectRelay, publishEvent, subscribe } from '$lib/nostr';
 
-// Connect to relay
-await connectRelay('wss://nosflare.solitary-paper-764d.workers.dev', privateKey);
+// Connect to relay (local development)
+await connectRelay('ws://localhost:8080', privateKey);
 
 // Publish event
 const event = new NDKEvent();
@@ -1005,13 +1070,12 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ### Infrastructure
 
-- [nosflare](https://github.com/Spl0itable/nosflare) - Cloudflare Workers relay by [@Spl0itable](https://github.com/Spl0itable)
-- [Cloudflare Workers](https://workers.cloudflare.com) - Edge computing platform
-- [Cloudflare D1](https://developers.cloudflare.com/d1) - Serverless SQLite database
-- [Cloudflare Durable Objects](https://developers.cloudflare.com/workers/runtime-apis/durable-objects) - Stateful serverless storage
-- [Cloudflare R2](https://developers.cloudflare.com/r2) - Object storage for vector embeddings
+- [Google Cloud Run](https://cloud.google.com/run) - Serverless container platform
+- [Google Cloud Storage](https://cloud.google.com/storage) - Object storage for vector embeddings
+- [Google Firestore](https://cloud.google.com/firestore) - NoSQL metadata database
+- [Google Cloud Build](https://cloud.google.com/build) - CI/CD pipeline
 - [GitHub Pages](https://pages.github.com) - Static site hosting
-- [GitHub Actions](https://github.com/features/actions) - CI/CD for embedding pipeline
+- [GitHub Actions](https://github.com/features/actions) - Frontend deployment automation
 
 ### Machine Learning
 

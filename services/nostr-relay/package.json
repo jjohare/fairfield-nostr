@@ -1,0 +1,23 @@
+{
+  "name": "nostr-relay",
+  "version": "1.0.0",
+  "description": "Whitelist-based internal Nostr relay",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node src/server.ts"
+  },
+  "dependencies": {
+    "ws": "^8.14.2",
+    "pg": "^8.11.3",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0",
+    "@types/ws": "^8.5.8",
+    "@types/pg": "^8.10.7",
+    "typescript": "^5.2.2",
+    "ts-node": "^10.9.1"
+  }
+}
