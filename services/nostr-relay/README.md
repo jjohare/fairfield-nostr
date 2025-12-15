@@ -1,36 +1,40 @@
-# Nostr Relay Service - Internal Docker Deployment
+# Nostr Relay Service - SQLite for Cloud Run
 
-**Private, whitelist-only relay with PostgreSQL storage. No external relay connections.**
+**Private, whitelist-only relay with SQLite storage. Optimized for Cloud Run deployment.**
 
 ## Features
 
 - ✅ **Private Access**: Whitelist-only, no federation with external relays
 - ✅ **Point-to-Point**: Direct communication within the application
-- ✅ **PostgreSQL Storage**: Persistent event and whitelist storage
-- ✅ **NIP Support**: NIP-01, NIP-02, NIP-09, NIP-11, NIP-17, NIP-25, NIP-28, NIP-42, NIP-44, NIP-52, NIP-59
-- ✅ **Docker Deployment**: Easy containerized deployment
-- ✅ **Rate Limiting**: Protection against abuse
+- ✅ **SQLite Storage**: Single-file database, perfect for Cloud Run
+- ✅ **NIP Support**: NIP-01 (events and filters)
+- ✅ **Cloud Run Ready**: No separate database service needed
+- ✅ **Pure JavaScript**: No native dependencies (sql.js)
 - ✅ **WebSocket**: Real-time event streaming
 
 ## Architecture
 
 ```mermaid
 graph TB
-    subgraph Docker["Docker Container"]
-        Relay["Nostr Relay<br/>ws://localhost:8008"]
-        PG["PostgreSQL<br/>Database"]
+    subgraph CloudRun["Cloud Run"]
+        Relay["Nostr Relay<br/>ws://relay-url:8080"]
+        SQLite["SQLite Database<br/>/data/nostr.db"]
+    end
+
+    subgraph Storage["Cloud Storage"]
+        GCS["GCS Bucket<br/>Persistent Volume"]
     end
 
     subgraph Frontend["SvelteKit PWA"]
         PWA["Web Application"]
-        IDB["IndexedDB<br/>Local Cache"]
     end
 
     PWA <-->|WebSocket| Relay
-    Relay <-->|SQL| PG
-    PWA <-->|Cache| IDB
+    Relay <-->|Read/Write| SQLite
+    SQLite <-->|Persist| GCS
 
-    style Docker fill:#2496ed,color:#fff
+    style CloudRun fill:#4285f4,color:#fff
+    style Storage fill:#ea4335,color:#fff
     style Frontend fill:#1e40af,color:#fff
 ```
 
@@ -38,77 +42,59 @@ graph TB
 
 ### Prerequisites
 
-- Docker 20+
-- Docker Compose 2+
-- Node.js 20+ (for development)
+- Node.js 20+ (for local development)
+- Docker (for containerized deployment)
+- Google Cloud SDK (for Cloud Run deployment)
 
-### 1. Start Services
+### 1. Local Development
 
 ```bash
 cd services/nostr-relay
 
-# Start PostgreSQL and relay
-docker compose up -d
+# Install dependencies
+npm install
+
+# Build
+npm run build
+
+# Start relay (creates ./data/nostr.db)
+npm start
+```
+
+### 2. Docker Deployment
+
+```bash
+# Build Docker image
+docker build -t nostr-relay .
+
+# Run locally with volume
+docker run -d \
+  -p 8080:8080 \
+  -v $(pwd)/data:/data \
+  -e SQLITE_DATA_DIR=/data \
+  -e WHITELIST_PUBKEYS="" \
+  nostr-relay
 
 # View logs
-docker compose logs -f
+docker logs -f nostr-relay
 ```
 
-### 2. Verify Services
+### 3. Cloud Run Deployment
 
+See **[docs/CLOUD_RUN_DEPLOYMENT.md](docs/CLOUD_RUN_DEPLOYMENT.md)** for complete Cloud Run deployment guide.
+
+### 4. Configure Whitelist
+
+Edit `.env` file:
 ```bash
-# Check service status
-docker compose ps
+# Empty = development mode (all pubkeys allowed)
+WHITELIST_PUBKEYS=
 
-# Test WebSocket connection
-curl -i -N -H "Connection: Upgrade" \
-     -H "Upgrade: websocket" \
-     -H "Sec-WebSocket-Version: 13" \
-     -H "Sec-WebSocket-Key: test" \
-     http://localhost:8008
-
-# Test NIP-11 relay info
-curl http://localhost:8008 -H "Accept: application/nostr+json"
+# Production = comma-separated hex pubkeys
+WHITELIST_PUBKEYS=abc123...,def456...,ghi789...
 ```
 
-Expected NIP-11 response:
-```json
-{
-  "name": "Minimoonoir Relay",
-  "description": "Private community relay with whitelist access",
-  "pubkey": "",
-  "contact": "",
-  "supported_nips": [1, 2, 9, 11, 17, 25, 28, 42, 44, 52, 59],
-  "software": "minimoonoir-relay",
-  "version": "1.0.0",
-  "limitation": {
-    "max_message_length": 16384,
-    "max_subscriptions": 20,
-    "max_filters": 100,
-    "max_subid_length": 100,
-    "min_pow_difficulty": 0,
-    "auth_required": true,
-    "payment_required": false
-  }
-}
-```
-
-### 3. Add Admin to Whitelist
-
-```bash
-# Connect to PostgreSQL
-docker compose exec postgres psql -U nostr -d nostr_relay
-
-# Add admin user
-INSERT INTO whitelist (pubkey, cohorts, added_at, added_by)
-VALUES ('your-admin-pubkey-hex', '["admin"]', EXTRACT(EPOCH FROM NOW()), 'system');
-
-# Verify
-SELECT * FROM whitelist;
-
-# Exit
-\q
-```
+Note: Current simple implementation uses environment variables. Advanced whitelist management (cohorts, expiry) requires extending the implementation.
 
 ## Configuration
 
@@ -117,155 +103,114 @@ SELECT * FROM whitelist;
 Create `.env` file in `services/nostr-relay`:
 
 ```bash
-# PostgreSQL Configuration
-POSTGRES_USER=nostr
-POSTGRES_PASSWORD=your-secure-password-here
-POSTGRES_DB=nostr_relay
+# Server Configuration
+PORT=8080
+HOST=0.0.0.0
 
-# Relay Configuration
-DATABASE_URL=postgresql://nostr:your-secure-password-here@postgres:5432/nostr_relay
-RELAY_PORT=8008
-RELAY_NAME=Minimoonoir Relay
-RELAY_DESCRIPTION=Private community relay with whitelist access
-RELAY_PUBKEY=
-RELAY_CONTACT=
+# SQLite Configuration
+SQLITE_DATA_DIR=/data
 
-# Rate Limiting
-RATE_LIMIT_ENABLED=true
-RATE_LIMIT_MAX_REQUESTS=100
-RATE_LIMIT_WINDOW_MS=60000
+# Whitelist Configuration
+# Empty = development mode (allows all)
+# Production = comma-separated pubkeys
+WHITELIST_PUBKEYS=
 
-# Node Environment
-NODE_ENV=production
+# Example with pubkeys:
+# WHITELIST_PUBKEYS=abc123...,def456...,ghi789...
 ```
 
-### Docker Compose Configuration
+### Dockerfile
 
-`docker-compose.yml`:
-```yaml
-version: '3.8'
+The relay uses a multi-stage Docker build:
 
-services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: nostr-relay-db
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-nostr}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      POSTGRES_DB: ${POSTGRES_DB:-nostr_relay}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nostr"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+```dockerfile
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build
 
-  relay:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: nostr-relay
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      RELAY_PORT: ${RELAY_PORT:-8008}
-      RELAY_NAME: ${RELAY_NAME:-Minimoonoir Relay}
-      RELAY_DESCRIPTION: ${RELAY_DESCRIPTION:-Private community relay}
-      RELAY_PUBKEY: ${RELAY_PUBKEY:-}
-      RELAY_CONTACT: ${RELAY_CONTACT:-}
-      NODE_ENV: ${NODE_ENV:-production}
-    ports:
-      - "8008:8008"
-    restart: unless-stopped
-
-volumes:
-  postgres-data:
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY --from=builder /app/dist ./dist
+RUN mkdir -p /data && chown -R node:node /data
+ENV NODE_ENV=production
+ENV PORT=8080
+ENV HOST=0.0.0.0
+ENV SQLITE_DATA_DIR=/data
+USER node
+EXPOSE 8080
+CMD ["node", "dist/server.js"]
 ```
 
 ## Database Management
 
 ### Schema
 
-The relay uses the following PostgreSQL schema:
+The relay uses a simple SQLite schema (see `schema.sql`):
 
 ```sql
--- Whitelist table for access control
-CREATE TABLE IF NOT EXISTS whitelist (
-  pubkey TEXT PRIMARY KEY,
-  cohorts JSONB NOT NULL DEFAULT '[]'::jsonb,
-  added_at BIGINT NOT NULL,
-  added_by TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
--- Events table for Nostr events
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY,
   pubkey TEXT NOT NULL,
-  created_at BIGINT NOT NULL,
+  created_at INTEGER NOT NULL,
   kind INTEGER NOT NULL,
-  tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+  tags TEXT NOT NULL,
   content TEXT NOT NULL,
   sig TEXT NOT NULL,
-  stored_at TIMESTAMP DEFAULT NOW()
+  received_at INTEGER DEFAULT (strftime('%s', 'now'))
 );
 
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_events_pubkey ON events(pubkey);
-CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind);
-CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at);
-CREATE INDEX IF NOT EXISTS idx_whitelist_cohorts ON whitelist USING gin(cohorts);
+CREATE INDEX IF NOT EXISTS idx_pubkey ON events(pubkey);
+CREATE INDEX IF NOT EXISTS idx_kind ON events(kind);
+CREATE INDEX IF NOT EXISTS idx_created_at ON events(created_at DESC);
 ```
 
 ### Database Operations
 
-**View Whitelist**:
+**View Events** (requires sqlite3):
 ```bash
-docker compose exec postgres psql -U nostr -d nostr_relay -c "SELECT * FROM whitelist;"
+sqlite3 ./data/nostr.db "SELECT id, kind, created_at FROM events ORDER BY created_at DESC LIMIT 10;"
 ```
 
-**Add User**:
+**Count Events**:
 ```bash
-docker compose exec postgres psql -U nostr -d nostr_relay -c \
-  "INSERT INTO whitelist (pubkey, cohorts, added_at, added_by) \
-   VALUES ('user-pubkey-hex', '[\"members\"]', EXTRACT(EPOCH FROM NOW()), 'admin-pubkey');"
-```
-
-**Update User Cohorts**:
-```bash
-docker compose exec postgres psql -U nostr -d nostr_relay -c \
-  "UPDATE whitelist SET cohorts = '[\"admin\", \"members\"]' WHERE pubkey = 'user-pubkey-hex';"
-```
-
-**Remove User**:
-```bash
-docker compose exec postgres psql -U nostr -d nostr_relay -c \
-  "DELETE FROM whitelist WHERE pubkey = 'user-pubkey-hex';"
-```
-
-**View Events**:
-```bash
-docker compose exec postgres psql -U nostr -d nostr_relay -c "SELECT id, kind, created_at FROM events ORDER BY created_at DESC LIMIT 10;"
+sqlite3 ./data/nostr.db "SELECT COUNT(*) FROM events;"
 ```
 
 **Backup Database**:
 ```bash
-# Full backup
-docker compose exec postgres pg_dump -U nostr nostr_relay > backup_$(date +%Y%m%d_%H%M%S).sql
+# Simple file copy
+cp ./data/nostr.db ./backup_$(date +%Y%m%d_%H%M%S).db
 
-# Whitelist only
-docker compose exec postgres pg_dump -U nostr -d nostr_relay -t whitelist > whitelist_backup.sql
+# For Cloud Run
+gsutil cp gs://PROJECT-nostr-data/nostr.db ./backup.db
 ```
 
 **Restore Database**:
 ```bash
-docker compose exec -T postgres psql -U nostr nostr_relay < backup.sql
+# Local
+cp ./backup.db ./data/nostr.db
+
+# Cloud Run
+gsutil cp ./backup.db gs://PROJECT-nostr-data/nostr.db
+```
+
+**Database Statistics**:
+```bash
+sqlite3 ./data/nostr.db "
+  SELECT
+    kind,
+    COUNT(*) as count,
+    COUNT(DISTINCT pubkey) as unique_authors
+  FROM events
+  GROUP BY kind
+  ORDER BY count DESC;
+"
 ```
 
 ## Development
@@ -276,43 +221,27 @@ docker compose exec -T postgres psql -U nostr nostr_relay < backup.sql
 # Install dependencies
 npm install
 
-# Start PostgreSQL only
-docker compose up postgres -d
+# Build TypeScript
+npm run build
 
-# Run relay in development mode
+# Run in development mode (with auto-reload)
 npm run dev
 
-# View logs
-npm run dev | bunyan
+# Run production build
+npm start
 ```
 
 ### Build Container
 
 ```bash
-# Build locally
+# Build Docker image
 docker build -t nostr-relay:latest .
 
-# Build with Docker Compose
-docker compose build
-```
-
-### Run Tests
-
-```bash
-# Unit tests
-npm run test:unit
-
-# Integration tests (requires PostgreSQL)
-npm run test:integration
-
-# Performance tests
-npm run test:performance
-
-# All tests
-npm test
-
-# Coverage
-npm run test:coverage
+# Test locally
+docker run -p 8080:8080 \
+  -v $(pwd)/data:/data \
+  -e SQLITE_DATA_DIR=/data \
+  nostr-relay:latest
 ```
 
 ## Monitoring
@@ -320,27 +249,24 @@ npm run test:coverage
 ### View Logs
 
 ```bash
-# All services
-docker compose logs -f
+# Docker logs
+docker logs -f nostr-relay
 
-# Relay only
-docker compose logs -f relay
-
-# PostgreSQL only
-docker compose logs -f postgres
+# Cloud Run logs
+gcloud run services logs read nostr-relay --region us-central1
 
 # Last 100 lines
-docker compose logs --tail 100
+gcloud run services logs read nostr-relay --limit 100
 ```
 
 ### Health Check
 
 ```bash
-# Relay health
-curl http://localhost:8008/health
+# Local
+curl http://localhost:8080
 
-# PostgreSQL health
-docker compose exec postgres pg_isready -U nostr
+# Cloud Run
+curl https://nostr-relay-HASH-uc.a.run.app
 ```
 
 ## Security
@@ -348,42 +274,26 @@ docker compose exec postgres pg_isready -U nostr
 ### Whitelist Enforcement
 
 The relay enforces whitelist-only access:
-- All write operations require authenticated pubkey in whitelist
-- Read operations can be restricted per configuration
-- Cohort-based access control for advanced features
+- Set `WHITELIST_PUBKEYS` environment variable with comma-separated hex pubkeys
+- Empty value = development mode (allows all pubkeys)
+- All write operations check whitelist
+- Unauthorized pubkeys receive error messages
 
-### Rate Limiting
-
-Rate limiting is enabled by default:
-- **Max Requests**: 100 per minute per IP
-- **Window**: 60 seconds
-- **Block Duration**: 5 minutes
-
-Configure in `.env`:
-```bash
-RATE_LIMIT_ENABLED=true
-RATE_LIMIT_MAX_REQUESTS=100
-RATE_LIMIT_WINDOW_MS=60000
-```
-
-### PostgreSQL Security
+### SQLite Security
 
 **Best Practices**:
-1. Change default password in `.env`
-2. Use strong passwords (20+ characters)
-3. Restrict network access (bind to localhost only)
-4. Regular backups
-5. Monitor access logs
+1. Use Cloud Run IAM for access control
+2. Enable GCS versioning for backups
+3. Regularly backup database file
+4. Monitor database size
+5. Implement event pruning for old data
 
 **Production Deployment**:
-```yaml
-# docker-compose.prod.yml
-services:
-  postgres:
-    environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  # From secrets
-    # Bind to internal network only (no exposed ports)
-    # Use Docker secrets for credentials
+```bash
+# Deploy with restricted access
+gcloud run deploy nostr-relay \
+  --no-allow-unauthenticated \
+  --service-account=nostr-relay@PROJECT.iam.gserviceaccount.com
 ```
 
 ## Troubleshooting
@@ -392,113 +302,130 @@ services:
 
 **Check logs**:
 ```bash
-docker compose logs relay
+# Docker
+docker logs nostr-relay
+
+# Cloud Run
+gcloud run services logs read nostr-relay --limit 50
 ```
 
 **Common issues**:
-- Database connection error: Verify `DATABASE_URL`
-- Port conflict: Check if port 8008 is available
-- Missing dependencies: Rebuild container
+- Database initialization error: Check `/data` directory permissions
+- Port conflict: Check if port 8080 is available
+- Missing sql.js: Rebuild with `npm install`
 
-### Database Connection Fails
+### Database Issues
 
-**Verify PostgreSQL is running**:
+**Check database file**:
 ```bash
-docker compose ps postgres
-docker compose exec postgres pg_isready -U nostr
+# Local
+ls -lh ./data/nostr.db
+sqlite3 ./data/nostr.db "SELECT COUNT(*) FROM events;"
+
+# Cloud Run
+gcloud run services describe nostr-relay --format="value(spec.template.spec.volumes)"
 ```
 
-**Check connection string**:
-```bash
-docker compose exec relay env | grep DATABASE_URL
-```
+**Database locked**:
+- SQLite uses file locking for writes
+- Only one Cloud Run instance should write to the database
+- Consider using Cloud SQL PostgreSQL for multi-instance deployments
 
 **Reset database**:
 ```bash
-docker compose down -v
-docker compose up -d
+# Local
+rm ./data/nostr.db
+npm start  # Creates new database
+
+# Cloud Run
+gsutil rm gs://PROJECT-nostr-data/nostr.db
+# Redeploy to create new database
 ```
 
 ### WebSocket Connection Issues
 
-**Test with curl**:
+**Test connection**:
 ```bash
-curl -i -N -H "Connection: Upgrade" \
-     -H "Upgrade: websocket" \
-     -H "Sec-WebSocket-Version: 13" \
-     -H "Sec-WebSocket-Key: test" \
-     http://localhost:8008
-```
+# Install wscat if needed: npm install -g wscat
+wscat -c ws://localhost:8080
 
-**Check CORS headers**:
-```bash
-curl -H "Origin: http://localhost:5173" \
-     -H "Access-Control-Request-Method: GET" \
-     -H "Access-Control-Request-Headers: X-Requested-With" \
-     -X OPTIONS http://localhost:8008
+# Send test message
+["REQ", "test", {}]
 ```
 
 ## Production Deployment
 
-### Checklist
+### Cloud Run Checklist
 
-- [ ] Change default PostgreSQL password
-- [ ] Configure rate limiting
-- [ ] Set up database backups (daily)
-- [ ] Configure log rotation
-- [ ] Set up monitoring/alerts
-- [ ] Restrict network access (firewall)
-- [ ] Enable HTTPS (reverse proxy)
+- [ ] Configure `WHITELIST_PUBKEYS` with production pubkeys
+- [ ] Set up GCS bucket for persistent storage
+- [ ] Enable GCS versioning for backups
+- [ ] Configure Cloud Run resource limits
+- [ ] Set up Cloud Monitoring alerts
 - [ ] Test whitelist enforcement
-- [ ] Test rate limiting
 - [ ] Load testing (optional)
+- [ ] Document recovery procedures
 
-### Reverse Proxy (Nginx)
+### Cloud Run Configuration
 
-For production, use Nginx as a reverse proxy with HTTPS:
-
-```nginx
-upstream nostr_relay {
-    server localhost:8008;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name relay.yourdomain.com;
-
-    ssl_certificate /etc/ssl/certs/relay.crt;
-    ssl_certificate_key /etc/ssl/private/relay.key;
-
-    location / {
-        proxy_pass http://nostr_relay;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400;
-    }
-}
+```bash
+gcloud run deploy nostr-relay \
+  --image gcr.io/PROJECT/nostr-relay:latest \
+  --platform managed \
+  --region us-central1 \
+  --port 8080 \
+  --execution-environment gen2 \
+  --add-volume name=data,type=cloud-storage,bucket=PROJECT-nostr-data \
+  --add-volume-mount volume=data,mount-path=/data \
+  --set-env-vars "SQLITE_DATA_DIR=/data" \
+  --set-env-vars "WHITELIST_PUBKEYS=pubkey1,pubkey2" \
+  --max-instances 1 \
+  --memory 512Mi \
+  --cpu 1
 ```
+
+**Important**: Use `--max-instances 1` to prevent SQLite write conflicts.
 
 ## Documentation
 
-For complete deployment guide, see **[../../docs/DEPLOYMENT.md](../../docs/DEPLOYMENT.md)**
+- **[Cloud Run Deployment Guide](docs/CLOUD_RUN_DEPLOYMENT.md)** - Complete Cloud Run deployment
+- **[Migration Summary](docs/MIGRATION_SUMMARY.md)** - PostgreSQL to SQLite migration details
+- **[Schema](schema.sql)** - SQLite database schema
+
+## Key Changes from PostgreSQL Version
+
+1. **Database**: PostgreSQL → SQLite (sql.js)
+2. **Deployment**: Docker Compose → Cloud Run
+3. **Storage**: Separate DB server → Single file database
+4. **Dependencies**: Native modules → Pure JavaScript
+5. **Persistence**: Connection pooling → Periodic disk saves
+
+See [docs/MIGRATION_SUMMARY.md](docs/MIGRATION_SUMMARY.md) for complete migration details.
+
+## Benefits of SQLite Version
+
+✅ No separate database service
+✅ Simpler deployment
+✅ Lower costs
+✅ Faster for read-heavy workloads
+✅ Single file backups
+✅ No native compilation needed
+
+## Limitations
+
+⚠️ Single writer (max-instances=1)
+⚠️ File size limits (~100GB)
+⚠️ No built-in replication
+
+For high-write or multi-instance deployments, consider Cloud SQL PostgreSQL.
 
 ## Support
 
-- **Issues**: https://github.com/jjohare/minimoonoir/issues
-- **Documentation**: https://github.com/jjohare/minimoonoir/tree/main/docs
 - **Nostr Protocol**: https://github.com/nostr-protocol/nips
-
-## License
-
-MIT License - see [LICENSE](../../LICENSE) for details.
+- **NIP-01**: https://github.com/nostr-protocol/nips/blob/master/01.md
 
 ---
 
-**Version**: 1.0.0
+**Version**: 2.0.0 (SQLite)
 **Last Updated**: 2025-12-15
-**Status**: Production Ready
+**Status**: Cloud Run Ready

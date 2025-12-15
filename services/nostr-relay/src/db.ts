@@ -1,4 +1,6 @@
-import { Pool, QueryResult } from 'pg';
+import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
+import * as path from 'path';
+import * as fs from 'fs';
 
 export interface NostrEvent {
   id: string;
@@ -11,45 +13,80 @@ export interface NostrEvent {
 }
 
 export class Database {
-  private pool: Pool;
+  private db: SqlJsDatabase | null = null;
+  private dbPath: string;
+  private saveInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    this.pool = new Pool({
-      host: process.env.POSTGRES_HOST || 'postgres',
-      port: parseInt(process.env.POSTGRES_PORT || '5432'),
-      database: process.env.POSTGRES_DB || 'nostr',
-      user: process.env.POSTGRES_USER || 'nostr',
-      password: process.env.POSTGRES_PASSWORD || 'nostr',
-    });
+    // Use environment variable or default to data directory
+    const dataDir = process.env.SQLITE_DATA_DIR || './data';
+
+    // Ensure data directory exists
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+
+    this.dbPath = path.join(dataDir, 'nostr.db');
   }
 
   async init(): Promise<void> {
-    await this.pool.query(`
+    const SQL = await initSqlJs();
+
+    // Load existing database or create new one
+    if (fs.existsSync(this.dbPath)) {
+      const buffer = fs.readFileSync(this.dbPath);
+      this.db = new SQL.Database(buffer);
+      console.log(`Loaded existing database from ${this.dbPath}`);
+    } else {
+      this.db = new SQL.Database();
+      console.log(`Created new database at ${this.dbPath}`);
+    }
+
+    // Create events table and indexes
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS events (
-        id VARCHAR(64) PRIMARY KEY,
-        pubkey VARCHAR(64) NOT NULL,
-        created_at BIGINT NOT NULL,
+        id TEXT PRIMARY KEY,
+        pubkey TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
         kind INTEGER NOT NULL,
-        tags JSONB NOT NULL,
+        tags TEXT NOT NULL,
         content TEXT NOT NULL,
-        sig VARCHAR(128) NOT NULL,
-        received_at TIMESTAMP DEFAULT NOW()
+        sig TEXT NOT NULL,
+        received_at INTEGER DEFAULT (strftime('%s', 'now'))
       );
 
       CREATE INDEX IF NOT EXISTS idx_pubkey ON events(pubkey);
       CREATE INDEX IF NOT EXISTS idx_kind ON events(kind);
       CREATE INDEX IF NOT EXISTS idx_created_at ON events(created_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_tags ON events USING GIN(tags);
     `);
-    console.log('Database initialized');
+
+    // Save database periodically (every 30 seconds)
+    this.saveInterval = setInterval(() => {
+      this.saveToDisk();
+    }, 30000);
+
+    console.log(`Database initialized at ${this.dbPath}`);
+  }
+
+  private saveToDisk(): void {
+    if (!this.db) return;
+
+    try {
+      const data = this.db.export();
+      const buffer = Buffer.from(data);
+      fs.writeFileSync(this.dbPath, buffer);
+    } catch (error) {
+      console.error('Error saving database to disk:', error);
+    }
   }
 
   async saveEvent(event: NostrEvent): Promise<boolean> {
+    if (!this.db) return false;
+
     try {
-      await this.pool.query(
-        `INSERT INTO events (id, pubkey, created_at, kind, tags, content, sig)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (id) DO NOTHING`,
+      this.db.run(
+        `INSERT OR IGNORE INTO events (id, pubkey, created_at, kind, tags, content, sig)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           event.id,
           event.pubkey,
@@ -60,6 +97,7 @@ export class Database {
           event.sig,
         ]
       );
+
       return true;
     } catch (error) {
       console.error('Error saving event:', error);
@@ -68,7 +106,7 @@ export class Database {
   }
 
   async queryEvents(filters: any[]): Promise<NostrEvent[]> {
-    if (!filters || filters.length === 0) {
+    if (!this.db || !filters || filters.length === 0) {
       return [];
     }
 
@@ -77,50 +115,49 @@ export class Database {
     for (const filter of filters) {
       const conditions: string[] = [];
       const params: any[] = [];
-      let paramIndex = 1;
 
       // Filter by IDs
       if (filter.ids && filter.ids.length > 0) {
-        conditions.push(`id = ANY($${paramIndex})`);
-        params.push(filter.ids);
-        paramIndex++;
+        const placeholders = filter.ids.map(() => '?').join(',');
+        conditions.push(`id IN (${placeholders})`);
+        params.push(...filter.ids);
       }
 
       // Filter by authors
       if (filter.authors && filter.authors.length > 0) {
-        conditions.push(`pubkey = ANY($${paramIndex})`);
-        params.push(filter.authors);
-        paramIndex++;
+        const placeholders = filter.authors.map(() => '?').join(',');
+        conditions.push(`pubkey IN (${placeholders})`);
+        params.push(...filter.authors);
       }
 
       // Filter by kinds
       if (filter.kinds && filter.kinds.length > 0) {
-        conditions.push(`kind = ANY($${paramIndex})`);
-        params.push(filter.kinds);
-        paramIndex++;
+        const placeholders = filter.kinds.map(() => '?').join(',');
+        conditions.push(`kind IN (${placeholders})`);
+        params.push(...filter.kinds);
       }
 
       // Filter by since
       if (filter.since) {
-        conditions.push(`created_at >= $${paramIndex}`);
+        conditions.push(`created_at >= ?`);
         params.push(filter.since);
-        paramIndex++;
       }
 
       // Filter by until
       if (filter.until) {
-        conditions.push(`created_at <= $${paramIndex}`);
+        conditions.push(`created_at <= ?`);
         params.push(filter.until);
-        paramIndex++;
       }
 
       // Filter by tags (e.g., #e, #p)
       for (const [key, values] of Object.entries(filter)) {
         if (key.startsWith('#') && Array.isArray(values)) {
           const tagName = key.substring(1);
-          conditions.push(`tags @> $${paramIndex}::jsonb`);
-          params.push(JSON.stringify([[tagName, ...values]]));
-          paramIndex++;
+          // SQLite JSON search - check if tags array contains matching tag
+          for (const value of values) {
+            conditions.push(`tags LIKE ?`);
+            params.push(`%["${tagName}","${value}"%`);
+          }
         }
       }
 
@@ -135,25 +172,41 @@ export class Database {
         LIMIT ${limit}
       `;
 
-      const result: QueryResult = await this.pool.query(query, params);
+      const stmt = this.db.prepare(query);
+      stmt.bind(params);
 
-      for (const row of result.rows) {
+      while (stmt.step()) {
+        const row = stmt.getAsObject();
         events.push({
-          id: row.id,
-          pubkey: row.pubkey,
-          created_at: row.created_at,
-          kind: row.kind,
-          tags: typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags,
-          content: row.content,
-          sig: row.sig,
+          id: row.id as string,
+          pubkey: row.pubkey as string,
+          created_at: row.created_at as number,
+          kind: row.kind as number,
+          tags: JSON.parse(row.tags as string),
+          content: row.content as string,
+          sig: row.sig as string,
         });
       }
+
+      stmt.free();
     }
 
     return events;
   }
 
   async close(): Promise<void> {
-    await this.pool.end();
+    // Clear save interval
+    if (this.saveInterval) {
+      clearInterval(this.saveInterval);
+    }
+
+    // Final save to disk
+    this.saveToDisk();
+
+    // Close database
+    if (this.db) {
+      this.db.close();
+      this.db = null;
+    }
   }
 }
