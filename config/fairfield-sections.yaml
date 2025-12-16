@@ -1,0 +1,188 @@
+# Fairfield Nostr - Section Configuration
+# This config restores the original Fairfield/Minimoonoir naming
+# Upload this during instance setup to use these section names
+
+# Application metadata
+app:
+  name: 'Fairfield Nostr'
+  version: '1.0.0'
+  defaultSection: 'fairfield-guests'
+
+# Superuser configuration (required for initial setup)
+superuser:
+  pubkey: '' # Set this to your admin pubkey (64-char hex)
+  name: 'Instance Owner'
+  relayUrl: '' # Optional: your relay URL (wss://...)
+
+# Role definitions (hierarchical from lowest to highest)
+roles:
+  - id: 'guest'
+    name: 'Guest'
+    level: 0
+    description: 'Basic authenticated user'
+
+  - id: 'member'
+    name: 'Member'
+    level: 1
+    description: 'Approved section member'
+
+  - id: 'moderator'
+    name: 'Moderator'
+    level: 2
+    description: 'Can manage channels and moderate content'
+    capabilities:
+      - 'channel.create'
+      - 'channel.delete'
+      - 'message.pin'
+      - 'message.delete'
+
+  - id: 'section-admin'
+    name: 'Section Admin'
+    level: 3
+    description: 'Administrator for a specific section'
+    capabilities:
+      - 'section.manage'
+      - 'member.approve'
+      - 'member.remove'
+      - 'channel.create'
+      - 'channel.delete'
+      - 'message.pin'
+      - 'message.delete'
+
+  - id: 'admin'
+    name: 'Admin'
+    level: 4
+    description: 'Global administrator'
+    capabilities:
+      - 'admin.global'
+      - 'section.create'
+      - 'section.delete'
+      - 'section.manage'
+      - 'member.approve'
+      - 'member.remove'
+      - 'channel.create'
+      - 'channel.delete'
+      - 'message.pin'
+      - 'message.delete'
+      - 'user.whitelist'
+
+# Cohort definitions (group memberships)
+cohorts:
+  - id: 'admin'
+    name: 'Administrators'
+    description: 'Global system administrators'
+
+  - id: 'approved'
+    name: 'Approved Users'
+    description: 'Manually approved by admin'
+
+  - id: 'business'
+    name: 'Business Partners'
+    description: 'Business collaborators'
+
+  - id: 'moomaa-tribe'
+    name: 'Moomaa Tribe'
+    description: 'Core community members'
+
+  - id: 'fairfield-residents'
+    name: 'Fairfield Residents'
+    description: 'Local community members'
+
+# Section definitions - Original Fairfield naming
+sections:
+  - id: 'fairfield-guests'
+    name: 'Fairfield Guests'
+    description: 'Welcome area for visitors - open to all authenticated users'
+    icon: '👋'
+    order: 1
+    access:
+      requiresApproval: false
+      defaultRole: 'guest'
+      autoApprove: true
+    features:
+      showStats: true
+      allowChannelCreation: false
+      calendar:
+        access: 'full'
+        canCreate: false
+    ui:
+      color: '#6366f1'
+
+  - id: 'minimoonoir-rooms'
+    name: 'Minimoonoir'
+    description: 'Core community chatrooms - request access to join'
+    icon: '🌙'
+    order: 2
+    access:
+      requiresApproval: true
+      defaultRole: 'member'
+      autoApprove: false
+      requiredCohorts: [] # Any approved user can join
+    features:
+      showStats: true
+      allowChannelCreation: true
+      calendar:
+        access: 'full'
+        canCreate: true
+    ui:
+      color: '#8b5cf6'
+
+  - id: 'dreamlab'
+    name: 'DreamLab'
+    description: 'Creative and experimental projects - request access to join'
+    icon: '✨'
+    order: 3
+    access:
+      requiresApproval: true
+      defaultRole: 'member'
+      autoApprove: false
+      requiredCohorts: []
+    features:
+      showStats: true
+      allowChannelCreation: true
+      calendar:
+        access: 'availability' # Can see if dates are booked, not details
+        canCreate: true
+        cohortRestricted: true # Only cohort members see full event details
+    ui:
+      color: '#ec4899'
+
+# Calendar access levels
+calendarAccessLevels:
+  - id: 'full'
+    name: 'Full Access'
+    description: 'Can see all event details'
+    canView: true
+    canViewDetails: true
+
+  - id: 'availability'
+    name: 'Availability Only'
+    description: 'Can see dates are booked but not details'
+    canView: true
+    canViewDetails: false
+
+  - id: 'cohort'
+    name: 'Cohort Restricted'
+    description: "Can see events tagged with user's cohort"
+    canView: true
+    canViewDetails: 'cohort-match'
+
+  - id: 'none'
+    name: 'No Access'
+    description: 'Cannot see calendar'
+    canView: false
+    canViewDetails: false
+
+# Channel visibility options
+channelVisibility:
+  - id: 'public'
+    name: 'Public'
+    description: 'Visible and joinable by all section members'
+
+  - id: 'cohort'
+    name: 'Cohort Only'
+    description: 'Only visible to users in assigned cohorts'
+
+  - id: 'invite'
+    name: 'Invite Only'
+    description: 'Only visible to explicitly invited users'
