@@ -31,7 +31,7 @@ env:
   VITE_RELAY_URL: ${{ vars.RELAY_URL || 'wss://nostr-relay-617806532906.us-central1.run.app' }}
   VITE_EMBEDDING_API_URL: ${{ vars.EMBEDDING_API_URL || 'https://embedding-api-617806532906.us-central1.run.app' }}
   VITE_ADMIN_PUBKEY: ${{ vars.ADMIN_PUBKEY }}
-  VITE_APP_NAME: Nostr-BBS
+  VITE_APP_NAME: Minimoonoir
   VITE_NDK_DEBUG: false
 
 jobs:
