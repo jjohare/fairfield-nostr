@@ -13,54 +13,61 @@ async function loginWithMnemonic(page: Page, mnemonic: string) {
   // Navigate to login page
   await page.goto(`${LIVE_URL}/login`);
   await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(1000);
 
-  // Look for mnemonic/recovery option
-  const recoveryButton = page.getByRole('button', { name: /recover|mnemonic|seed|import/i });
-  if (await recoveryButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await recoveryButton.click();
-  }
+  // The Login component has 3 tabs: "Paste Phrase", "Enter Words", "Private Key"
+  // Default is "Paste Phrase" mode which shows a textarea
 
-  // Find mnemonic input
-  const mnemonicInput = page.locator('textarea, input[type="text"]').filter({ hasText: '' }).first();
-  if (await mnemonicInput.isVisible({ timeout: 3000 })) {
-    await mnemonicInput.fill(mnemonic);
-  }
+  // Fill the mnemonic textarea
+  const mnemonicTextarea = page.locator('textarea');
+  await mnemonicTextarea.waitFor({ state: 'visible', timeout: 10000 });
+  await mnemonicTextarea.fill(mnemonic);
 
-  // Submit
-  const submitButton = page.getByRole('button', { name: /login|submit|continue|recover/i });
-  if (await submitButton.isVisible({ timeout: 2000 })) {
-    await submitButton.click();
-  }
+  // Click "Restore Account" button
+  const restoreButton = page.getByRole('button', { name: /Restore Account/i });
+  await restoreButton.waitFor({ state: 'visible', timeout: 5000 });
+  await restoreButton.click();
 
+  // Wait for navigation or processing
+  await page.waitForTimeout(3000);
   await page.waitForLoadState('networkidle');
 }
 
 test.describe('Live Endpoint Tests', () => {
-  test('site loads and shows login/signup options', async ({ page }) => {
+  test('site loads and shows Fairfield branding', async ({ page }) => {
     await page.goto(LIVE_URL);
     await page.waitForLoadState('networkidle');
 
     // Take screenshot of landing page
     await page.screenshot({ path: '/tmp/playwright-screenshots/01-landing.png', fullPage: true });
 
-    // Should see Minimoonoir title or login options
-    const hasTitle = await page.getByText(/minimoonoir/i).isVisible({ timeout: 5000 }).catch(() => false);
-    const hasLogin = await page.getByRole('button', { name: /login|sign.*in/i }).isVisible({ timeout: 3000 }).catch(() => false);
-    const hasSignup = await page.getByRole('button', { name: /sign.*up|create|register/i }).isVisible({ timeout: 3000 }).catch(() => false);
+    // Should see Fairfield title or login options
+    const hasTitle = await page.getByText(/Fairfield/i).isVisible({ timeout: 5000 }).catch(() => false);
+    const hasLogin = await page.getByRole('link', { name: /login/i }).isVisible({ timeout: 3000 }).catch(() => false);
+    const hasSignup = await page.getByRole('link', { name: /create.*account|sign.*up/i }).isVisible({ timeout: 3000 }).catch(() => false);
 
     console.log(`Title visible: ${hasTitle}, Login: ${hasLogin}, Signup: ${hasSignup}`);
+    console.log(`Current URL: ${page.url()}`);
     expect(hasTitle || hasLogin || hasSignup).toBe(true);
   });
 
-  test('login page renders correctly', async ({ page }) => {
+  test('login page renders correctly with mnemonic option', async ({ page }) => {
     await page.goto(`${LIVE_URL}/login`);
     await page.waitForLoadState('networkidle');
 
     await page.screenshot({ path: '/tmp/playwright-screenshots/02-login-page.png', fullPage: true });
 
-    // Check for login form elements
-    const pageContent = await page.content();
-    console.log('Login page has mnemonic option:', pageContent.includes('mnemonic') || pageContent.includes('seed') || pageContent.includes('recover'));
+    // Check for "Restore Your Account" title
+    const hasRestoreTitle = await page.getByText('Restore Your Account').isVisible({ timeout: 5000 }).catch(() => false);
+    console.log('Login page has "Restore Your Account" title:', hasRestoreTitle);
+
+    // Check for mnemonic textarea
+    const hasTextarea = await page.locator('textarea').isVisible({ timeout: 3000 }).catch(() => false);
+    console.log('Login page has mnemonic textarea:', hasTextarea);
+
+    // Check for tabs
+    const hasPasteTab = await page.getByRole('button', { name: /Paste Phrase/i }).isVisible({ timeout: 3000 }).catch(() => false);
+    console.log('Login page has Paste Phrase tab:', hasPasteTab);
   });
 
   test('admin login with mnemonic', async ({ page }) => {
@@ -69,26 +76,50 @@ test.describe('Live Endpoint Tests', () => {
 
     await page.screenshot({ path: '/tmp/playwright-screenshots/03-before-login.png', fullPage: true });
 
-    // Try to login with mnemonic
-    await loginWithMnemonic(page, ADMIN_MNEMONIC);
+    // Fill mnemonic
+    const mnemonicTextarea = page.locator('textarea');
+    await mnemonicTextarea.waitFor({ state: 'visible', timeout: 10000 });
+    await mnemonicTextarea.fill(ADMIN_MNEMONIC);
 
-    await page.waitForTimeout(3000);
+    await page.screenshot({ path: '/tmp/playwright-screenshots/03b-mnemonic-filled.png', fullPage: true });
+
+    // Click Restore Account
+    const restoreButton = page.getByRole('button', { name: /Restore Account/i });
+    await restoreButton.click();
+
+    // Wait for processing
+    await page.waitForTimeout(5000);
+    await page.waitForLoadState('networkidle');
+
     await page.screenshot({ path: '/tmp/playwright-screenshots/04-after-login.png', fullPage: true });
 
-    // Check if logged in by looking for dashboard elements
-    const loggedIn = !page.url().includes('/login');
-    console.log(`After login URL: ${page.url()}, Logged in: ${loggedIn}`);
+    // Check if logged in by looking at URL
+    const currentUrl = page.url();
+    const loggedIn = !currentUrl.includes('/login') && (currentUrl.includes('/chat') || currentUrl.includes('/pending'));
+    console.log(`After login URL: ${currentUrl}`);
+    console.log(`Login successful: ${loggedIn}`);
+
+    // Check for any error messages
+    const hasError = await page.locator('.alert-error').isVisible({ timeout: 2000 }).catch(() => false);
+    if (hasError) {
+      const errorText = await page.locator('.alert-error').textContent();
+      console.log(`Error message: ${errorText}`);
+    }
   });
 
   test('check chat page for nicknames and avatars', async ({ page }) => {
     // First login
     await loginWithMnemonic(page, ADMIN_MNEMONIC);
-    await page.waitForTimeout(2000);
 
-    // Navigate to chat
-    await page.goto(`${LIVE_URL}/chat`);
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000);
+    const afterLoginUrl = page.url();
+    console.log(`After login, URL is: ${afterLoginUrl}`);
+
+    // Navigate to chat if not already there
+    if (!afterLoginUrl.includes('/chat')) {
+      await page.goto(`${LIVE_URL}/chat`);
+      await page.waitForLoadState('networkidle');
+    }
+    await page.waitForTimeout(3000);
 
     await page.screenshot({ path: '/tmp/playwright-screenshots/05-chat-page.png', fullPage: true });
 
@@ -96,13 +127,13 @@ test.describe('Live Endpoint Tests', () => {
     const avatarElements = await page.locator('img[alt*="avatar"], .avatar, [class*="avatar"]').count();
     console.log(`Avatar elements found: ${avatarElements}`);
 
-    // Check for nickname/display name elements
-    const nicknameElements = await page.locator('[class*="name"], [class*="user"], .username, .display-name').count();
-    console.log(`Nickname elements found: ${nicknameElements}`);
+    // Check for user display names
+    const displayNames = await page.locator('.display-name, .username, [class*="displayName"], [class*="userName"]').count();
+    console.log(`Display name elements found: ${displayNames}`);
 
-    // Check for user profile data
-    const hasUserDisplay = await page.getByText(/\w+/).first().isVisible();
-    console.log(`Has user display: ${hasUserDisplay}`);
+    // Get all section headers
+    const sectionNames = await page.locator('h2, h3, [class*="section"]').allTextContents();
+    console.log('Section headers:', sectionNames.filter(s => s.trim()).slice(0, 10));
   });
 
   test('check admin dashboard for pending requests', async ({ page }) => {
@@ -117,13 +148,48 @@ test.describe('Live Endpoint Tests', () => {
 
     await page.screenshot({ path: '/tmp/playwright-screenshots/06-admin-page.png', fullPage: true });
 
+    // Check page content
+    const pageUrl = page.url();
+    console.log(`Admin page URL: ${pageUrl}`);
+
+    // If redirected to login, admin access may have issues
+    if (pageUrl.includes('/login')) {
+      console.log('WARNING: Redirected to login from admin page - not logged in as admin');
+      return;
+    }
+
     // Check for pending requests section
     const hasPending = await page.getByText(/pending|request|approval/i).isVisible({ timeout: 3000 }).catch(() => false);
     console.log(`Admin has pending requests section: ${hasPending}`);
 
-    // Check for request count
-    const requestCount = await page.locator('[class*="pending"], [class*="request"]').count();
-    console.log(`Request elements found: ${requestCount}`);
+    // Get all dashboard elements
+    const dashboardContent = await page.locator('.card, .stat').allTextContents();
+    console.log('Dashboard content:', dashboardContent.slice(0, 5));
+  });
+
+  test('verify section names are correct', async ({ page }) => {
+    await loginWithMnemonic(page, ADMIN_MNEMONIC);
+
+    await page.goto(`${LIVE_URL}/chat`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
+
+    await page.screenshot({ path: '/tmp/playwright-screenshots/07-sections.png', fullPage: true });
+
+    // Check for expected section names
+    const hasFairfieldGuests = await page.getByText('Fairfield Guests').isVisible({ timeout: 5000 }).catch(() => false);
+    const hasMiniMooNoir = await page.getByText('MiniMooNoir').isVisible({ timeout: 5000 }).catch(() => false);
+    const hasDreamLab = await page.getByText('DreamLab').isVisible({ timeout: 5000 }).catch(() => false);
+
+    console.log(`Section visibility:`);
+    console.log(`  - Fairfield Guests: ${hasFairfieldGuests}`);
+    console.log(`  - MiniMooNoir: ${hasMiniMooNoir}`);
+    console.log(`  - DreamLab: ${hasDreamLab}`);
+
+    // Get page HTML to inspect
+    const pageContent = await page.content();
+    const sectionMatches = pageContent.match(/(Fairfield Guests|MiniMooNoir|DreamLab)/g);
+    console.log('Sections found in HTML:', sectionMatches);
   });
 
   test('inspect DOM for profile display issues', async ({ page }) => {
@@ -144,13 +210,22 @@ test.describe('Live Endpoint Tests', () => {
       }));
     });
 
-    console.log('User-related elements:', JSON.stringify(userElements, null, 2));
+    console.log('User-related elements found:', userElements.length);
+    if (userElements.length > 0) {
+      console.log('Sample elements:', JSON.stringify(userElements.slice(0, 5), null, 2));
+    }
 
-    // Check console for errors
+    // Check for console errors
+    const errors: string[] = [];
     page.on('console', msg => {
       if (msg.type() === 'error') {
-        console.log('Console error:', msg.text());
+        errors.push(msg.text());
       }
     });
+
+    await page.waitForTimeout(1000);
+    if (errors.length > 0) {
+      console.log('Console errors:', errors.slice(0, 5));
+    }
   });
 });
