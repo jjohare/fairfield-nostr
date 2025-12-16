@@ -7,6 +7,14 @@ A decentralized community bulletin board system built on the Nostr protocol. Fea
 [![SvelteKit](https://img.shields.io/badge/SvelteKit-5.x-orange.svg)](https://kit.svelte.dev)
 [![Google Cloud](https://img.shields.io/badge/Google_Cloud-Platform-blue.svg)](https://cloud.google.com)
 
+## Screenshots
+
+| Homepage | Chat | Calendar Events |
+|:--------:|:----:|:---------------:|
+| ![Homepage](docs/screenshots/homepage.png) | ![Chat](docs/screenshots/chat.png) | ![Events](docs/screenshots/events.png) |
+| **Login** | **Signup** | **Mobile View** |
+| ![Login](docs/screenshots/login.png) | ![Signup](docs/screenshots/signup.png) | ![Mobile](docs/screenshots/homepage-mobile.png) |
+
 ## Features
 
 - **Public Chat Channels** - NIP-28 group messaging with cohort-based access control
