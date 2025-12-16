@@ -30,7 +30,7 @@ env:
   # Settings -> Secrets and variables -> Actions -> Variables
   VITE_RELAY_URL: ${{ vars.RELAY_URL || 'wss://nostr-relay-617806532906.us-central1.run.app' }}
   VITE_EMBEDDING_API_URL: ${{ vars.EMBEDDING_API_URL || 'https://embedding-api-617806532906.us-central1.run.app' }}
-  VITE_ADMIN_PUBKEY: ${{ vars.ADMIN_PUBKEY }}
+  VITE_ADMIN_PUBKEY: ${{ vars.ADMIN_PUBKEY || '11ed64225dd5e2c5e18f61ad43d5ad9272d08739d3a20dd25886197b0738663c' }}
   VITE_APP_NAME: Minimoonoir
   VITE_NDK_DEBUG: false
 
