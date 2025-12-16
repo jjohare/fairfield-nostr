@@ -77,7 +77,7 @@ graph TB
 
     subgraph Docker["Docker Container (Internal)"]
         Relay["Nostr Relay<br/>(ws://localhost:8008)"]
-        DB["PostgreSQL<br/>(Whitelist + Events)"]
+        DB["SQLite/sql.js<br/>(In-memory + File)"]
     end
 
     subgraph GCP["Google Cloud Platform"]
@@ -122,7 +122,7 @@ graph LR
         PWA -->|WebSocket| Relay["Docker Relay<br/>(Internal Network)"]
         PWA -->|HTTPS| CloudRun["Cloud Run API<br/>embedding-api-*.run.app"]
         CloudRun -->|Store| GCS["Google Cloud Storage"]
-        Relay -->|SQL| PG["PostgreSQL"]
+        Relay -->|sql.js| SQLite["SQLite (WASM)"]
     end
 
     subgraph CI/CD["GitHub Actions"]
@@ -393,6 +393,152 @@ graph TB
 | 1059 | 59 | Gift Wrap | Wrapped DMs |
 | 31923 | 52 | Calendar Event | Date-based events |
 | 31925 | 52 | Calendar RSVP | Event responses |
+| 9022 | Custom | Section Access | Cohort-based channel access control |
+| 9023 | Custom | Calendar-Channel Link | Event-chatroom integration |
+
+### Cohort-Based Access Control
+
+```mermaid
+graph TB
+    subgraph Admin["Admin Actions"]
+        AdminPubkey["Admin Pubkey<br/>(VITE_ADMIN_PUBKEY)"]
+        Whitelist["Whitelist Management"]
+        CohortAssign["Cohort Assignment"]
+    end
+
+    subgraph Cohorts["User Cohorts"]
+        Admin2["admin<br/>Full system access"]
+        Business["business<br/>Business community"]
+        MoomaaTribe["moomaa-tribe<br/>Premium members"]
+        Public["public<br/>Read-only access"]
+    end
+
+    subgraph Access["Channel Access (Kind 9022)"]
+        Channel1["meditation-circle<br/>cohorts: [admin, moomaa-tribe]"]
+        Channel2["business-network<br/>cohorts: [admin, business]"]
+        Channel3["announcements<br/>cohorts: [public]"]
+    end
+
+    subgraph Auth["NIP-42 Authentication"]
+        Challenge["AUTH Challenge"]
+        Verify["Signature Verification"]
+        CohortCheck["Cohort Membership Check"]
+    end
+
+    AdminPubkey -->|Manages| Whitelist
+    Whitelist -->|Assigns| CohortAssign
+    CohortAssign --> Admin2
+    CohortAssign --> Business
+    CohortAssign --> MoomaaTribe
+    CohortAssign --> Public
+
+    Admin2 -->|Full Access| Channel1
+    Admin2 -->|Full Access| Channel2
+    Admin2 -->|Full Access| Channel3
+    MoomaaTribe -->|Access| Channel1
+    Business -->|Access| Channel2
+    Public -->|Read Only| Channel3
+
+    Challenge --> Verify
+    Verify --> CohortCheck
+    CohortCheck -->|Grant/Deny| Access
+
+    style Admin fill:#b91c1c,color:#fff
+    style Cohorts fill:#7c2d12,color:#fff
+    style Access fill:#065f46,color:#fff
+    style Auth fill:#1e40af,color:#fff
+```
+
+### Calendar Events with Channel Integration (NIP-52)
+
+```mermaid
+sequenceDiagram
+    participant Admin
+    participant App as PWA
+    participant Relay as Nostr Relay
+    participant Members as Channel Members
+
+    Note over Admin,Members: Create Calendar Event with Channel Link
+
+    Admin->>App: 1. Create Calendar Event
+    App->>App: 2. Build Kind 31923 Event
+    Note over App: Tags: d (identifier)<br/>title, start, end, location<br/>p (cohorts allowed)
+
+    Admin->>App: 3. Link to Channel (optional)
+    App->>App: 4. Create Kind 9023 Event
+    Note over App: Links calendar event<br/>to chatroom channel
+
+    App->>Relay: 5. Publish Kind 31923 + 9023
+    Relay->>Relay: 6. Verify admin signature
+    Relay->>Members: 7. Broadcast to cohort members
+
+    Note over Admin,Members: Member RSVP Flow
+
+    Members->>App: 8. View Event Details
+    App->>Relay: 9. Fetch linked channel
+    Relay-->>App: 10. Return channel info
+
+    Members->>App: 11. Click "RSVP - Going"
+    App->>App: 12. Build Kind 31925 Event
+    Note over App: Tags: a (event ref)<br/>status (accepted/declined)
+    App->>Relay: 13. Publish RSVP
+
+    Relay->>Admin: 14. Notify organizer
+    Members->>App: 15. Join event chatroom
+    App->>Relay: 16. Subscribe to channel
+
+    Note over App,Relay: Event chatroom inherits<br/>calendar event cohort access
+```
+
+### Admin Workflow
+
+```mermaid
+graph LR
+    subgraph AdminPanel["Admin Panel"]
+        Login["Login with Mnemonic<br/>(BIP-39)"]
+        Dashboard["Admin Dashboard"]
+    end
+
+    subgraph Management["User Management"]
+        Pending["Pending Requests"]
+        Approve["Approve Users"]
+        AssignCohort["Assign Cohorts"]
+        Revoke["Revoke Access"]
+    end
+
+    subgraph Content["Content Management"]
+        CreateChannel["Create Channels"]
+        SetAccess["Set Channel Access"]
+        CreateEvent["Create Calendar Events"]
+        LinkEvent["Link Events to Channels"]
+        Moderate["Moderate Messages"]
+    end
+
+    subgraph Monitoring["Monitoring"]
+        ViewStats["Channel Statistics"]
+        ActiveUsers["Active Users"]
+        RSVPList["Event RSVPs"]
+    end
+
+    Login -->|NIP-06 Key Derivation| Dashboard
+    Dashboard --> Management
+    Dashboard --> Content
+    Dashboard --> Monitoring
+
+    Pending -->|Review| Approve
+    Approve -->|Select| AssignCohort
+    AssignCohort -->|Kind 9022| SetAccess
+
+    CreateChannel -->|Kind 40| SetAccess
+    SetAccess -->|Cohort Tags| CreateEvent
+    CreateEvent -->|Kind 31923| LinkEvent
+    LinkEvent -->|Kind 9023| Moderate
+
+    style AdminPanel fill:#b91c1c,color:#fff
+    style Management fill:#1e40af,color:#fff
+    style Content fill:#065f46,color:#fff
+    style Monitoring fill:#6b21a8,color:#fff
+```
 
 ## User Flows
 
@@ -474,7 +620,7 @@ sequenceDiagram
     participant App as PWA
     participant Cache as IndexedDB
     participant Relay as Docker Relay
-    participant DB as PostgreSQL
+    participant DB as SQLite
     participant Others as Other Users
 
     User->>App: 1. Join Channel
@@ -1009,35 +1155,42 @@ await sendChannelMessage(channelId, 'Hello channel!');
 
 ## Documentation
 
-### User Guides
-- [Deployment Guide](docs/DEPLOYMENT.md) - Serverless deployment and configuration
-- [Security Audit](docs/SECURITY_AUDIT.md) - Security analysis and recommendations
-- [PWA Implementation](docs/pwa-implementation.md) - Offline support and installation
-- [DM Implementation](docs/dm-implementation.md) - NIP-17/59 encrypted messaging
+### Deployment & Operations
+- [Deployment Guide](docs/deployment/DEPLOYMENT.md) - Serverless deployment and configuration
+- [GCP Architecture](docs/deployment/gcp-architecture.md) - Google Cloud Platform setup
+- [GCP Deployment](docs/deployment/GCP_DEPLOYMENT.md) - Cloud Run deployment guide
+- [GitHub Workflows](docs/deployment/github-workflows.md) - CI/CD pipeline configuration
+
+### Security
+- [Security Audit](docs/security/SECURITY_AUDIT.md) - Security analysis and recommendations
+- [Audit Report](docs/security/SECURITY_AUDIT_REPORT.md) - Detailed security findings
+- [Admin Key Rotation](docs/security/ADMIN_KEY_ROTATION.md) - Key management procedures
+- [SQL Injection Fix](docs/security/security-fix-sql-injection.md) - Database security hardening
 
 ### Feature Documentation
-- [Calendar Events](docs/events-module-example.md) - NIP-52 calendar implementation
-- [Message Threading](docs/threading-implementation.md) - Threaded conversations
-- [Reactions](docs/nip-25-reactions-implementation.md) - NIP-25 emoji reactions
-- [Search](docs/search-implementation.md) - Global message search
-- [Mute & Block](docs/mute-implementation-summary.md) - User blocking system
-- [Pinned Messages](docs/pinned-messages-implementation.md) - Pin important messages
-- [Link Previews](docs/link-preview-implementation.md) - URL preview generation
-- [Drafts](docs/drafts-implementation.md) - Message draft persistence
-- [Export](docs/export-implementation.md) - Data export functionality
+- [Direct Messages](docs/features/dm-implementation.md) - NIP-17/59 encrypted messaging
+- [Message Threading](docs/features/threading-implementation.md) - Threaded conversations
+- [Reactions](docs/features/nip-25-reactions-implementation.md) - NIP-25 emoji reactions
+- [Search](docs/features/search-implementation.md) - Semantic & keyword search
+- [Mute & Block](docs/features/mute-implementation-summary.md) - User blocking system
+- [Pinned Messages](docs/features/pinned-messages-implementation.md) - Pin important messages
+- [Link Previews](docs/features/link-preview-implementation.md) - URL preview generation
+- [Drafts](docs/features/drafts-implementation.md) - Message draft persistence
+- [Export](docs/features/export-implementation.md) - Data export functionality
+- [PWA Implementation](docs/features/pwa-implementation.md) - Offline support and installation
+- [Notifications](docs/features/notification-system-phase1.md) - Push notification system
+- [Accessibility](docs/features/accessibility-improvements.md) - WCAG compliance
 
-### Architecture Documentation
-- [System Architecture](docs/sparc/02-architecture.md) - System design details
-- [Specification](docs/sparc/01-specification.md) - Requirements and specs
-- [Pseudocode](docs/sparc/03-pseudocode.md) - Algorithm design
-- [Refinement](docs/sparc/04-refinement.md) - Implementation refinement
-- [Completion](docs/sparc/05-completion.md) - Integration and deployment
-
-### Semantic Search Documentation
-- [Semantic Search Spec](docs/sparc/06-semantic-search-spec.md) - Feature requirements (48 FRs)
-- [Search Architecture](docs/sparc/07-semantic-search-architecture.md) - System components and data flow
-- [Search Algorithms](docs/sparc/08-semantic-search-pseudocode.md) - HNSW and embedding algorithms
-- [Risk Assessment](docs/sparc/09-semantic-search-risks.md) - Integration risks and mitigations
+### Architecture (SPARC Methodology)
+- [Specification](docs/architecture/01-specification.md) - Requirements and specs
+- [System Architecture](docs/architecture/02-architecture.md) - System design details
+- [Pseudocode](docs/architecture/03-pseudocode.md) - Algorithm design
+- [Refinement](docs/architecture/04-refinement.md) - Implementation refinement
+- [Completion](docs/architecture/05-completion.md) - Integration and deployment
+- [Semantic Search Spec](docs/architecture/06-semantic-search-spec.md) - Vector search requirements
+- [Search Architecture](docs/architecture/07-semantic-search-architecture.md) - Embedding pipeline design
+- [Search Algorithms](docs/architecture/08-semantic-search-pseudocode.md) - HNSW implementation
+- [Risk Assessment](docs/architecture/09-semantic-search-risks.md) - Integration risks
 
 ## Contributing
 

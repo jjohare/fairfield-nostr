@@ -87,9 +87,14 @@ def build_index(
     print(f"Saved index to {output_path}")
     print(f"Index stats: {index.get_current_count()} vectors, max {index.get_max_elements()}")
 
-    # Save label mapping
-    mapping_path = output_path.replace('.bin', '_mapping.npz')
-    np.savez(mapping_path, labels=labels, ids=ids)
+    # Save label mapping as JSON (browser-compatible)
+    mapping_path = output_path.replace('.bin', '_mapping.json')
+    import json
+    with open(mapping_path, 'w') as f:
+        json.dump({
+            'labels': labels.tolist(),
+            'ids': ids.tolist()
+        }, f)
     print(f"Saved label mapping to {mapping_path}")
 
 

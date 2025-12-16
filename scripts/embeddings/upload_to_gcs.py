@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """
-Upload embedding files to Google Cloud Storage.
-Uses Application Default Credentials or GOOGLE_APPLICATION_CREDENTIALS.
+Upload embedding index files to Google Cloud Storage.
+Creates public bucket structure for frontend sync.
+
+Usage:
+    python upload_to_gcs.py --bucket minimoonoir-vectors --source output/
+
+Environment:
+    GOOGLE_APPLICATION_CREDENTIALS - Path to service account key JSON
 """
 
 import argparse
@@ -17,102 +23,102 @@ except ImportError:
     from google.cloud import storage
 
 
-def get_gcs_client():
-    """Create GCS client using Application Default Credentials."""
-    # If GOOGLE_APPLICATION_CREDENTIALS is set, it will be used automatically
-    # Otherwise, falls back to Application Default Credentials
-    return storage.Client()
+def upload_to_gcs(bucket_name: str, source_dir: Path, prefix: str = ""):
+    """Upload index files to GCS bucket."""
 
+    client = storage.Client()
 
-def upload_files(bucket_name: str, files: list[str], prefix: str = ''):
-    """Upload files to GCS bucket and make them publicly readable."""
+    # Create bucket if it doesn't exist
+    try:
+        bucket = client.get_bucket(bucket_name)
+        print(f"Using existing bucket: {bucket_name}")
+    except Exception:
+        bucket = client.create_bucket(bucket_name, location="us-central1")
+        # Make bucket publicly readable
+        bucket.make_public(recursive=True, future=True)
+        print(f"Created new bucket: {bucket_name}")
 
-    client = get_gcs_client()
-    bucket = client.bucket(bucket_name)
+    # Files to upload
+    files_to_upload = [
+        "index.bin",
+        "index_mapping.json",
+        "embeddings.npz",
+        "manifest.json",
+        "synthetic_events.json",
+    ]
 
-    for file_path in files:
-        path = Path(file_path)
-        if not path.exists():
-            print(f"Warning: {file_path} does not exist, skipping")
+    for filename in files_to_upload:
+        source_path = source_dir / filename
+        if not source_path.exists():
+            print(f"Warning: {filename} not found, skipping")
             continue
 
-        # Build key with optional prefix
-        key = f"{prefix}/{path.name}" if prefix else path.name
-        key = key.lstrip('/')
+        # Upload to versioned prefix
+        if prefix:
+            blob_name = f"{prefix}/{filename}"
+        else:
+            blob_name = filename
 
-        # Determine content type
-        content_type = 'application/octet-stream'
-        if path.suffix == '.json':
-            content_type = 'application/json'
-        elif path.suffix == '.npz':
-            content_type = 'application/x-npz'
-        elif path.suffix == '.bin':
-            content_type = 'application/octet-stream'
+        blob = bucket.blob(blob_name)
 
-        print(f"Uploading {path.name} to gs://{bucket_name}/{key}")
+        # Set content type
+        content_type = "application/octet-stream"
+        if filename.endswith(".json"):
+            content_type = "application/json"
+        elif filename.endswith(".npz"):
+            content_type = "application/x-npz"
 
-        blob = bucket.blob(key)
-        blob.upload_from_filename(
-            str(path),
-            content_type=content_type
-        )
-
-        # Make publicly readable
+        blob.upload_from_filename(str(source_path), content_type=content_type)
         blob.make_public()
 
-        print(f"  Uploaded {path.stat().st_size:,} bytes")
+        print(f"Uploaded {filename} -> gs://{bucket_name}/{blob_name}")
         print(f"  Public URL: {blob.public_url}")
 
-    # Also upload to 'latest' prefix for easy access
-    print(f"\nUpdating 'latest' prefix...")
-    for file_path in files:
-        path = Path(file_path)
-        if not path.exists():
+    # Also upload to 'latest' prefix
+    print("\nUpdating 'latest' prefix...")
+    for filename in files_to_upload:
+        source_path = source_dir / filename
+        if not source_path.exists():
             continue
 
-        key = f"latest/{path.name}"
+        blob_name = f"latest/{filename}"
+        blob = bucket.blob(blob_name)
 
-        # Determine content type
-        content_type = 'application/octet-stream'
-        if path.suffix == '.json':
-            content_type = 'application/json'
-        elif path.suffix == '.npz':
-            content_type = 'application/x-npz'
-        elif path.suffix == '.bin':
-            content_type = 'application/octet-stream'
+        content_type = "application/octet-stream"
+        if filename.endswith(".json"):
+            content_type = "application/json"
 
-        blob = bucket.blob(key)
-        blob.upload_from_filename(
-            str(path),
-            content_type=content_type
-        )
-
-        # Make publicly readable
+        blob.upload_from_filename(str(source_path), content_type=content_type)
         blob.make_public()
 
-        print(f"  Updated latest/{path.name}")
+        print(f"  latest/{filename} -> {blob.public_url}")
 
-    print("Upload complete!")
+    print("\nUpload complete!")
+    print(f"\nManifest URL: https://storage.googleapis.com/{bucket_name}/latest/manifest.json")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Upload files to Google Cloud Storage')
-    parser.add_argument(
-        '--bucket',
-        default=os.environ.get('GCS_BUCKET_NAME', 'minimoonoir-vectors'),
-        help='GCS bucket name (default: minimoonoir-vectors or GCS_BUCKET_NAME env var)'
-    )
-    parser.add_argument('--files', nargs='+', required=True, help='Files to upload')
+    parser = argparse.ArgumentParser(description='Upload embeddings to Google Cloud Storage')
+    parser.add_argument('--bucket', default='minimoonoir-vectors', help='GCS bucket name')
+    parser.add_argument('--source', default='output', help='Source directory with index files')
     parser.add_argument('--prefix', default='', help='Key prefix (e.g., v1, v2)')
 
     args = parser.parse_args()
 
-    upload_files(
+    source_dir = Path(__file__).parent / args.source
+
+    if not source_dir.exists():
+        print(f"Error: Source directory {source_dir} does not exist")
+        return 1
+
+    upload_to_gcs(
         bucket_name=args.bucket,
-        files=args.files,
+        source_dir=source_dir,
         prefix=args.prefix
     )
 
+    return 0
+
 
 if __name__ == '__main__':
-    main()
+    exit(main())
