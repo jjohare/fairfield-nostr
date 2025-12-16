@@ -14,6 +14,8 @@
     type SearchResult as SemanticResult
   } from '$lib/semantic/hnsw-search';
   import { getLocalSyncState, syncEmbeddings, shouldSync } from '$lib/semantic/embeddings-sync';
+  import { sectionStore, accessibleSections } from '$lib/stores/sections';
+  import type { ChannelSection } from '$lib/types/channel';
 
   export let isOpen = false;
   export let onClose: () => void;
@@ -37,6 +39,64 @@
   let semanticStats: { vectorCount: number; dimensions: number } | null = null;
   let semanticSyncState: { version: number; lastSynced: number } | null = null;
   let syncingEmbeddings = false;
+
+  // Channel-to-section cache for authorization filtering
+  let channelSectionCache = new Map<string, ChannelSection>();
+
+  /**
+   * Get the section for a channel, with caching
+   */
+  async function getChannelSection(channelId: string): Promise<ChannelSection | null> {
+    if (channelSectionCache.has(channelId)) {
+      return channelSectionCache.get(channelId)!;
+    }
+
+    try {
+      const channel = await db.channels.get(channelId);
+      if (channel) {
+        // Extract section from tags or default to fairfield-guests
+        const sectionTag = channel.tags?.find((t: string[]) => t[0] === 'section')?.[1];
+        const section = (sectionTag || 'fairfield-guests') as ChannelSection;
+        channelSectionCache.set(channelId, section);
+        return section;
+      }
+    } catch (e) {
+      console.warn('Failed to get channel section:', e);
+    }
+    return null;
+  }
+
+  /**
+   * Filter semantic results to only include messages from sections the user can access
+   * This prevents privacy leakage through semantic search
+   */
+  async function filterResultsByAuthorization(
+    results: SemanticResult[]
+  ): Promise<SemanticResult[]> {
+    const authorizedResults: SemanticResult[] = [];
+
+    for (const result of results) {
+      try {
+        // Get the message to find its channel
+        const message = await db.messages.get(result.noteId);
+        if (!message) continue;
+
+        // Get the channel's section
+        const section = await getChannelSection(message.channelId);
+        if (!section) continue;
+
+        // Check if user has access to this section
+        if (sectionStore.canAccessSection(section)) {
+          authorizedResults.push(result);
+        }
+      } catch (e) {
+        // Skip results we can't verify access for
+        console.warn('Failed to check authorization for result:', result.noteId);
+      }
+    }
+
+    return authorizedResults;
+  }
 
   // Group results by channel
   $: groupedResults = searchResults.reduce((acc, result) => {
@@ -132,7 +192,15 @@
 
     loading = true;
     try {
-      semanticResults = await searchSimilar(query, 10, 0.3);
+      // Fetch more results than needed to account for authorization filtering
+      const rawResults = await searchSimilar(query, 30, 0.3);
+
+      // SECURITY: Filter results to only show messages from authorized sections
+      // This prevents privacy leakage through semantic search
+      const authorizedResults = await filterResultsByAuthorization(rawResults);
+
+      // Limit to requested count after filtering
+      semanticResults = authorizedResults.slice(0, 10);
       selectedIndex = -1;
     } catch (error) {
       console.error('Semantic search failed:', error);
@@ -186,6 +254,13 @@
     try {
       const message = await db.messages.get(noteId);
       if (message) {
+        // SECURITY: Double-check authorization before navigation (defense in depth)
+        const section = await getChannelSection(message.channelId);
+        if (section && !sectionStore.canAccessSection(section)) {
+          console.warn('Access denied to message from unauthorized section');
+          return;
+        }
+
         goto(`${base}/chat/${message.channelId}#msg-${noteId}`);
         onClose();
       }
