@@ -136,20 +136,26 @@
     );
   }
 
-  function handlePin() {
+  async function handlePin() {
     if ($isPinned) {
-      if (pinnedStore.unpinMessage(message.channelId, message.id)) {
+      const success = await pinnedStore.unpinMessage(message.channelId, message.id);
+      if (success) {
         dispatch('unpinned', { messageId: message.id });
         toast.success('Message unpinned');
+      } else {
+        toast.error('Failed to unpin message');
       }
     } else {
       if (!canPinMore) {
         toast.warning('Maximum of 5 messages can be pinned per channel');
         return;
       }
-      if (pinnedStore.pinMessage(message.channelId, message.id)) {
+      const success = await pinnedStore.pinMessage(message.channelId, message.id);
+      if (success) {
         dispatch('pinned', { messageId: message.id });
         toast.success('Message pinned');
+      } else {
+        toast.error('Failed to pin message');
       }
     }
   }

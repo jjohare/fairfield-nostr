@@ -1,6 +1,6 @@
 import { writable, derived, get } from 'svelte/store';
 import { isAdmin } from './user';
-import { ndk } from '$lib/nostr/ndk';
+import { ndk as getNdk, isConnected } from '$lib/nostr/relay';
 import { NDKEvent, type NDKFilter } from '@nostr-dev-kit/ndk';
 import { browser } from '$app/environment';
 
@@ -48,7 +48,7 @@ function createPinnedStore() {
     },
 
     fetchPinnedMessages: async (channelId: string) => {
-        const $ndk = ndk;
+        const $ndk = getNdk();
         if (!$ndk) return;
 
         try {
@@ -114,15 +114,20 @@ function createPinnedStore() {
 
       const newPins = [...channelPins, messageId];
 
-      // Update local state
+      // Publish to relay first
+      const published = await publishPinList(channelId, newPins);
+      if (!published) {
+        console.error('Failed to publish pin to relay');
+        return false;
+      }
+
+      // Update local state only after successful relay publish
       update(s => {
           const newState = { ...s, [channelId]: newPins };
           saveToStorage(newState);
           return newState;
       });
 
-      // Sync to relay
-      await publishPinList(channelId, newPins);
       return true;
     },
 
@@ -143,15 +148,20 @@ function createPinnedStore() {
 
       const newPins = channelPins.filter(id => id !== messageId);
 
-      // Update local state
+      // Publish to relay first
+      const published = await publishPinList(channelId, newPins);
+      if (!published) {
+        console.error('Failed to publish unpin to relay');
+        return false;
+      }
+
+      // Update local state only after successful relay publish
       update(s => {
           const newState = { ...s, [channelId]: newPins };
           saveToStorage(newState);
           return newState;
       });
 
-      // Sync to relay
-      await publishPinList(channelId, newPins);
       return true;
     },
 
@@ -174,11 +184,16 @@ function createPinnedStore() {
   };
 }
 
-async function publishPinList(channelId: string, messageIds: string[]) {
-    const $ndk = ndk;
+async function publishPinList(channelId: string, messageIds: string[]): Promise<boolean> {
+    if (!isConnected()) {
+        console.error('Cannot publish pins: Not connected to relay');
+        return false;
+    }
+
+    const $ndk = getNdk();
     if (!$ndk || !$ndk.signer) {
-        console.error('Cannot publish pins: NDK not connected or no signer');
-        return;
+        console.error('Cannot publish pins: NDK not initialized or no signer');
+        return false;
     }
 
     try {
@@ -186,12 +201,15 @@ async function publishPinList(channelId: string, messageIds: string[]) {
         event.kind = PIN_LIST_KIND;
         event.tags = [
             ['d', `pinned:${channelId}`],
+            ['h', channelId], // Add channel reference for easier querying
             ...messageIds.map(id => ['e', id])
         ];
 
         await event.publish();
+        return true;
     } catch (e) {
         console.error('Failed to publish pinned messages list:', e);
+        return false;
     }
 }
 
