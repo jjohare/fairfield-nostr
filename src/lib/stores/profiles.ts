@@ -4,6 +4,7 @@ import { authStore } from './auth';
 import type { NDKUser, NDKUserProfile } from '@nostr-dev-kit/ndk';
 import { browser } from '$app/environment';
 import { AsyncThrottle } from '$lib/utils/asyncHelpers';
+import { KIND_USER_REGISTRATION } from '$lib/nostr/groups';
 
 /**
  * Profile cache entry
@@ -94,10 +95,29 @@ function createProfileCache() {
       const localNickname = isCurrentUser ? auth.nickname : null;
       const localAvatar = isCurrentUser ? auth.avatar : null;
 
+      // If no displayName from kind 0 profile, check for registration event
+      let registrationName: string | null = null;
+      if (!profile?.displayName && !profile?.name && !localNickname) {
+        try {
+          const registrationEvents = await ndk.fetchEvents({
+            kinds: [KIND_USER_REGISTRATION],
+            authors: [pubkey],
+            limit: 1
+          });
+          const regEvent = Array.from(registrationEvents)[0];
+          if (regEvent) {
+            const nameTag = regEvent.tags.find(t => t[0] === 'name');
+            registrationName = nameTag?.[1] || null;
+          }
+        } catch (e) {
+          // Ignore registration fetch errors
+        }
+      }
+
       const entry: CachedProfile = {
         pubkey,
         profile: profile || null,
-        displayName: localNickname || profile?.displayName || profile?.name || truncatePubkey(pubkey),
+        displayName: localNickname || profile?.displayName || profile?.name || registrationName || truncatePubkey(pubkey),
         avatar: localAvatar || profile?.image || profile?.picture || null,
         nip05: profile?.nip05 || null,
         about: profile?.about || null,

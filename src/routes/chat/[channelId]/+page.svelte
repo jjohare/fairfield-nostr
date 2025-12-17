@@ -367,7 +367,7 @@
         <form on:submit|preventDefault={sendMessage} class="flex gap-2">
           <input
             type="text"
-            class="input input-bordered flex-1"
+            class="input input-bordered flex-1 text-base-content"
             placeholder="Type a message..."
             bind:value={messageInput}
             on:input={handleInput}
