@@ -10,6 +10,7 @@
   let previousActiveElement: HTMLElement | null = null;
   let modalElement: HTMLDivElement | null = null;
   let focusableElements: HTMLElement[] = [];
+  let previousBodyOverflow = '';
 
   $: sizeClasses = {
     sm: 'max-w-sm',
@@ -66,6 +67,8 @@
     if (open) {
       // Store the currently focused element
       previousActiveElement = document.activeElement as HTMLElement;
+      // Preserve previous body overflow state
+      previousBodyOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
 
       // Focus the modal after a tick to ensure it's rendered
@@ -78,13 +81,14 @@
         }
       }, 50);
     } else {
-      document.body.style.overflow = '';
+      // Restore previous body overflow state
+      document.body.style.overflow = previousBodyOverflow;
     }
   }
 
   onDestroy(() => {
     if (typeof window !== 'undefined') {
-      document.body.style.overflow = '';
+      document.body.style.overflow = previousBodyOverflow;
     }
   });
 </script>

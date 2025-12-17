@@ -15,11 +15,13 @@
   }
 
   $: hasError = error.length > 0;
+  $: inputId = $$restProps.id || label.toLowerCase().replace(/\s+/g, '-');
+  $: errorId = `${inputId}-error`;
 </script>
 
 <div class="form-control w-full">
   {#if label}
-    <label class="label" for={$$restProps.id || label.toLowerCase().replace(/\s+/g, '-')}>
+    <label class="label" for={inputId}>
       <span class="label-text">
         {label}
         {#if required}
@@ -127,7 +129,7 @@
   {/if}
 
   {#if hasError}
-    <label class="label">
+    <label class="label" id={errorId} role="alert">
       <span class="label-text-alt text-error">{error}</span>
     </label>
   {/if}

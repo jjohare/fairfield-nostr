@@ -17,10 +17,12 @@
   };
 </script>
 
-<div class="flex flex-col items-center justify-center gap-2">
-  <span class="loading {variantClasses[variant]} {sizeClasses[size]}"></span>
+<div class="flex flex-col items-center justify-center gap-2" role="status" aria-live="polite">
+  <span class="loading {variantClasses[variant]} {sizeClasses[size]}" aria-hidden="true"></span>
   {#if text}
     <p class="text-sm text-base-content/70">{text}</p>
+  {:else}
+    <span class="sr-only">Loading...</span>
   {/if}
 </div>
 

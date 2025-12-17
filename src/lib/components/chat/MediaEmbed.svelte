@@ -35,16 +35,19 @@
 		expanded = !expanded;
 	}
 
+	let previousBodyOverflow = '';
+
 	function openLightbox() {
 		if (media.type === 'image') {
 			lightboxOpen = true;
+			previousBodyOverflow = document.body.style.overflow;
 			document.body.style.overflow = 'hidden';
 		}
 	}
 
 	function closeLightbox() {
 		lightboxOpen = false;
-		document.body.style.overflow = '';
+		document.body.style.overflow = previousBodyOverflow;
 	}
 
 	function toggleVideo() {
@@ -79,9 +82,10 @@
 					class="embedded-image"
 					loading="lazy"
 					on:click={openLightbox}
-					on:keydown={(e) => e.key === 'Enter' && openLightbox()}
+					on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openLightbox())}
 					role="button"
 					tabindex="0"
+					aria-label="View image in lightbox"
 				/>
 			{:else}
 				<div class="media-placeholder">
@@ -113,7 +117,7 @@
 		</div>
 
 		{#if lightboxOpen}
-			<div class="lightbox" on:click={closeLightbox} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && closeLightbox()}>
+			<div class="lightbox" on:click={closeLightbox} role="button" tabindex="0" aria-label="Close lightbox" on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), closeLightbox())}>
 				<button class="lightbox-close" on:click={closeLightbox}>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<line x1="18" y1="6" x2="6" y2="18" />

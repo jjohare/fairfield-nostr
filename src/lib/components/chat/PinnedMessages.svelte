@@ -73,9 +73,10 @@
               <div
                 class="bg-base-100 rounded-lg p-3 border border-warning/20 hover:border-warning/40 transition-colors cursor-pointer group"
                 on:click={() => handleScrollTo(message.id)}
-                on:keypress={(e) => e.key === 'Enter' && handleScrollTo(message.id)}
+                on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), handleScrollTo(message.id))}
                 role="button"
                 tabindex="0"
+                aria-label="Jump to pinned message"
               >
                 <div class="flex items-start gap-3">
                   <div class="flex-shrink-0">
@@ -107,7 +108,7 @@
 
                   {#if $isAdmin}
                     <button
-                      class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                      class="btn btn-ghost btn-xs opacity-30 group-hover:opacity-100 transition-opacity flex-shrink-0"
                       on:click|stopPropagation={() => handleUnpin(message.id)}
                       aria-label="Unpin message"
                       title="Unpin message"

@@ -65,7 +65,7 @@
 	}
 </script>
 
-<div bind:this={element} class="link-preview" role="button" tabindex="0" on:click={openLink} on:keydown={(e) => e.key === 'Enter' && openLink()}>
+<div bind:this={element} class="link-preview" role="button" tabindex="0" aria-label="Open link in new tab" on:click={openLink} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openLink())}>
 	{#if loading}
 		<!-- Loading skeleton -->
 		<div class="preview-skeleton">

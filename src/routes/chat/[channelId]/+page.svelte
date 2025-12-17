@@ -16,6 +16,9 @@
   import { lastReadStore } from '$lib/stores/readPosition';
   import PinnedMessages from '$lib/components/chat/PinnedMessages.svelte';
   import ChannelStats from '$lib/components/forum/ChannelStats.svelte';
+  import MessageItem from '$lib/components/chat/MessageItem.svelte';
+  import type { Message } from '$lib/types/channel';
+  import { getActiveRelays } from '$lib/stores/settings';
 
   $: channelId = $page.params.channelId;
 
@@ -245,7 +248,10 @@
     }
   }
 
-  // Convert messages to proper Message type for PinnedMessages component
+  // Get relay URL for reactions
+  $: relayUrl = getActiveRelays()[0] || '';
+
+  // Convert messages to proper Message type for MessageItem component
   $: formattedMessages = messages.map(msg => ({
     id: msg.id,
     channelId: channelId,
@@ -253,8 +259,9 @@
     content: msg.content,
     createdAt: msg.createdAt * 1000, // Convert to milliseconds
     isEncrypted: false,
-    decryptedContent: undefined
-  }));
+    decryptedContent: undefined,
+    replyTo: msg.replyTo
+  } as Message));
 </script>
 
 <svelte:head>
@@ -331,25 +338,12 @@
           </div>
         {:else}
           <div class="space-y-4">
-            {#each messages as message (message.id)}
-              <div
-                id="message-{message.id}"
-                class="chat {message.pubkey === $authStore.publicKey ? 'chat-end' : 'chat-start'}"
-              >
-                <div class="chat-image avatar">
-                  <div class="w-10 rounded-full">
-                    <img src={getAvatarUrlForPubkey(message.pubkey)} alt="avatar" />
-                  </div>
-                </div>
-                <div class="chat-header opacity-70 text-xs mb-1">
-                  {shortenPubkey(message.pubkey)}
-                  <time class="text-xs opacity-50 ml-1">{formatRelativeTime(message.createdAt)}</time>
-                </div>
-                <div class="chat-bubble {message.pubkey === $authStore.publicKey ? 'chat-bubble-primary' : ''}">{message.content}</div>
-                <div class="chat-footer opacity-50 text-xs">
-                  {formatTime(message.createdAt)}
-                </div>
-              </div>
+            {#each formattedMessages as message (message.id)}
+              <MessageItem
+                {message}
+                channelName={channel?.name}
+                {relayUrl}
+              />
             {/each}
           </div>
         {/if}

@@ -230,7 +230,7 @@
     <div class="flex gap-2 mt-1">
       {#if $isAdmin}
         <button
-          class="btn btn-ghost btn-xs {$isPinned ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity"
+          class="btn btn-ghost btn-xs {$isPinned ? 'opacity-100' : 'opacity-30 group-hover:opacity-100'} transition-opacity"
           on:click={handlePin}
           aria-label={$isPinned ? 'Unpin message' : 'Pin message'}
           title={$isPinned ? 'Unpin message' : 'Pin message'}
@@ -248,7 +248,7 @@
       {/if}
 
       <button
-        class="btn btn-ghost btn-xs {$bookmarked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity"
+        class="btn btn-ghost btn-xs {$bookmarked ? 'opacity-100' : 'opacity-30 group-hover:opacity-100'} transition-opacity"
         on:click={handleToggleBookmark}
         aria-label={$bookmarked ? 'Remove bookmark' : 'Add bookmark'}
       >
@@ -266,7 +266,7 @@
 
       {#if canDelete}
         <button
-          class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity"
+          class="btn btn-ghost btn-xs opacity-30 group-hover:opacity-100 transition-opacity"
           on:click={handleDelete}
           aria-label="Delete message"
         >
@@ -280,7 +280,7 @@
       <!-- Reaction button -->
       <div class="relative">
         <button
-          class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity"
+          class="btn btn-ghost btn-xs opacity-30 group-hover:opacity-100 transition-opacity"
           on:click={() => showReactionPicker = !showReactionPicker}
           aria-label="Add reaction"
         >

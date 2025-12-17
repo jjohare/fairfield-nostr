@@ -42,9 +42,10 @@
 <div
   class="quoted-message border-l-4 border-primary/40 bg-base-200/50 rounded-r-lg p-2 {compact ? 'text-xs' : 'text-sm'} cursor-pointer hover:bg-base-200 transition-colors"
   on:click={handleClick}
-  on:keydown={(e) => e.key === 'Enter' && handleClick()}
+  on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), handleClick())}
   role="button"
   tabindex="0"
+  aria-label="Jump to quoted message"
 >
   <div class="flex items-start gap-2">
     <div class="flex-shrink-0">
