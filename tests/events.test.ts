@@ -35,7 +35,7 @@ import {
   type UserProfile,
 } from '../src/lib/nostr';
 import { generateSecretKey, getPublicKey } from 'nostr-tools';
-import { bytesToHex } from '@noble/hashes/utils.js';
+import { bytesToHex } from '@noble/hashes/utils';
 
 describe('Nostr Events Module', () => {
   const secretKey = generateSecretKey();

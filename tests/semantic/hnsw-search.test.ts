@@ -4,7 +4,8 @@ import {
   searchSimilar,
   isSearchAvailable,
   getSearchStats,
-  unloadIndex
+  unloadIndex,
+  resetHnswState
 } from '$lib/semantic/hnsw-search';
 import { db } from '$lib/db';
 
@@ -17,19 +18,23 @@ vi.mock('$lib/db', () => ({
   }
 }));
 
-// Mock hnswlib-wasm module
-const mockSearchKnn = vi.fn();
-const mockSetEf = vi.fn();
-const mockAddPoint = vi.fn();
-const mockHnswIndex = {
-  searchKnn: mockSearchKnn,
-  setEf: mockSetEf,
-  addPoint: mockAddPoint
-};
+// Use vi.hoisted to ensure mocks are available when vi.mock runs
+const { mockSearchKnn, mockSetEf, mockAddPoint, mockHnswIndex, mockHierarchicalNSW, mockLoadHnswlib } = vi.hoisted(() => {
+  const mockSearchKnn = vi.fn();
+  const mockSetEf = vi.fn();
+  const mockAddPoint = vi.fn();
+  const mockHnswIndex = {
+    searchKnn: mockSearchKnn,
+    setEf: mockSetEf,
+    addPoint: mockAddPoint
+  };
 
-const mockHierarchicalNSW = vi.fn().mockReturnValue(mockHnswIndex);
-const mockLoadHnswlib = vi.fn().mockResolvedValue({
-  HierarchicalNSW: mockHierarchicalNSW
+  const mockHierarchicalNSW = vi.fn().mockReturnValue(mockHnswIndex);
+  const mockLoadHnswlib = vi.fn().mockResolvedValue({
+    HierarchicalNSW: mockHierarchicalNSW
+  });
+
+  return { mockSearchKnn, mockSetEf, mockAddPoint, mockHnswIndex, mockHierarchicalNSW, mockLoadHnswlib };
 });
 
 vi.mock('hnswlib-wasm', () => ({
@@ -39,10 +44,15 @@ vi.mock('hnswlib-wasm', () => ({
 describe('HNSW Search Service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Unload index before each test
-    unloadIndex();
+    // Reset all module state before each test (including hnswLib cache)
+    resetHnswState();
     // Reset URL mock
     global.URL.createObjectURL = vi.fn().mockReturnValue('blob:mock-url');
+    // Re-setup mock implementations after clearAllMocks
+    mockHierarchicalNSW.mockReturnValue(mockHnswIndex);
+    mockLoadHnswlib.mockResolvedValue({
+      HierarchicalNSW: mockHierarchicalNSW
+    });
   });
 
   afterEach(() => {

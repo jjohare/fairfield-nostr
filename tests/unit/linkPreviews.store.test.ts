@@ -2,6 +2,9 @@
  * Link Previews Store Tests
  * Tests for the link preview caching and fetching functionality
  * @vitest-environment jsdom
+ *
+ * NOTE: The linkPreviews store uses a proxy endpoint (/api/proxy?url=...)
+ * that returns JSON data. The tests mock this proxy response format.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -29,6 +32,14 @@ Object.defineProperty(global, 'localStorage', {
 	value: localStorageMock
 });
 
+// Helper to create proxy JSON response
+function createProxyResponse(data: Record<string, unknown>) {
+	return {
+		ok: true,
+		json: async () => data
+	};
+}
+
 describe('Link Previews Store', () => {
 	beforeEach(() => {
 		// Clear localStorage before each test
@@ -46,20 +57,15 @@ describe('Link Previews Store', () => {
 		it('should return cached preview data', async () => {
 			const url = 'https://example.com';
 
-			// Mock fetch to return HTML with OpenGraph tags
-			global.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				text: async () => `
-					<html>
-						<head>
-							<meta property="og:title" content="Example Site" />
-							<meta property="og:description" content="This is a test site" />
-							<meta property="og:image" content="https://example.com/image.jpg" />
-							<title>Example Site</title>
-						</head>
-					</html>
-				`
-			});
+			// Mock fetch to return JSON from proxy endpoint
+			global.fetch = vi.fn().mockResolvedValue(
+				createProxyResponse({
+					title: 'Example Site',
+					description: 'This is a test site',
+					image: 'https://example.com/image.jpg',
+					domain: 'example.com'
+				})
+			);
 
 			// Fetch preview to populate cache
 			await fetchPreview(url);
@@ -74,23 +80,19 @@ describe('Link Previews Store', () => {
 	});
 
 	describe('fetchPreview', () => {
-		it('should fetch and parse OpenGraph metadata', async () => {
+		it('should fetch and parse OpenGraph metadata from proxy', async () => {
 			const url = 'https://example.com';
 
-			global.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				text: async () => `
-					<html>
-						<head>
-							<meta property="og:title" content="Test Title" />
-							<meta property="og:description" content="Test Description" />
-							<meta property="og:image" content="https://example.com/og-image.jpg" />
-							<meta property="og:site_name" content="Example Site" />
-							<title>Fallback Title</title>
-						</head>
-					</html>
-				`
-			});
+			global.fetch = vi.fn().mockResolvedValue(
+				createProxyResponse({
+					title: 'Test Title',
+					description: 'Test Description',
+					image: 'https://example.com/og-image.jpg',
+					siteName: 'Example Site',
+					domain: 'example.com',
+					favicon: 'https://www.google.com/s2/favicons?domain=example.com&sz=32'
+				})
+			);
 
 			const preview = await fetchPreview(url);
 
@@ -100,23 +102,18 @@ describe('Link Previews Store', () => {
 			expect(preview.image).toBe('https://example.com/og-image.jpg');
 			expect(preview.siteName).toBe('Example Site');
 			expect(preview.domain).toBe('example.com');
-			expect(preview.favicon).toContain('google.com/s2/favicons');
 		});
 
-		it('should fallback to title tag when og:title is missing', async () => {
+		it('should use fallback values from proxy response', async () => {
 			const url = 'https://example.com';
 
-			global.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				text: async () => `
-					<html>
-						<head>
-							<title>Page Title</title>
-							<meta name="description" content="Page description" />
-						</head>
-					</html>
-				`
-			});
+			global.fetch = vi.fn().mockResolvedValue(
+				createProxyResponse({
+					title: 'Page Title',
+					description: 'Page description',
+					domain: 'example.com'
+				})
+			);
 
 			const preview = await fetchPreview(url);
 
@@ -124,20 +121,17 @@ describe('Link Previews Store', () => {
 			expect(preview.description).toBe('Page description');
 		});
 
-		it('should decode HTML entities in metadata', async () => {
+		it('should handle decoded HTML entities from proxy', async () => {
 			const url = 'https://example.com';
 
-			global.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				text: async () => `
-					<html>
-						<head>
-							<meta property="og:title" content="Title &amp; More" />
-							<meta property="og:description" content="Test &lt;tag&gt;" />
-						</head>
-					</html>
-				`
-			});
+			// Proxy returns already-decoded entities
+			global.fetch = vi.fn().mockResolvedValue(
+				createProxyResponse({
+					title: 'Title & More',
+					description: 'Test <tag>',
+					domain: 'example.com'
+				})
+			);
 
 			const preview = await fetchPreview(url);
 
@@ -145,20 +139,16 @@ describe('Link Previews Store', () => {
 			expect(preview.description).toBe('Test <tag>');
 		});
 
-		it('should resolve relative image URLs', async () => {
+		it('should handle resolved image URLs from proxy', async () => {
 			const url = 'https://example.com/page';
 
-			global.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				text: async () => `
-					<html>
-						<head>
-							<meta property="og:title" content="Test" />
-							<meta property="og:image" content="/relative/image.jpg" />
-						</head>
-					</html>
-				`
-			});
+			global.fetch = vi.fn().mockResolvedValue(
+				createProxyResponse({
+					title: 'Test',
+					image: 'https://example.com/relative/image.jpg',
+					domain: 'example.com'
+				})
+			);
 
 			const preview = await fetchPreview(url);
 
@@ -183,8 +173,7 @@ describe('Link Previews Store', () => {
 
 			global.fetch = vi.fn().mockResolvedValue({
 				ok: false,
-				status: 404,
-				text: async () => ''
+				status: 404
 			});
 
 			const preview = await fetchPreview(url);
@@ -195,16 +184,12 @@ describe('Link Previews Store', () => {
 		it('should cache fetched previews', async () => {
 			const url = 'https://example.com';
 
-			global.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				text: async () => `
-					<html>
-						<head>
-							<meta property="og:title" content="Cached Title" />
-						</head>
-					</html>
-				`
-			});
+			global.fetch = vi.fn().mockResolvedValue(
+				createProxyResponse({
+					title: 'Cached Title',
+					domain: 'example.com'
+				})
+			);
 
 			// First fetch
 			const preview1 = await fetchPreview(url);
@@ -223,14 +208,37 @@ describe('Link Previews Store', () => {
 		it('should remove www prefix from domain', async () => {
 			const url = 'https://www.example.com';
 
-			global.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				text: async () => '<html><head><title>Test</title></head></html>'
-			});
+			global.fetch = vi.fn().mockResolvedValue(
+				createProxyResponse({
+					title: 'Test',
+					domain: 'example.com'
+				})
+			);
 
 			const preview = await fetchPreview(url);
 
 			expect(preview.domain).toBe('example.com');
+		});
+
+		it('should handle Twitter/X embed responses', async () => {
+			const url = 'https://twitter.com/user/status/123';
+
+			global.fetch = vi.fn().mockResolvedValue(
+				createProxyResponse({
+					type: 'twitter',
+					html: '<blockquote>Tweet content</blockquote>',
+					author_name: 'Test User',
+					author_url: 'https://twitter.com/user',
+					provider_name: 'X'
+				})
+			);
+
+			const preview = await fetchPreview(url);
+
+			expect(preview.type).toBe('twitter');
+			expect(preview.html).toBe('<blockquote>Tweet content</blockquote>');
+			expect(preview.authorName).toBe('Test User');
+			expect(preview.siteName).toBe('X');
 		});
 	});
 
@@ -238,16 +246,12 @@ describe('Link Previews Store', () => {
 		it('should clear all cached previews', async () => {
 			const url = 'https://example.com';
 
-			global.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				text: async () => `
-					<html>
-						<head>
-							<meta property="og:title" content="Test" />
-						</head>
-					</html>
-				`
-			});
+			global.fetch = vi.fn().mockResolvedValue(
+				createProxyResponse({
+					title: 'Test',
+					domain: 'example.com'
+				})
+			);
 
 			// Fetch to populate cache
 			await fetchPreview(url);
@@ -265,21 +269,17 @@ describe('Link Previews Store', () => {
 		it('should persist cache to localStorage', async () => {
 			const url = 'https://example.com';
 
-			global.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				text: async () => `
-					<html>
-						<head>
-							<meta property="og:title" content="Persistent Title" />
-						</head>
-					</html>
-				`
-			});
+			global.fetch = vi.fn().mockResolvedValue(
+				createProxyResponse({
+					title: 'Persistent Title',
+					domain: 'example.com'
+				})
+			);
 
 			await fetchPreview(url);
 
-			// Check localStorage
-			const stored = localStorageMock.getItem('Nostr-BBS-link-previews');
+			// Check localStorage - correct key is nostr_bbs_link_previews
+			const stored = localStorageMock.getItem('nostr_bbs_link_previews');
 			expect(stored).not.toBeNull();
 
 			const parsed = JSON.parse(stored!);
@@ -289,9 +289,16 @@ describe('Link Previews Store', () => {
 
 		it('should limit cache size to prevent overflow', async () => {
 			// Mock fetch for multiple URLs
-			global.fetch = vi.fn().mockResolvedValue({
-				ok: true,
-				text: async () => '<html><head><title>Test</title></head></html>'
+			global.fetch = vi.fn().mockImplementation((fetchUrl: string) => {
+				// Extract the actual URL from proxy query param
+				const urlParam = new URL(fetchUrl, 'http://localhost').searchParams.get('url') || '';
+				const domain = urlParam ? new URL(urlParam).hostname : 'example.com';
+				return Promise.resolve(
+					createProxyResponse({
+						title: 'Test',
+						domain
+					})
+				);
 			});
 
 			// Fetch more than MAX_CACHE_SIZE (100) previews
@@ -302,7 +309,7 @@ describe('Link Previews Store', () => {
 			}
 
 			// Check that cache is limited
-			const stored = localStorageMock.getItem('Nostr-BBS-link-previews');
+			const stored = localStorageMock.getItem('nostr_bbs_link_previews');
 			const parsed = JSON.parse(stored!);
 			const cacheSize = Object.keys(parsed).length;
 

@@ -100,7 +100,9 @@ function parseNpzMapping(data: Uint8Array): Map<number, string> {
     const parsed = JSON.parse(text);
 
     if (Array.isArray(parsed.labels) && Array.isArray(parsed.ids)) {
-      for (let i = 0; i < parsed.labels.length; i++) {
+      // Use the minimum length to handle mismatched arrays safely
+      const length = Math.min(parsed.labels.length, parsed.ids.length);
+      for (let i = 0; i < length; i++) {
         mapping.set(parsed.labels[i], parsed.ids[i]);
       }
     }
@@ -262,4 +264,13 @@ export function getSearchStats(): { vectorCount: number; dimensions: number } | 
 export function unloadIndex(): void {
   searchIndex = null;
   labelMapping = null;
+}
+
+/**
+ * Reset all module state (for testing)
+ */
+export function resetHnswState(): void {
+  searchIndex = null;
+  labelMapping = null;
+  hnswLib = null;
 }

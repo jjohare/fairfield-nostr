@@ -103,7 +103,7 @@ export async function fetchManifest(): Promise<EmbeddingManifest | null> {
 export async function getLocalSyncState(): Promise<SyncState | null> {
   try {
     const state = await db.table('metadata').get('embedding_sync_state');
-    return state?.value as SyncState | null;
+    return (state?.value as SyncState) ?? null;
   } catch {
     return null;
   }

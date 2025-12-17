@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { generateSecretKey, getPublicKey, type Event } from 'nostr-tools';
 import { sendDM, receiveDM, createDMFilter, type Relay } from './dm';
+import { resetRateLimit } from '$lib/utils/rateLimit';
 
 describe('Gift-Wrapped DMs (NIP-17/NIP-59)', () => {
   let alicePrivkey: Uint8Array;
@@ -15,6 +16,9 @@ describe('Gift-Wrapped DMs (NIP-17/NIP-59)', () => {
   let publishedEvent: Event | null;
 
   beforeEach(() => {
+    // Reset rate limiter to prevent test interference
+    resetRateLimit('dm');
+
     // Generate test keypairs
     alicePrivkey = generateSecretKey();
     alicePubkey = getPublicKey(alicePrivkey);

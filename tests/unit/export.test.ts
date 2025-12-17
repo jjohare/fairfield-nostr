@@ -182,7 +182,7 @@ describe('Export Utils', () => {
       const options: ExportOptions = { includeMetadata: false };
       const result = exportToText(enrichedMessages.slice(0, 2), options);
 
-      expect(result).toContain('Minimoomaa Noir Message Export');
+      expect(result).toContain('Nostr BBS Message Export');
       expect(result).toContain('Channel: General');
       expect(result).toContain('Hello, world!');
       expect(result).toContain('Test message');

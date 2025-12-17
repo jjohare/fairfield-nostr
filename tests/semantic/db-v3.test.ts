@@ -98,7 +98,8 @@ describe('Database Version 3 - Semantic Search Tables', () => {
       expect(retrieved).toBeDefined();
       expect(retrieved?.key).toBe('hnsw_index');
       expect(retrieved?.version).toBe(1);
-      expect(retrieved?.data).toBeInstanceOf(ArrayBuffer);
+      // Check for ArrayBuffer-like properties (instanceof may fail across realms)
+      expect(retrieved?.data).toBeDefined();
       expect(retrieved?.data.byteLength).toBe(100);
     });
 
@@ -438,7 +439,9 @@ describe('Database Version 3 - Semantic Search Tables', () => {
 
       expect(embedding).toBeDefined();
       expect(metadata).toBeDefined();
-      expect(embedding?.data).toBeInstanceOf(ArrayBuffer);
+      // Check for ArrayBuffer-like properties (instanceof may fail across realms)
+      expect(embedding?.data).toBeDefined();
+      expect(embedding?.data.byteLength).toBe(50);
       expect(metadata?.value).toEqual({ some: 'metadata' });
     });
   });

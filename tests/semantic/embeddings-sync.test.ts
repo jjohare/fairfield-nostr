@@ -567,17 +567,23 @@ describe('Embeddings Sync Service', () => {
     it('handles background sync errors gracefully', async () => {
       vi.useFakeTimers();
 
-      const mockGet = vi.fn().mockRejectedValue(new Error('DB error'));
+      // Mock db to return null (no local state)
+      const mockGet = vi.fn().mockResolvedValue(null);
       const mockTable = vi.fn().mockReturnValue({ get: mockGet });
       (db.table as any) = mockTable;
+
+      // Mock fetch to throw - this simulates a network error during manifest fetch
+      // getLocalSyncState catches DB errors, so we need fetchManifest to fail
+      (global.fetch as any).mockRejectedValue(new Error('Network error'));
 
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       await initEmbeddingSync();
       await vi.advanceTimersByTimeAsync(5000);
 
+      // The error is caught and logged by fetchManifest
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        'Background embedding sync failed:',
+        'Error fetching embedding manifest:',
         expect.any(Error)
       );
 

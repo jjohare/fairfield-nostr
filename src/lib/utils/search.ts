@@ -57,7 +57,7 @@ export function filterMessages(
 
     // Scope filter
     if (filters.scope === 'user' && currentUserPubkey) {
-      if (message.pubkey !== currentUserPubkey) {
+      if (message.authorPubkey !== currentUserPubkey) {
         return false;
       }
     }
