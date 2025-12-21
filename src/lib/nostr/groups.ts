@@ -16,8 +16,9 @@
  * - 9021: Join request (custom)
  */
 
-import type { Event } from 'nostr-tools';
+import type { Event, EventTemplate } from 'nostr-tools';
 import { getPublicKey, finalizeEvent } from 'nostr-tools';
+import { hexToBytes } from '@noble/hashes/utils';
 
 // NIP-29 Event Kinds
 export const KIND_GROUP_CHAT_MESSAGE = 9;
@@ -107,11 +108,11 @@ export async function requestJoin(
   message?: string
 ): Promise<PublishResult> {
   try {
-    const pubkey = getPublicKey(privateKey);
+    const privkeyBytes = hexToBytes(privateKey);
+    const pubkey = getPublicKey(privkeyBytes);
 
-    const event: Event = {
+    const event: EventTemplate = {
       kind: KIND_JOIN_REQUEST,
-      pubkey,
       created_at: Math.floor(Date.now() / 1000),
       tags: [
         ['h', channelId],
@@ -119,7 +120,7 @@ export async function requestJoin(
       content: message || '',
     };
 
-    const signed = finalizeEvent(event, privateKey);
+    const signed = finalizeEvent(event, privkeyBytes);
     await relay.publish(signed);
 
     return {
@@ -153,7 +154,8 @@ export async function requestRegistration(
   message?: string
 ): Promise<PublishResult> {
   try {
-    const pubkey = getPublicKey(privateKey);
+    const privkeyBytes = hexToBytes(privateKey);
+    const pubkey = getPublicKey(privkeyBytes);
 
     const tags: string[][] = [
       ['t', 'registration'], // Tag for filtering
@@ -163,15 +165,14 @@ export async function requestRegistration(
       tags.push(['name', displayName]);
     }
 
-    const event: Event = {
+    const event: EventTemplate = {
       kind: KIND_USER_REGISTRATION,
-      pubkey,
       created_at: Math.floor(Date.now() / 1000),
       tags,
       content: message || 'New user registration request',
     };
 
-    const signed = finalizeEvent(event, privateKey);
+    const signed = finalizeEvent(event, privkeyBytes);
     await relay.publish(signed);
 
     return {
@@ -204,12 +205,12 @@ export async function approveJoin(
   relay: Relay
 ): Promise<PublishResult> {
   try {
-    const adminPubkey = getPublicKey(adminPrivateKey);
+    const adminPrivkeyBytes = hexToBytes(adminPrivateKey);
+    const adminPubkey = getPublicKey(adminPrivkeyBytes);
 
     // 1. Create add-user event (NIP-29)
-    const addEvent: Event = {
+    const addEvent: EventTemplate = {
       kind: KIND_ADD_USER,
-      pubkey: adminPubkey,
       created_at: Math.floor(Date.now() / 1000),
       tags: [
         ['h', request.channelId],
@@ -218,13 +219,12 @@ export async function approveJoin(
       content: '',
     };
 
-    const signedAdd = finalizeEvent(addEvent, adminPrivateKey);
+    const signedAdd = finalizeEvent(addEvent, adminPrivkeyBytes);
     await relay.publish(signedAdd);
 
     // 2. Delete the join request (NIP-09)
-    const deleteEvent: Event = {
+    const deleteEvent: EventTemplate = {
       kind: KIND_DELETION,
-      pubkey: adminPubkey,
       created_at: Math.floor(Date.now() / 1000),
       tags: [
         ['e', request.id],
@@ -232,7 +232,7 @@ export async function approveJoin(
       content: 'Approved',
     };
 
-    const signedDelete = finalizeEvent(deleteEvent, adminPrivateKey);
+    const signedDelete = finalizeEvent(deleteEvent, adminPrivkeyBytes);
     await relay.publish(signedDelete);
 
     return {
@@ -264,11 +264,11 @@ export async function rejectJoin(
   relay: Relay
 ): Promise<PublishResult> {
   try {
-    const adminPubkey = getPublicKey(adminPrivateKey);
+    const adminPrivkeyBytes = hexToBytes(adminPrivateKey);
+    const adminPubkey = getPublicKey(adminPrivkeyBytes);
 
-    const deleteEvent: Event = {
+    const deleteEvent: EventTemplate = {
       kind: KIND_DELETION,
-      pubkey: adminPubkey,
       created_at: Math.floor(Date.now() / 1000),
       tags: [
         ['e', request.id],
@@ -276,7 +276,7 @@ export async function rejectJoin(
       content: 'Rejected',
     };
 
-    const signed = finalizeEvent(deleteEvent, adminPrivateKey);
+    const signed = finalizeEvent(deleteEvent, adminPrivkeyBytes);
     await relay.publish(signed);
 
     return {
@@ -312,11 +312,11 @@ export async function kickFromChannel(
   reason?: string
 ): Promise<PublishResult> {
   try {
-    const adminPubkey = getPublicKey(adminPrivkey);
+    const adminPrivkeyBytes = hexToBytes(adminPrivkey);
+    const adminPubkey = getPublicKey(adminPrivkeyBytes);
 
-    const event: Event = {
+    const event: EventTemplate = {
       kind: KIND_REMOVE_USER,
-      pubkey: adminPubkey,
       created_at: Math.floor(Date.now() / 1000),
       tags: [
         ['h', channelId],
@@ -325,7 +325,7 @@ export async function kickFromChannel(
       content: reason || 'Removed by admin',
     };
 
-    const signed = finalizeEvent(event, adminPrivkey);
+    const signed = finalizeEvent(event, adminPrivkeyBytes);
     await relay.publish(signed);
 
     return {
@@ -442,11 +442,11 @@ export async function deleteMessage(
   reason?: string
 ): Promise<PublishResult> {
   try {
-    const adminPubkey = getPublicKey(adminPrivkey);
+    const adminPrivkeyBytes = hexToBytes(adminPrivkey);
+    const adminPubkey = getPublicKey(adminPrivkeyBytes);
 
-    const event: Event = {
+    const event: EventTemplate = {
       kind: KIND_DELETE_EVENT,
-      pubkey: adminPubkey,
       created_at: Math.floor(Date.now() / 1000),
       tags: [
         ['h', channelId],
@@ -455,7 +455,7 @@ export async function deleteMessage(
       content: reason || 'Deleted by admin',
     };
 
-    const signed = finalizeEvent(event, adminPrivkey);
+    const signed = finalizeEvent(event, adminPrivkeyBytes);
     await relay.publish(signed);
 
     return {
@@ -563,7 +563,8 @@ export async function sendGroupMessage(
   replyTo?: string
 ): Promise<PublishResult> {
   try {
-    const pubkey = getPublicKey(privateKey);
+    const privkeyBytes = hexToBytes(privateKey);
+    const pubkey = getPublicKey(privkeyBytes);
 
     const tags: string[][] = [
       ['h', channelId],
@@ -573,15 +574,14 @@ export async function sendGroupMessage(
       tags.push(['e', replyTo, '', 'reply']);
     }
 
-    const event: Event = {
+    const event: EventTemplate = {
       kind: KIND_GROUP_CHAT_MESSAGE,
-      pubkey,
       created_at: Math.floor(Date.now() / 1000),
       tags,
       content,
     };
 
-    const signed = finalizeEvent(event, privateKey);
+    const signed = finalizeEvent(event, privkeyBytes);
     await relay.publish(signed);
 
     return {
@@ -655,7 +655,8 @@ export async function updateGroupMetadata(
   relay: Relay
 ): Promise<PublishResult> {
   try {
-    const adminPubkey = getPublicKey(adminPrivkey);
+    const adminPrivkeyBytes = hexToBytes(adminPrivkey);
+    const adminPubkey = getPublicKey(adminPrivkeyBytes);
 
     const tags: string[][] = [
       ['d', channelId],
@@ -675,9 +676,8 @@ export async function updateGroupMetadata(
       tags.push(['encrypted', 'nip44']);
     }
 
-    const event: Event = {
+    const event: EventTemplate = {
       kind: KIND_GROUP_METADATA,
-      pubkey: adminPubkey,
       created_at: Math.floor(Date.now() / 1000),
       tags,
       content: JSON.stringify({
@@ -687,7 +687,7 @@ export async function updateGroupMetadata(
       }),
     };
 
-    const signed = finalizeEvent(event, adminPrivkey);
+    const signed = finalizeEvent(event, adminPrivkeyBytes);
     await relay.publish(signed);
 
     return {

@@ -233,7 +233,7 @@
 
       <button
         class="btn btn-ghost btn-sm"
-        on:click={() => dispatch('success', { publicKey: '', privateKey: '' })}
+        on:click={() => dispatch('success', { publicKey: '', privateKey: '', keepSignedIn: true })}
       >
         Create a new account
       </button>

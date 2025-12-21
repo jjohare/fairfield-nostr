@@ -20,8 +20,7 @@ function createNDKStore() {
     try {
       const ndk = new NDK({
         explicitRelayUrls: RELAYS,
-        autoConnectUserRelays: true,
-        autoFetchUserMutelist: true
+        autoConnectUserRelays: true
       });
 
       await ndk.connect();
