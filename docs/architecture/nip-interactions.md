@@ -1,3 +1,10 @@
+---
+title: Nostr Improvement Proposal (NIP) Interactions
+description: Visual representation of how different NIPs interact within the Nostr-BBS system for developers and debuggers
+category: explanation
+tags: [nostr, nip-29, nip-17, nip-44, architecture, events]
+---
+
 # Nostr Improvement Proposal (NIP) Interactions
 
 [← Back to Architecture](02-architecture.md) | [← Back to Documentation Hub](../INDEX.md)
@@ -464,7 +471,6 @@ flowchart LR
 
 - [Architecture Overview](02-architecture.md) - System design
 - [Encryption Flows](encryption-flows.md) - Detailed encryption patterns
-- [Admin Workflows](../features/admin-workflows.md) - NIP-29 moderation
 - [DM Implementation](../features/dm-implementation.md) - NIP-17/59 details
 
 ---

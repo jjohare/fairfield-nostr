@@ -1,5 +1,13 @@
-MENTION FUNCTIONALITY PATCH FOR MessageItem.svelte
-===================================================
+---
+title: Mention Functionality Patch for MessageItem
+description: Patch implementation for adding user mention functionality to message components
+category: reference
+tags: [development, features, messages]
+---
+
+# Mention Functionality Patch for MessageItem.svelte
+
+## Overview
 
 Add these imports to the top of the <script> section:
 

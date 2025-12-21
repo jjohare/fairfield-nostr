@@ -1,4 +1,11 @@
-[← Back to Main README](../README.md)
+---
+title: Search Index Implementation Summary
+description: Implementation summary of client-side full-text search using IndexedDB with real-time indexing and relevance scoring
+category: reference
+tags: [features, search, development]
+---
+
+[← Back to Main README](../../README.md)
 
 # Search Index Implementation Summary - Phase 2.3
 

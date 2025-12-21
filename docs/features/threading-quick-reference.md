@@ -1,3 +1,10 @@
+---
+title: Threading Quick Reference
+description: Quick reference guide for implementing and using message threading features
+category: howto
+tags: [features, messages, development]
+---
+
 # Threading Quick Reference
 
 ## Quick Start

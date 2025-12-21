@@ -1,4 +1,11 @@
-[← Back to Main README](../README.md)
+---
+title: Message Export Feature - Implementation Documentation
+description: Implementation guide for exporting channel messages to JSON and TXT formats with filtering options
+category: reference
+tags: [features, messages, channels, ui]
+---
+
+[← Back to Main README](../../README.md)
 
 # Message Export Feature - Implementation Documentation
 

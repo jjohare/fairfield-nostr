@@ -11,7 +11,7 @@ related-docs:
 
 # NIP-17/NIP-59 Gift-Wrapped DM Implementation
 
-[Back to Main README](../README.md)
+[Back to Main README](../../README.md)
 
 ## Overview
 

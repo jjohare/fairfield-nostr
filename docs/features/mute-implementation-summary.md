@@ -1,4 +1,11 @@
-[← Back to Main README](../README.md)
+---
+title: User Mute/Ignore List Implementation Summary
+description: Implementation of user muting functionality with persistent storage and UI integration
+category: reference
+tags: [features, ui, messages]
+---
+
+[← Back to Main README](../../README.md)
 
 # User Mute/Ignore List Implementation Summary
 

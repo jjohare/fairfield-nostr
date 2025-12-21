@@ -1,3 +1,10 @@
+---
+title: Encryption Flows - Nostr-BBS Security Architecture
+description: Detailed visual comparisons of encryption strategies used in Nostr-BBS including NIP-04, NIP-44, and public messages
+category: explanation
+tags: [encryption, security, nip-04, nip-44, nostr, architecture]
+---
+
 # Encryption Flows - Nostr-BBS Security Architecture
 
 [← Back to Architecture](02-architecture.md) | [← Back to Documentation Hub](../INDEX.md)
@@ -632,7 +639,6 @@ describe('Encryption Flows', () => {
 - [NIP Interactions](nip-interactions.md) - How NIPs work together
 - [Architecture Overview](02-architecture.md) - System design
 - [DM Implementation](../features/dm-implementation.md) - NIP-17/59 details
-- [Admin Workflows](../features/admin-workflows.md) - Moderation features
 
 ---
 

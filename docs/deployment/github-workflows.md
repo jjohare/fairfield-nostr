@@ -1,8 +1,15 @@
+---
+title: GitHub Actions Workflows - GCP Deployment
+description: CI/CD workflow configuration for automated GCP Cloud Run deployments using GitHub Actions
+category: reference
+tags: [deployment, development, testing]
+---
+
 # GitHub Actions Workflows - GCP Deployment
 
 ## Overview
 
-This project uses GitHub Actions for CI/CD with Google Cloud Platform (GCP) as the deployment target. All Cloudflare-specific workflows have been deprecated in favor of GCP Cloud Run.
+This project uses GitHub Actions for CI/CD with Google Cloud Platform (GCP) as the deployment target. All Cloudflare-specific workflows have been deprecated in favour of GCP Cloud Run.
 
 ## Workflow Files
 

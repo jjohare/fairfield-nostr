@@ -172,7 +172,7 @@ docs/
 
 ### Naming Conventions
 
-- **Use kebab-case**: `channel-configuration.md`
+- **Use kebab-case**: `search-implementation.md`
 - **Be descriptive**: `admin-permissions-guide.md` not `admin.md`
 - **Group related docs**: `api-channels.md`, `api-users.md`
 - **Version API docs**: `api-v1-reference.md`
@@ -281,8 +281,8 @@ npm test
 Use descriptive link text:
 
 ```markdown
-✅ See the [channel configuration guide](./channel-configuration.md)
-❌ See [this guide](./channel-configuration.md)
+✅ See the [deployment guide](./deployment/DEPLOYMENT.md)
+❌ See [this guide](./deployment/DEPLOYMENT.md)
 
 ✅ Learn more about [NIP-29 moderation](https://github.com/nostr-protocol/nips/blob/master/29.md)
 ❌ Click [here](https://github.com/nostr-protocol/nips/blob/master/29.md) for more info
@@ -344,10 +344,18 @@ graph TD
 ```
 ````
 
-Save complex diagrams in `docs/diagrams/` and reference them:
+Save complex diagrams as mermaid code blocks or external SVG files:
 
 ```markdown
-![Channel Architecture](../diagrams/channel-architecture.svg)
+<!-- Inline mermaid diagram -->
+\```mermaid
+graph LR
+  A[Client] --> B[Relay]
+  B --> C[Storage]
+\```
+
+<!-- Or reference external diagram if needed -->
+![Architecture Diagram](./path/to/diagram.svg)
 ```
 
 ## Validation and Testing
@@ -488,7 +496,7 @@ git push origin docs/your-feature
 
 2. **Don't use US English**
    ```markdown
-   The system organizes colors...  ❌
+   The system organises colours...  ❌
    ```
 
 3. **Don't hard-code version numbers**

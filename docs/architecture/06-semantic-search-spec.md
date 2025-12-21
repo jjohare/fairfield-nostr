@@ -591,7 +591,7 @@ When index is unavailable:
 - Image/media content search (text messages only)
 - Real-time incremental index updates (nightly batch only)
 - Federated search across external relays
-- User-specific index customization
+- User-specific index customisation
 - Query autocomplete/suggestions
 - Search analytics/trending queries
 - Voice-to-text query input

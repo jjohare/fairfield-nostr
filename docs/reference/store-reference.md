@@ -1,3 +1,10 @@
+---
+title: Store Reference
+description: Consolidated reference for all Svelte store APIs managing application state in Nostr-BBS
+category: reference
+tags: [api, development, ui]
+---
+
 # Store Reference
 
 **Version:** 1.0.0

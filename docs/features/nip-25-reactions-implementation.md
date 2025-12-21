@@ -6,7 +6,7 @@ tags: [nip-25, reactions, nostr-protocol]
 difficulty: intermediate
 ---
 
-[← Back to Main README](../README.md)
+[← Back to Main README](../../README.md)
 
 # NIP-25 Message Reactions Implementation
 

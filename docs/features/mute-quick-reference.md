@@ -1,3 +1,10 @@
+---
+title: Mute System Quick Reference
+description: Quick reference guide for implementing and using the user mute/ignore functionality
+category: howto
+tags: [features, development, ui]
+---
+
 # Mute System Quick Reference
 
 ## File Locations

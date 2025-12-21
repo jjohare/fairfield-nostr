@@ -341,7 +341,7 @@ Nostr-BBS-nostr/
 |---------|------|------|
 | **Shadcn-svelte** | Radix-based, accessible, copy-paste | Heavy, complex |
 | **Skeleton UI** | Svelte-native, theming | Opinionated |
-| **DaisyUI** | Tailwind plugin, simple | Less customizable |
+| **DaisyUI** | Tailwind plugin, simple | Less customisable |
 | **Custom** | Full control, minimal | More work |
 
 ### 4.2 Recommendation: **DaisyUI + Custom**

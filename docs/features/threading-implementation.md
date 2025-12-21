@@ -6,7 +6,7 @@ tags: [threading, chat, components, nostr-protocol]
 difficulty: advanced
 ---
 
-[← Back to Main README](../README.md)
+[← Back to Main README](../../README.md)
 
 # Quote/Reply Threading Implementation
 
@@ -64,7 +64,7 @@ Displays quoted/replied messages:
 
 Features:
 - Compact and full display modes
-- Left border accent in primary color
+- Left border accent in primary colour
 - Author name and content snippet
 - Truncated content with "..." in compact mode
 - Click to expand or scroll to original

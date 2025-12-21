@@ -1,4 +1,11 @@
-[← Back to Main README](../README.md)
+---
+title: PWA Quick Start Guide
+description: Quick start guide for installing and using Nostr-BBS as a Progressive Web App
+category: tutorial
+tags: [features, deployment, setup]
+---
+
+[← Back to Main README](../../README.md)
 
 # PWA Quick Start Guide
 

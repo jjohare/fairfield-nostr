@@ -1,3 +1,10 @@
+---
+title: NIP Protocol Reference
+description: Definitive reference for all Nostr Improvement Proposal implementations in Nostr-BBS
+category: reference
+tags: [nostr, nip-29, nip-17, nip-44, nip-25, events]
+---
+
 # NIP Protocol Reference
 
 **Version:** 1.0.0
@@ -138,7 +145,7 @@ Tags are arrays where:
 
 ### ⚠️ Deprecation Notice
 
-NIP-04 is **deprecated** in favor of NIP-17 (Private DMs) + NIP-59 (Gift Wrap). Nostr-BBS:
+NIP-04 is **deprecated** in favour of NIP-17 (Private DMs) + NIP-59 (Gift Wrap). Nostr-BBS:
 - **Reads** NIP-04 messages for backwards compatibility
 - **Never creates** new NIP-04 messages
 - **Migrates** existing conversations to NIP-17 when possible
@@ -245,7 +252,7 @@ User-requested deletion of their own events.
 ### Deletion Rules
 
 1. **Authorization:** Only event author can request deletion
-2. **Relay Discretion:** Relays MAY honor deletion (not guaranteed)
+2. **Relay Discretion:** Relays MAY honour deletion (not guaranteed)
 3. **Propagation:** Deletion events should be broadcast to all relays
 4. **UI Handling:** Clients SHOULD hide deleted events
 

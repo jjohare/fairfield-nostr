@@ -1,3 +1,10 @@
+---
+title: Google Cloud Platform Deployment Guide
+description: Step-by-step guide for deploying Nostr-BBS Embedding API to GCP Cloud Run with free tier optimization
+category: howto
+tags: [deployment, setup, search]
+---
+
 # Google Cloud Platform Deployment Guide
 
 **Project**: Nostr-BBS Embedding API
@@ -77,8 +84,7 @@ gcloud run services describe logseq-embeddings \
 │   └── src/
 │       └── index.js        # Express.js API server
 └── docs/
-    ├── gcp-architecture.md # Architecture details
-    └── MIGRATION.md        # Migration documentation
+    └── gcp-architecture.md # Architecture details
 ```
 
 ### Cloud Build Configuration
@@ -476,7 +482,6 @@ gcloud iam service-accounts keys create key.json \
 
 ### Internal Documentation
 - [GCP Architecture Specification](./gcp-architecture.md)
-- [Cloudflare to GCP Migration](./MIGRATION.md)
 - [General Deployment Guide](./DEPLOYMENT.md)
 
 ### External Resources

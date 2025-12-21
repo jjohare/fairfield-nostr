@@ -1,3 +1,10 @@
+---
+title: Channel Statistics Dashboard - Usage Guide
+description: User guide for viewing and interpreting channel analytics and platform-wide metrics
+category: howto
+tags: [features, channels, ui]
+---
+
 # Channel Statistics Dashboard - Usage Guide
 
 ## Overview
@@ -354,7 +361,7 @@ async function exportToCSV() {
 }
 ```
 
-## Customization
+## Customisation
 
 ### Custom Styling
 

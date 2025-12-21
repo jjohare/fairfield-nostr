@@ -1,3 +1,10 @@
+---
+title: API Reference
+description: Comprehensive API reference for all endpoints, functions, and interfaces in Nostr-BBS
+category: reference
+tags: [api, relay, search, authentication]
+---
+
 # API Reference
 
 **Version:** 1.0.0

@@ -1,3 +1,10 @@
+---
+title: Search Feature Usage Guide
+description: User guide for using full-text search features including keyboard shortcuts and query operators
+category: howto
+tags: [features, search, ui]
+---
+
 # Search Feature Usage Guide
 
 ## For End Users

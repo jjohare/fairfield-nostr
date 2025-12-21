@@ -6,7 +6,7 @@ tags: [search, chat, components]
 difficulty: intermediate
 ---
 
-[← Back to Main README](../README.md)
+[← Back to Main README](../../README.md)
 
 # Channel Message Search Implementation - Phase 1.4
 

@@ -1,4 +1,11 @@
-[← Back to Main README](../README.md)
+---
+title: Message Drafts Auto-Save Implementation
+description: Implementation of automatic draft saving for channel messages with localStorage persistence
+category: reference
+tags: [features, messages, ui]
+---
+
+[← Back to Main README](../../README.md)
 
 # Message Drafts Auto-Save Implementation (Phase 3.2)
 
@@ -42,7 +49,7 @@ interface Draft {
 - Pencil icon for visual indication
 - Tooltip showing draft preview
 - Configurable tooltip position
-- Warning color badge
+- Warning colour badge
 
 **Usage:**
 ```svelte

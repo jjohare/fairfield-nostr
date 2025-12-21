@@ -12,7 +12,7 @@ difficulty: advanced
 
 Nostr-BBS implements a complete Progressive Web App with offline support, background sync, and installability.
 
-[Back to Main README](../README.md)
+[Back to Main README](../../README.md)
 
 ## Architecture
 

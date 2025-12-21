@@ -1,3 +1,10 @@
+---
+title: GCP Migration Architecture Specification
+description: Architecture specification for migrating Nostr-BBS Embedding API from Cloudflare to Google Cloud Platform
+category: explanation
+tags: [architecture, deployment, search]
+---
+
 # GCP Migration Architecture Specification
 
 **Project**: Nostr-BBS Embedding API Migration
@@ -10,7 +17,7 @@
 
 ## Executive Summary
 
-This document outlines three architecture options for migrating the Nostr-BBS embedding API from Cloudflare Workers to Google Cloud Platform, with emphasis on maximizing free tier usage and minimizing costs for a small private community application.
+This document outlines three architecture options for migrating the Nostr-BBS embedding API from Cloudflare Workers to Google Cloud Platform, with emphasis on maximising free tier usage and minimising costs for a small private community application.
 
 **Recommended**: **Option A - Cloud Run + Cloud Storage** (Self-hosted ONNX)
 

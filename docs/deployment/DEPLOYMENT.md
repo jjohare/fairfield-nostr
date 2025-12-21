@@ -1,4 +1,11 @@
-[← Back to Main README](../README.md)
+---
+title: Deployment Guide - Nostr-BBS
+description: Complete deployment guide for Nostr-BBS including GitHub Pages, Docker relay, and GCP integration
+category: howto
+tags: [deployment, setup, relay, architecture]
+---
+
+[← Back to Main README](../../README.md)
 
 # Deployment Guide - Nostr-BBS
 
@@ -234,7 +241,7 @@ gcloud run services describe logseq-embeddings \
 
 **Save the Cloud Run URL** - you'll use it as `VITE_EMBEDDING_API_URL`.
 
-For complete GCP setup, troubleshooting, and cost optimization, see:
+For complete GCP setup, troubleshooting, and cost optimisation, see:
 - **[GCP Deployment Guide](./GCP_DEPLOYMENT.md)** - Step-by-step Cloud Run deployment
 - **[GCP Architecture](./gcp-architecture.md)** - Architecture design and verification
 

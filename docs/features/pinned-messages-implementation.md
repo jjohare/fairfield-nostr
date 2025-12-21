@@ -6,7 +6,7 @@ tags: [chat, channels, components]
 difficulty: intermediate
 ---
 
-[← Back to Main README](../README.md)
+[← Back to Main README](../../README.md)
 
 # Pinned Messages Implementation (Phase 1.5)
 
@@ -34,7 +34,7 @@ Features:
 Features:
 - DaisyUI collapse component for expand/collapse
 - Shows pinned messages in condensed view at top of channel
-- Pin icon with warning color scheme
+- Pin icon with warning colour scheme
 - Click to scroll to original message in chat
 - Unpin button for admins (visible on hover)
 - Truncates long messages to 80 characters
@@ -124,7 +124,7 @@ interface PinnedMessagesState {
 
 ### Scroll Animation
 - Smooth scroll to message
-- 2-second highlight flash with warning color
+- 2-second highlight flash with warning colour
 - CSS keyframe animation
 
 ## Dependencies

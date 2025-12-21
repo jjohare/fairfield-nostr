@@ -9,7 +9,7 @@ difficulty: intermediate
 # Accessibility Improvements - Nostr-BBS Nostr Application
 
 ## Summary
-Implemented comprehensive WCAG 2.1 Level AA accessibility fixes across the application to improve usability for users with disabilities, including keyboard-only navigation, screen reader support, and proper color contrast.
+Implemented comprehensive WCAG 2.1 Level AA accessibility fixes across the application to improve usability for users with disabilities, including keyboard-only navigation, screen reader support, and proper colour contrast.
 
 ## Changes Implemented
 

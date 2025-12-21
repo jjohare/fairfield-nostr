@@ -1,4 +1,11 @@
-[← Back to Main README](../README.md)
+---
+title: Notification System - Phase 1.1 Implementation
+description: Implementation of real-time notification system with browser notifications and unread message tracking
+category: reference
+tags: [features, notifications, ui, messages]
+---
+
+[← Back to Main README](../../README.md)
 
 # Notification System - Phase 1.1 Implementation
 

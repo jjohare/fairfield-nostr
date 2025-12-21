@@ -1,3 +1,10 @@
+---
+title: Configuration Reference
+description: Complete configuration schemas, environment variables, and application settings for Nostr-BBS
+category: reference
+tags: [setup, deployment, api]
+---
+
 # Configuration Reference
 
 **Version:** 1.0.0

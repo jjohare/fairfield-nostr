@@ -1,3 +1,10 @@
+---
+title: Lucide Icons Integration Guide
+description: Guide for using Lucide icon library components throughout the Nostr-BBS application
+category: howto
+tags: [development, ui, features]
+---
+
 # Lucide Icons Integration Guide
 
 ## Overview
@@ -323,6 +330,6 @@ If you have existing icon usage (emoji, unicode, or other), replace:
 ## Next Steps
 
 1. Update existing components with Lucide icons
-2. Create icon size/color standards in design system
+2. Create icon size/colour standards in design system
 3. Add icon usage to component documentation
 4. Test accessibility with screen readers
