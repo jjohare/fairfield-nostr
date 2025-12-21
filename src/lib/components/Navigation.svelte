@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { authStore, isAuthenticated, isAdmin } from '$lib/stores/auth';
+  import { authStore, isAuthenticated } from '$lib/stores/auth';
+  import { isAdminVerified } from '$lib/stores/user';
   import { page } from '$app/stores';
   import { base } from '$app/paths';
   import { bookmarkCount } from '$lib/stores/bookmarks';
@@ -10,7 +11,7 @@
   import { goto } from '$app/navigation';
 
   $: isAuth = $isAuthenticated;
-  $: isAdminUser = $isAdmin;
+  $: isAdminUser = $isAdminVerified;
 
   let showBookmarksModal = false;
   let isSearchOpen = false;

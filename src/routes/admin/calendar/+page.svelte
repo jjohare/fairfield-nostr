@@ -2,7 +2,8 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
-  import { authStore, isAdmin } from '$lib/stores/auth';
+  import { authStore } from '$lib/stores/auth';
+  import { isAdminVerified } from '$lib/stores/user';
   import { setSigner, connectNDK } from '$lib/nostr/ndk';
   import { fetchAllEvents, type CalendarEvent } from '$lib/nostr/calendar';
   import { fetchChannels, type CreatedChannel } from '$lib/nostr/channels';
@@ -45,8 +46,8 @@
       return;
     }
 
-    // Check admin access using store (reads from VITE_ADMIN_PUBKEY)
-    if (!$isAdmin) {
+    // Check admin access using relay-verified store (authoritative check)
+    if (!$isAdminVerified) {
       goto(`${base}/events`);
       return;
     }
