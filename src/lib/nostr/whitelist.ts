@@ -102,10 +102,16 @@ export async function verifyWhitelistStatus(pubkey: string): Promise<WhitelistSt
  * Create fallback status using client-side admin check
  */
 function createFallbackStatus(pubkey: string): WhitelistStatus {
-  const adminPubkeys = (import.meta.env.VITE_ADMIN_PUBKEY || '')
+  // Default admin pubkey as fallback when env var is not set
+  const DEFAULT_ADMIN_PUBKEY = '11ed64225dd5e2c5e18f61ad43d5ad9272d08739d3a20dd25886197b0738663c';
+
+  const envAdminPubkeys = (import.meta.env.VITE_ADMIN_PUBKEY || '')
     .split(',')
     .map((k: string) => k.trim())
     .filter(Boolean);
+
+  // Use env pubkeys if set, otherwise use default
+  const adminPubkeys = envAdminPubkeys.length > 0 ? envAdminPubkeys : [DEFAULT_ADMIN_PUBKEY];
 
   const isAdmin = adminPubkeys.includes(pubkey);
 
