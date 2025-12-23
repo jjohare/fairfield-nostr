@@ -2,8 +2,8 @@
 	"name": "Nostr BBS",
 	"short_name": "Nostr BBS",
 	"description": "Privacy-first Nostr messaging platform with encrypted DMs and calendar events",
-	"start_url": "/",
-	"scope": "/",
+	"start_url": "./",
+	"scope": "./",
 	"display": "standalone",
 	"background_color": "#1a1a2e",
 	"theme_color": "#16213e",
@@ -13,55 +13,55 @@
 	"dir": "ltr",
 	"icons": [
 		{
-			"src": "/icon-72.png",
+			"src": "./icon-72.png",
 			"sizes": "72x72",
 			"type": "image/png",
 			"purpose": "any"
 		},
 		{
-			"src": "/icon-96.png",
+			"src": "./icon-96.png",
 			"sizes": "96x96",
 			"type": "image/png",
 			"purpose": "any"
 		},
 		{
-			"src": "/icon-128.png",
+			"src": "./icon-128.png",
 			"sizes": "128x128",
 			"type": "image/png",
 			"purpose": "any"
 		},
 		{
-			"src": "/icon-144.png",
+			"src": "./icon-144.png",
 			"sizes": "144x144",
 			"type": "image/png",
 			"purpose": "any"
 		},
 		{
-			"src": "/icon-152.png",
+			"src": "./icon-152.png",
 			"sizes": "152x152",
 			"type": "image/png",
 			"purpose": "any"
 		},
 		{
-			"src": "/icon-192.png",
+			"src": "./icon-192.png",
 			"sizes": "192x192",
 			"type": "image/png",
 			"purpose": "any"
 		},
 		{
-			"src": "/icon-384.png",
+			"src": "./icon-384.png",
 			"sizes": "384x384",
 			"type": "image/png",
 			"purpose": "any"
 		},
 		{
-			"src": "/icon-512.png",
+			"src": "./icon-512.png",
 			"sizes": "512x512",
 			"type": "image/png",
 			"purpose": "any"
 		},
 		{
-			"src": "/icon-512.png",
+			"src": "./icon-512.png",
 			"sizes": "512x512",
 			"type": "image/png",
 			"purpose": "maskable"
@@ -69,13 +69,13 @@
 	],
 	"screenshots": [
 		{
-			"src": "/screenshot-mobile.png",
+			"src": "./screenshot-mobile.png",
 			"sizes": "540x720",
 			"type": "image/png",
 			"form_factor": "narrow"
 		},
 		{
-			"src": "/screenshot-desktop.png",
+			"src": "./screenshot-desktop.png",
 			"sizes": "1280x720",
 			"type": "image/png",
 			"form_factor": "wide"
@@ -86,10 +86,10 @@
 			"name": "Messages",
 			"short_name": "Messages",
 			"description": "View your direct messages",
-			"url": "/messages",
+			"url": "./dm",
 			"icons": [
 				{
-					"src": "/icon-192.png",
+					"src": "./icon-192.png",
 					"sizes": "192x192"
 				}
 			]
@@ -98,17 +98,17 @@
 			"name": "Profile",
 			"short_name": "Profile",
 			"description": "View your profile",
-			"url": "/profile",
+			"url": "./settings",
 			"icons": [
 				{
-					"src": "/icon-192.png",
+					"src": "./icon-192.png",
 					"sizes": "192x192"
 				}
 			]
 		}
 	],
 	"share_target": {
-		"action": "/share",
+		"action": "./share",
 		"method": "POST",
 		"enctype": "multipart/form-data",
 		"params": {
