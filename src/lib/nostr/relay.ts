@@ -209,7 +209,8 @@ class RelayManager {
         }
       });
 
-      const currentState = relay.connectivity.status === 1
+      // NDKRelayStatus: 5=CONNECTED, 6=AUTH_REQUESTED, 7=AUTHENTICATING, 8=AUTHENTICATED
+      const currentState = relay.connectivity.status >= 5
         ? ConnectionState.Connected
         : ConnectionState.Disconnected;
 
@@ -355,12 +356,14 @@ class RelayManager {
 
   /**
    * Check if connected and authenticated
+   * NDKRelayStatus: 5=CONNECTED, 6=AUTH_REQUESTED, 7=AUTHENTICATING, 8=AUTHENTICATED
    */
   isConnected(): boolean {
     if (!this._ndk) return false;
 
     for (const relay of this._ndk.pool.relays.values()) {
-      if (relay.connectivity.status === 1) {
+      // Status 5+ means connected (5=CONNECTED, 6-8=auth states)
+      if (relay.connectivity.status >= 5) {
         return true;
       }
     }
