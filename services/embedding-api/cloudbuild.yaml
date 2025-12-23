@@ -1,22 +1,23 @@
 # Cloud Build configuration for automated deployment to Cloud Run
+# Uses high-CPU machine for building large ML models
 steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/embedding-api:$COMMIT_SHA'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/minimoonoir/embedding-api:$COMMIT_SHA'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/embedding-api:latest'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/minimoonoir/embedding-api:latest'
       - '.'
     dir: 'services/embedding-api'
 
-  # Push the container image to Container Registry
+  # Push the container image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
       - '--all-tags'
-      - 'gcr.io/$PROJECT_ID/embedding-api'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/minimoonoir/embedding-api'
 
   # Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -26,28 +27,32 @@ steps:
       - 'deploy'
       - 'embedding-api'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/embedding-api:$COMMIT_SHA'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/minimoonoir/embedding-api:$COMMIT_SHA'
       - '--region'
       - 'us-central1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
+      - '--service-account'
+      - 'fairfield-applications@$PROJECT_ID.iam.gserviceaccount.com'
       - '--memory'
       - '2Gi'
       - '--cpu'
-      - '2'
+      - '1'
       - '--max-instances'
-      - '10'
+      - '3'
       - '--min-instances'
       - '0'
+      - '--concurrency'
+      - '80'
       - '--timeout'
       - '60'
       - '--set-env-vars'
-      - 'ALLOWED_ORIGINS=*'
+      - 'ALLOWED_ORIGINS=https://dreamlab-ai.github.io,https://jjohare.github.io,http://localhost:5173'
 
 images:
-  - 'gcr.io/$PROJECT_ID/embedding-api:$COMMIT_SHA'
-  - 'gcr.io/$PROJECT_ID/embedding-api:latest'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/minimoonoir/embedding-api:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/minimoonoir/embedding-api:latest'
 
 options:
   machineType: 'E2_HIGHCPU_8'

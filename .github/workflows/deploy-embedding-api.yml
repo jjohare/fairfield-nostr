@@ -79,38 +79,12 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker for Artifact Registry
+      - name: Build and Deploy via Cloud Build
         run: |
-          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
-
-      - name: Build Docker image
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: |
-          docker build \
-            -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/minimoonoir/${{ env.SERVICE_NAME }}:${{ github.sha }} \
-            -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/minimoonoir/${{ env.SERVICE_NAME }}:latest \
-            .
-
-      - name: Push Docker image to Artifact Registry
-        run: |
-          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/minimoonoir/${{ env.SERVICE_NAME }}:${{ github.sha }}
-          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/minimoonoir/${{ env.SERVICE_NAME }}:latest
-
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/minimoonoir/${{ env.SERVICE_NAME }}:${{ github.sha }} \
-            --platform managed \
-            --region ${{ env.GCP_REGION }} \
-            --allow-unauthenticated \
-            --service-account fairfield-applications@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
-            --set-env-vars "ALLOWED_ORIGINS=https://dreamlab-ai.github.io,https://jjohare.github.io,http://localhost:5173" \
-            --memory 2Gi \
-            --cpu 1 \
-            --min-instances 0 \
-            --max-instances 3 \
-            --concurrency 80 \
-            --timeout 60
+          gcloud builds submit ${{ env.WORKING_DIRECTORY }} \
+            --config=${{ env.WORKING_DIRECTORY }}/cloudbuild.yaml \
+            --substitutions=COMMIT_SHA=${{ github.sha }} \
+            --timeout=1200s
 
       - name: Get service URL
         id: get-url
