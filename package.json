@@ -52,7 +52,7 @@
   "devDependencies": {
     "@noble/curves": "1.8.1",
     "@noble/hashes": "1.8.0",
-    "@playwright/test": "^1.47.2",
+    "@playwright/test": "^1.57.0",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.49.2",
     "@sveltejs/vite-plugin-svelte": "^3.1.2",
@@ -68,7 +68,7 @@
     "eslint-plugin-svelte": "^2.44.1",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^27.3.0",
-    "playwright": "^1.40.0",
+    "playwright": "^1.57.0",
     "postcss": "^8.4.47",
     "prettier": "^3.3.3",
     "prettier-plugin-svelte": "^3.2.7",
