@@ -7,6 +7,7 @@
 	import { fade } from 'svelte/transition';
 	import { authStore, isAuthenticated } from '$lib/stores/auth';
 	import { sessionStore } from '$lib/stores/session';
+	import { calendarStore, sidebarVisible, sidebarExpanded } from '$lib/stores/calendar';
 	import { initializePWA } from '$lib/utils/pwa-init';
 	import {
 		canInstall,
@@ -25,6 +26,8 @@
 	import Navigation from '$lib/components/ui/Navigation.svelte';
 	import MyProfileModal from '$lib/components/user/MyProfileModal.svelte';
 	import ScreenReaderAnnouncer from '$lib/components/ui/ScreenReaderAnnouncer.svelte';
+	import CalendarSidebar from '$lib/components/calendar/CalendarSidebar.svelte';
+	import CalendarSheet from '$lib/components/calendar/CalendarSheet.svelte';
 
 	let mounted = false;
 	let themePreference: 'dark' | 'light' = 'dark';
@@ -32,6 +35,8 @@
 	let showUpdateBanner = false;
 	let showProfileModal = false;
 	let sessionCleanup: (() => void) | undefined = undefined;
+	let isMobile = false;
+	let calendarSheetOpen = false;
 
 	$: showNav = $page.url.pathname !== `${base}/` && $page.url.pathname !== base && $page.url.pathname !== `${base}/signup` && $page.url.pathname !== `${base}/login` && $page.url.pathname !== `${base}/pending`;
 
@@ -58,25 +63,41 @@
 	onMount(() => {
 		mounted = true;
 
-		if (browser) {
-			const savedTheme = localStorage.getItem('theme');
-			themePreference = savedTheme === 'light' ? 'light' : 'dark';
-			document.documentElement.setAttribute('data-theme', themePreference);
-
-			// Initialize PWA
-			initializePWA();
-
-			// Initialize notification system
-			initializeNotificationListeners();
-
-			// Request notification permission if not already granted
-			if ('Notification' in window && Notification.permission === 'default') {
-				notificationStore.requestPermission();
-			}
-
-			// Initialize search index (async, don't block app startup)
-			initSearch();
+		if (!browser) {
+			return;
 		}
+
+		const savedTheme = localStorage.getItem('theme');
+		themePreference = savedTheme === 'light' ? 'light' : 'dark';
+		document.documentElement.setAttribute('data-theme', themePreference);
+
+		// Initialize PWA
+		initializePWA();
+
+		// Initialize notification system
+		initializeNotificationListeners();
+
+		// Request notification permission if not already granted
+		if ('Notification' in window && Notification.permission === 'default') {
+			notificationStore.requestPermission();
+		}
+
+		// Initialize search index (async, don't block app startup)
+		initSearch();
+
+		// Check for mobile viewport
+		const checkMobile = () => {
+			isMobile = window.innerWidth < 768;
+		};
+		checkMobile();
+		window.addEventListener('resize', checkMobile);
+
+		// Initialize calendar store (fetch upcoming events)
+		calendarStore.fetchUpcomingEvents(14);
+
+		return () => {
+			window.removeEventListener('resize', checkMobile);
+		};
 	});
 
 	onDestroy(() => {
@@ -173,11 +194,37 @@
 				onProfileClick={toggleProfileModal}
 			/>
 		{/if}
-		{#key $page.url.pathname}
-			<main id="main-content" role="main" tabindex="-1" in:fade={{ duration: 150, delay: 75 }} out:fade={{ duration: 75 }}>
-				<slot />
-			</main>
-		{/key}
+
+		<div class="flex">
+			<!-- Calendar Sidebar (Desktop) -->
+			{#if showNav && $isAuthenticated && !isMobile && $sidebarVisible}
+				<aside class="flex-shrink-0 hidden md:block" aria-label="Calendar sidebar">
+					<CalendarSidebar
+						bind:isExpanded={$sidebarExpanded}
+						isVisible={$sidebarVisible}
+					/>
+				</aside>
+			{/if}
+
+			<!-- Main Content -->
+			{#key $page.url.pathname}
+				<main
+					id="main-content"
+					role="main"
+					tabindex="-1"
+					class="flex-1 min-w-0"
+					in:fade={{ duration: 150, delay: 75 }}
+					out:fade={{ duration: 75 }}
+				>
+					<slot />
+				</main>
+			{/key}
+		</div>
+
+		<!-- Calendar Sheet (Mobile) -->
+		{#if showNav && $isAuthenticated && isMobile}
+			<CalendarSheet bind:isOpen={calendarSheetOpen} />
+		{/if}
 	{:else}
 		<div class="flex items-center justify-center min-h-screen" role="status" aria-live="polite" aria-label="Loading application">
 			<div class="loading loading-spinner loading-lg text-primary"></div>
