@@ -1,15 +1,17 @@
-# Nostr BBS - Section Configuration
-# This file defines sections (areas), roles, and access permissions
-# Upload this file during setup to initialize your instance
+# Nostr BBS - 3-Tier Configuration
+# Hierarchy: Category → Section → Forum (NIP-28 Channel)
+# Forums are dynamically populated from Nostr events tagged to sections
 
-# Application metadata
 app:
   name: 'Nostr BBS'
-  version: '1.0.0'
-  defaultSection: 'public-lobby'
+  version: '2.0.0'
+  defaultPath: '/general/public-lobby'
+  tiers:
+    - { level: 1, name: 'Category', plural: 'Categories' }
+    - { level: 2, name: 'Section', plural: 'Sections' }
+    - { level: 3, name: 'Forum', plural: 'Forums' }
 
 # Superuser configuration (required for initial setup)
-# The owner has unrestricted access and cannot be removed
 superuser:
   pubkey: '' # Set this to your admin pubkey (64-char hex)
   name: 'Instance Owner'
@@ -30,10 +32,10 @@ roles:
   - id: 'moderator'
     name: 'Moderator'
     level: 2
-    description: 'Can manage channels and moderate content'
+    description: 'Can manage forums and moderate content'
     capabilities:
-      - 'channel.create'
-      - 'channel.delete'
+      - 'forum.create'
+      - 'forum.lock'
       - 'message.pin'
       - 'message.delete'
 
@@ -45,8 +47,8 @@ roles:
       - 'section.manage'
       - 'member.approve'
       - 'member.remove'
-      - 'channel.create'
-      - 'channel.delete'
+      - 'forum.create'
+      - 'forum.delete'
       - 'message.pin'
       - 'message.delete'
 
@@ -56,13 +58,15 @@ roles:
     description: 'Global administrator'
     capabilities:
       - 'admin.global'
+      - 'category.create'
+      - 'category.delete'
       - 'section.create'
       - 'section.delete'
       - 'section.manage'
       - 'member.approve'
       - 'member.remove'
-      - 'channel.create'
-      - 'channel.delete'
+      - 'forum.create'
+      - 'forum.delete'
       - 'message.pin'
       - 'message.delete'
       - 'user.whitelist'
@@ -85,66 +89,191 @@ cohorts:
     name: 'Moomaa Tribe'
     description: 'Core community members'
 
-# Section definitions
-sections:
-  - id: 'public-lobby'
-    name: 'Public Lobby'
-    description: 'Welcome area for visitors - open to all authenticated users'
-    icon: '👋'
+# 3-Tier Hierarchy: Categories containing Sections
+categories:
+  #=============================================================================
+  # GENERAL - Public areas for all users
+  #=============================================================================
+  - id: 'general'
+    name: 'General'
+    description: 'Public discussion areas and announcements'
+    icon: '🏠'
     order: 1
-    access:
-      requiresApproval: false
-      defaultRole: 'guest'
-      autoApprove: true
-    features:
-      showStats: true
-      allowChannelCreation: false
-      calendar:
-        access: 'full'
-        canCreate: false
-    ui:
-      color: '#6366f1'
+    sections:
+      - id: 'public-lobby'
+        name: 'Public Lobby'
+        description: 'Welcome area for visitors - open to all'
+        icon: '👋'
+        order: 1
+        access:
+          requiresApproval: false
+          defaultRole: 'guest'
+          autoApprove: true
+        calendar:
+          access: 'full'
+          canCreate: false
+        ui:
+          color: '#6366f1'
+        showStats: true
+        allowForumCreation: false
 
-  - id: 'community-rooms'
-    name: 'Community Rooms'
-    description: 'Core community chatrooms - request access to join'
-    icon: '🌙'
+      - id: 'announcements'
+        name: 'Announcements'
+        description: 'Official news and updates'
+        icon: '📢'
+        order: 2
+        access:
+          requiresApproval: false
+          defaultRole: 'guest'
+          autoApprove: true
+        calendar:
+          access: 'full'
+          canCreate: false
+        ui:
+          color: '#f59e0b'
+        showStats: true
+        allowForumCreation: false
+
+      - id: 'help'
+        name: 'Help & Support'
+        description: 'Get help with using the BBS'
+        icon: '❓'
+        order: 3
+        access:
+          requiresApproval: false
+          defaultRole: 'guest'
+          autoApprove: true
+        calendar:
+          access: 'none'
+          canCreate: false
+        ui:
+          color: '#10b981'
+        showStats: true
+        allowForumCreation: false
+
+  #=============================================================================
+  # COMMUNITY - Member-only areas
+  #=============================================================================
+  - id: 'community'
+    name: 'Community'
+    description: 'Member areas and discussions'
+    icon: '👥'
     order: 2
-    access:
-      requiresApproval: true
-      defaultRole: 'member'
-      autoApprove: false
-      requiredCohorts: [] # Any approved user can join
-    features:
-      showStats: true
-      allowChannelCreation: true
-      calendar:
-        access: 'full'
-        canCreate: true
-    ui:
-      color: '#8b5cf6'
+    sections:
+      - id: 'community-rooms'
+        name: 'Community Rooms'
+        description: 'Core community chatrooms'
+        icon: '🌙'
+        order: 1
+        access:
+          requiresApproval: true
+          defaultRole: 'member'
+          autoApprove: false
+        calendar:
+          access: 'full'
+          canCreate: true
+        ui:
+          color: '#8b5cf6'
+        showStats: true
+        allowForumCreation: true
 
-  - id: 'dreamlab'
-    name: 'DreamLab'
-    description: 'Creative and experimental projects - request access to join'
-    icon: '✨'
+      - id: 'introductions'
+        name: 'Introductions'
+        description: 'Introduce yourself to the community'
+        icon: '🙋'
+        order: 2
+        access:
+          requiresApproval: true
+          defaultRole: 'member'
+          autoApprove: false
+        calendar:
+          access: 'none'
+          canCreate: false
+        ui:
+          color: '#06b6d4'
+        showStats: true
+        allowForumCreation: false
+
+      - id: 'events'
+        name: 'Events & Meetups'
+        description: 'Community events and gatherings'
+        icon: '📅'
+        order: 3
+        access:
+          requiresApproval: true
+          defaultRole: 'member'
+          autoApprove: false
+        calendar:
+          access: 'full'
+          canCreate: true
+        ui:
+          color: '#ec4899'
+        showStats: true
+        allowForumCreation: true
+
+  #=============================================================================
+  # PROJECTS - Creative and development work
+  #=============================================================================
+  - id: 'projects'
+    name: 'Projects'
+    description: 'Creative and development projects'
+    icon: '🛠️'
     order: 3
-    access:
-      requiresApproval: true
-      defaultRole: 'member'
-      autoApprove: false
-      requiredCohorts: []
-    features:
-      showStats: true
-      allowChannelCreation: true
-      calendar:
-        access: 'availability' # Can see if dates are booked, not details
-        canCreate: true
-        cohortRestricted: true # Only cohort members see full event details
-    ui:
-      color: '#ec4899'
+    sections:
+      - id: 'dreamlab'
+        name: 'DreamLab'
+        description: 'Creative and experimental projects'
+        icon: '✨'
+        order: 1
+        access:
+          requiresApproval: true
+          defaultRole: 'member'
+          autoApprove: false
+          requiredCohorts: []
+        calendar:
+          access: 'availability'
+          canCreate: true
+          cohortRestricted: true
+        ui:
+          color: '#f43f5e'
+        showStats: true
+        allowForumCreation: true
 
-# Calendar access levels (referenced in sections)
+      - id: 'development'
+        name: 'Development'
+        description: 'Technical projects and code'
+        icon: '💻'
+        order: 2
+        access:
+          requiresApproval: true
+          defaultRole: 'member'
+          autoApprove: false
+        calendar:
+          access: 'full'
+          canCreate: true
+        ui:
+          color: '#3b82f6'
+        showStats: true
+        allowForumCreation: true
+
+      - id: 'resources'
+        name: 'Resources'
+        description: 'Shared files, links, and documentation'
+        icon: '📚'
+        order: 3
+        access:
+          requiresApproval: true
+          defaultRole: 'member'
+          autoApprove: false
+        calendar:
+          access: 'none'
+          canCreate: false
+        ui:
+          color: '#84cc16'
+        showStats: false
+        allowForumCreation: false
+
+# Calendar access levels
 calendarAccessLevels:
   - id: 'full'
     name: 'Full Access'

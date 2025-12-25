@@ -51,13 +51,13 @@
 				<path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
 			</svg>
 		</button>
-		<a href="{base}/chat" class="btn btn-ghost text-xl">Nostr BBS</a>
+		<a href="{base}/forums" class="btn btn-ghost text-xl">Nostr BBS</a>
 	</div>
 
 	<!-- Desktop Navigation (hidden on mobile) -->
 	<div class="navbar-center hidden md:flex">
 		<ul class="menu menu-horizontal px-1">
-			<li><a href="{base}/chat" class:active={$page.url.pathname.startsWith(`${base}/chat`)} class="min-h-11">Channels</a></li>
+			<li><a href="{base}/forums" class:active={$page.url.pathname.startsWith(`${base}/forums`) || $page.url.pathname.match(/^\/[^\/]+\/[^\/]+/)} class="min-h-11">Forums</a></li>
 			<li><a href="{base}/dm" class:active={$page.url.pathname.startsWith(`${base}/dm`)} class="min-h-11">Messages</a></li>
 			{#if $isAdminVerified}
 				<li><a href="{base}/admin" class:active={$page.url.pathname === `${base}/admin`} class="min-h-11">Admin</a></li>
@@ -128,14 +128,14 @@
 			<ul class="menu p-4 gap-2">
 				<li>
 					<a
-						href="{base}/chat"
-						class="min-h-11 text-base {$page.url.pathname.startsWith(`${base}/chat`) ? 'active' : ''}"
+						href="{base}/forums"
+						class="min-h-11 text-base {$page.url.pathname.startsWith(`${base}/forums`) ? 'active' : ''}"
 						on:click={handleNavClick}
 					>
 						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-5 h-5">
-							<path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+							<path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
 						</svg>
-						Channels
+						Forums
 					</a>
 				</li>
 				<li>

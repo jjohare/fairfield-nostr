@@ -6,7 +6,7 @@
 
 	onMount(() => {
 		if ($isAuthenticated) {
-			goto(`${base}/chat`);
+			goto(`${base}/forums`);
 		}
 	});
 </script>

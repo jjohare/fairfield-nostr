@@ -112,16 +112,16 @@ export function canModerateSection(permissions: UserPermissions, sectionId: Sect
 }
 
 /**
- * Check if user can create channels in a section
+ * Check if user can create forums/channels in a section
  */
 export function canCreateChannel(permissions: UserPermissions, sectionId: SectionId): boolean {
 	const section = getSection(sectionId);
-	if (!section?.features.allowChannelCreation) {
+	if (!section?.allowForumCreation) {
 		return false;
 	}
 
-	// Need at least moderator role or section.manage capability
-	return hasCapability(permissions, 'channel.create', sectionId);
+	// Need at least moderator role or forum.create capability
+	return hasCapability(permissions, 'forum.create', sectionId);
 }
 
 /**
@@ -131,7 +131,7 @@ export function canViewCalendar(permissions: UserPermissions, sectionId: Section
 	const section = getSection(sectionId);
 	if (!section) return false;
 
-	const calendarAccess = section.features.calendar.access;
+	const calendarAccess = section.calendar.access;
 	if (calendarAccess === 'none') return false;
 
 	return canAccessSection(permissions, sectionId);
@@ -148,7 +148,7 @@ export function canViewCalendarDetails(
 	const section = getSection(sectionId);
 	if (!section) return false;
 
-	const calendarAccess = section.features.calendar.access;
+	const calendarAccess = section.calendar.access;
 
 	// Full access level
 	if (calendarAccess === 'full') {
@@ -161,7 +161,7 @@ export function canViewCalendarDetails(
 	}
 
 	// Cohort restricted - check cohort match
-	if (calendarAccess === 'cohort' && section.features.calendar.cohortRestricted) {
+	if (calendarAccess === 'cohort' && section.calendar.cohortRestricted) {
 		if (!eventCohorts?.length) return false;
 		return eventCohorts.some((cohort) => permissions.cohorts.includes(cohort));
 	}
@@ -177,7 +177,7 @@ export function canCreateCalendarEvent(
 	sectionId: SectionId
 ): boolean {
 	const section = getSection(sectionId);
-	if (!section?.features.calendar.canCreate) {
+	if (!section?.calendar.canCreate) {
 		return false;
 	}
 

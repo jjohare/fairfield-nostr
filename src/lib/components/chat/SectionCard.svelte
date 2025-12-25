@@ -10,7 +10,7 @@
   $: isApproved = accessStatus === 'approved';
   $: isPending = accessStatus === 'pending';
   $: needsApproval = config?.access?.requiresApproval && !isApproved && !isPending;
-  $: hasCalendarAccess = section === 'public-lobby' || (isApproved && config?.features?.calendar?.access !== 'none');
+  $: hasCalendarAccess = section === 'public-lobby' || (isApproved && config?.calendar?.access !== 'none');
 
   function formatLastActivity(timestamp: number): string {
     const now = Date.now();
@@ -70,7 +70,7 @@
     </div>
 
     <!-- Section Stats -->
-    {#if config?.features?.showStats && stats}
+    {#if config?.showStats && stats}
       <div class="grid grid-cols-3 gap-4 p-4 bg-base-200 rounded-lg mb-4">
         <div class="text-center">
           <div class="text-2xl font-bold text-primary">{stats.channelCount}</div>

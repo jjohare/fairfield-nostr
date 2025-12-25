@@ -1,12 +1,13 @@
 /**
  * Setup Store
  * Manages first-run configuration flow and config uploads
+ * Updated for 3-tier BBS: Category → Section → Forum
  */
 
 import { writable, derived, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import type { SectionsConfig } from '$lib/config/types';
+import type { BBSConfig, CategoryConfig, SectionConfig } from '$lib/config/types';
 
 const SETUP_KEY = 'minimoonoir-setup-complete';
 const CONFIG_KEY = 'minimoonoir-custom-config';
@@ -17,14 +18,14 @@ export type SetupStep =
 	| 'upload-config'
 	| 'app-settings'
 	| 'admin-setup'
-	| 'sections-setup'
+	| 'categories-setup'
 	| 'review'
 	| 'complete';
 
 interface SetupState {
 	isComplete: boolean;
 	currentStep: SetupStep;
-	config: Partial<SectionsConfig>;
+	config: Partial<BBSConfig>;
 	errors: string[];
 	uploadedFile: string | null;
 }
@@ -43,7 +44,7 @@ function loadSetupState(): SetupState {
 	const isComplete = localStorage.getItem(SETUP_KEY) === 'true';
 	const savedConfig = localStorage.getItem(CONFIG_KEY);
 
-	let config: Partial<SectionsConfig> = {};
+	let config: Partial<BBSConfig> = {};
 	if (savedConfig) {
 		try {
 			config = JSON.parse(savedConfig);
@@ -58,6 +59,26 @@ function loadSetupState(): SetupState {
 		config,
 		currentStep: isComplete ? 'complete' : 'welcome'
 	};
+}
+
+/**
+ * Helper to get all sections from categories
+ */
+function getAllSections(config: Partial<BBSConfig>): SectionConfig[] {
+	if (!config.categories) return [];
+	return config.categories.flatMap((cat) => cat.sections || []);
+}
+
+/**
+ * Helper to get first section path for default
+ */
+function getFirstSectionPath(config: Partial<BBSConfig>): string {
+	const firstCat = config.categories?.[0];
+	const firstSection = firstCat?.sections?.[0];
+	if (firstCat && firstSection) {
+		return `/${firstCat.id}/${firstSection.id}`;
+	}
+	return '/general/public-lobby';
 }
 
 function createSetupStore() {
@@ -83,7 +104,7 @@ function createSetupStore() {
 					'upload-config',
 					'app-settings',
 					'admin-setup',
-					'sections-setup',
+					'categories-setup',
 					'review',
 					'complete'
 				];
@@ -103,7 +124,7 @@ function createSetupStore() {
 					'upload-config',
 					'app-settings',
 					'admin-setup',
-					'sections-setup',
+					'categories-setup',
 					'review',
 					'complete'
 				];
@@ -127,27 +148,29 @@ function createSetupStore() {
 			const errors: string[] = [];
 
 			try {
-				const parsed = parseYaml(yamlContent) as SectionsConfig;
+				const parsed = parseYaml(yamlContent) as BBSConfig;
 
 				// Validate required fields
 				if (!parsed.app?.name) {
 					errors.push('Missing app.name');
 				}
-				if (!parsed.sections?.length) {
-					errors.push('No sections defined');
+				if (!parsed.categories?.length) {
+					errors.push('No categories defined');
 				}
 				if (!parsed.roles?.length) {
 					errors.push('No roles defined');
 				}
 
-				// Validate section references
-				if (parsed.roles && parsed.sections) {
+				// Validate section references within categories
+				if (parsed.roles && parsed.categories) {
 					const roleIds = new Set(parsed.roles.map((r) => r.id));
-					for (const section of parsed.sections) {
-						if (!roleIds.has(section.access.defaultRole)) {
-							errors.push(
-								`Section "${section.id}" references unknown role: ${section.access.defaultRole}`
-							);
+					for (const category of parsed.categories) {
+						for (const section of category.sections || []) {
+							if (!roleIds.has(section.access.defaultRole)) {
+								errors.push(
+									`Section "${section.id}" references unknown role: ${section.access.defaultRole}`
+								);
+							}
 						}
 					}
 				}
@@ -175,58 +198,107 @@ function createSetupStore() {
 		/**
 		 * Update app settings
 		 */
-		setAppSettings(settings: { name: string; version?: string; defaultSection?: string }): void {
+		setAppSettings(settings: { name: string; version?: string; defaultPath?: string }): void {
 			update((state) => ({
 				...state,
 				config: {
 					...state.config,
 					app: {
 						name: settings.name,
-						version: settings.version || '1.0.0',
-						defaultSection: settings.defaultSection || state.config.sections?.[0]?.id || 'default'
+						version: settings.version || '2.0.0',
+						defaultPath: settings.defaultPath || getFirstSectionPath(state.config)
 					}
 				}
 			}));
 		},
 
 		/**
-		 * Add or update a section
+		 * Add or update a category
 		 */
-		addSection(section: SectionsConfig['sections'][0]): void {
+		addCategory(category: CategoryConfig): void {
 			update((state) => {
-				const sections = state.config.sections || [];
-				const existingIndex = sections.findIndex((s) => s.id === section.id);
+				const categories = state.config.categories || [];
+				const existingIndex = categories.findIndex((c) => c.id === category.id);
 
 				if (existingIndex >= 0) {
-					sections[existingIndex] = section;
+					categories[existingIndex] = category;
 				} else {
-					sections.push(section);
+					categories.push(category);
 				}
 
 				return {
 					...state,
-					config: { ...state.config, sections }
+					config: { ...state.config, categories }
 				};
 			});
 		},
 
 		/**
-		 * Remove a section
+		 * Remove a category
 		 */
-		removeSection(sectionId: string): void {
+		removeCategory(categoryId: string): void {
 			update((state) => ({
 				...state,
 				config: {
 					...state.config,
-					sections: (state.config.sections || []).filter((s) => s.id !== sectionId)
+					categories: (state.config.categories || []).filter((c) => c.id !== categoryId)
 				}
 			}));
 		},
 
 		/**
+		 * Add or update a section within a category
+		 */
+		addSection(categoryId: string, section: SectionConfig): void {
+			update((state) => {
+				const categories = state.config.categories || [];
+				const catIndex = categories.findIndex((c) => c.id === categoryId);
+
+				if (catIndex >= 0) {
+					const sections = categories[catIndex].sections || [];
+					const existingIndex = sections.findIndex((s) => s.id === section.id);
+
+					if (existingIndex >= 0) {
+						sections[existingIndex] = section;
+					} else {
+						sections.push(section);
+					}
+					categories[catIndex] = { ...categories[catIndex], sections };
+				}
+
+				return {
+					...state,
+					config: { ...state.config, categories }
+				};
+			});
+		},
+
+		/**
+		 * Remove a section from a category
+		 */
+		removeSection(categoryId: string, sectionId: string): void {
+			update((state) => {
+				const categories = state.config.categories || [];
+				const catIndex = categories.findIndex((c) => c.id === categoryId);
+
+				if (catIndex >= 0) {
+					categories[catIndex] = {
+						...categories[catIndex],
+						sections: (categories[catIndex].sections || []).filter((s) => s.id !== sectionId)
+					};
+				}
+
+				return {
+					...state,
+					config: { ...state.config, categories }
+				};
+			});
+		},
+
+		/**
 		 * Add or update a role
 		 */
-		addRole(role: SectionsConfig['roles'][0]): void {
+		addRole(role: BBSConfig['roles'][0]): void {
 			update((state) => {
 				const roles = state.config.roles || [];
 				const existingIndex = roles.findIndex((r) => r.id === role.id);
@@ -247,7 +319,7 @@ function createSetupStore() {
 		/**
 		 * Add or update a cohort
 		 */
-		addCohort(cohort: SectionsConfig['cohorts'][0]): void {
+		addCohort(cohort: BBSConfig['cohorts'][0]): void {
 			update((state) => {
 				const cohorts = state.config.cohorts || [];
 				const existingIndex = cohorts.findIndex((c) => c.id === cohort.id);

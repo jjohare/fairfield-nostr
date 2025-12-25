@@ -4,7 +4,7 @@
  */
 
 import type { ChannelSection, CalendarAccessLevel } from '$lib/types/channel';
-import { SECTION_CONFIG } from '$lib/types/channel';
+import { getSection } from '$lib/config';
 
 /**
  * Calendar event interface for access filtering
@@ -34,7 +34,8 @@ export interface FilteredCalendarEvent extends CalendarEvent {
  * Get the calendar access level for a section from configuration
  */
 export function getCalendarAccessLevel(section: ChannelSection): CalendarAccessLevel {
-  return SECTION_CONFIG[section]?.features?.calendar?.access || 'none';
+  const sectionConfig = getSection(section);
+  return sectionConfig?.calendar?.access || 'none';
 }
 
 /**

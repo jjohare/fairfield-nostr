@@ -1,47 +1,49 @@
 /**
  * Configuration Loader
- * Loads and parses YAML configuration at build time
- * Uses static import for Vite/SvelteKit compatibility
+ * Loads and parses YAML configuration for 3-tier BBS hierarchy
+ * Category → Section → Forum (NIP-28 Channel)
  */
 
 import type {
+	BBSConfig,
 	SectionsConfig,
+	CategoryConfig,
 	SectionConfig,
 	RoleConfig,
 	CohortConfig,
 	CalendarAccessLevel,
 	RoleId,
+	CategoryId,
 	SectionId,
 	CohortId,
-	SuperuserConfig
+	SuperuserConfig,
+	TierConfig
 } from './types';
 
 import { parse as parseYaml } from 'yaml';
 import { browser } from '$app/environment';
 
-// Import default YAML config at build time using Vite's raw import
-// This eliminates duplication with config/sections.yaml
+// Import default YAML config at build time
 import defaultConfigYaml from '../../../config/sections.yaml?raw';
 
 const STORAGE_KEY = 'nostr_bbs_custom_config';
 
-let cachedConfig: SectionsConfig | null = null;
+let cachedConfig: BBSConfig | null = null;
 
 /**
- * Load and parse the sections configuration
- * Checks localStorage for custom config, falls back to default
+ * Load and parse the BBS configuration
  */
-export function loadConfig(): SectionsConfig {
+export function loadConfig(): BBSConfig {
 	if (cachedConfig) {
 		return cachedConfig;
 	}
 
-	// Check for custom config in localStorage (set during setup)
+	// Check for custom config in localStorage
 	if (browser) {
 		try {
 			const stored = localStorage.getItem(STORAGE_KEY);
 			if (stored) {
-				const customConfig = JSON.parse(stored) as SectionsConfig;
+				const customConfig = JSON.parse(stored) as BBSConfig;
 				validateConfig(customConfig);
 				cachedConfig = customConfig;
 				return cachedConfig;
@@ -53,7 +55,7 @@ export function loadConfig(): SectionsConfig {
 
 	// Fall back to default config
 	try {
-		cachedConfig = parseYaml(defaultConfigYaml) as SectionsConfig;
+		cachedConfig = parseYaml(defaultConfigYaml) as BBSConfig;
 		validateConfig(cachedConfig);
 		return cachedConfig;
 	} catch (error) {
@@ -65,7 +67,7 @@ export function loadConfig(): SectionsConfig {
 /**
  * Save custom configuration to localStorage
  */
-export function saveConfig(config: SectionsConfig): void {
+export function saveConfig(config: BBSConfig): void {
 	if (!browser) return;
 
 	try {
@@ -88,24 +90,26 @@ export function clearConfigCache(): void {
 /**
  * Validate configuration structure
  */
-function validateConfig(config: SectionsConfig): void {
+function validateConfig(config: BBSConfig): void {
 	if (!config.app?.name) {
 		throw new Error('Missing app.name in configuration');
 	}
-	if (!config.sections?.length) {
-		throw new Error('No sections defined in configuration');
+	if (!config.categories?.length) {
+		throw new Error('No categories defined in configuration');
 	}
 	if (!config.roles?.length) {
 		throw new Error('No roles defined in configuration');
 	}
 
-	// Validate section references
+	// Validate role references in sections
 	const roleIds = new Set(config.roles.map((r) => r.id));
-	for (const section of config.sections) {
-		if (!roleIds.has(section.access.defaultRole)) {
-			throw new Error(
-				`Section ${section.id} references unknown role: ${section.access.defaultRole}`
-			);
+	for (const category of config.categories) {
+		for (const section of category.sections) {
+			if (!roleIds.has(section.access.defaultRole)) {
+				throw new Error(
+					`Section ${section.id} references unknown role: ${section.access.defaultRole}`
+				);
+			}
 		}
 	}
 }
@@ -113,12 +117,17 @@ function validateConfig(config: SectionsConfig): void {
 /**
  * Get default configuration (fallback)
  */
-function getDefaultConfig(): SectionsConfig {
+function getDefaultConfig(): BBSConfig {
 	return {
 		app: {
 			name: 'Nostr BBS',
-			version: '1.0.0',
-			defaultSection: 'public-lobby'
+			version: '2.0.0',
+			defaultPath: '/general/public-lobby',
+			tiers: [
+				{ level: 1, name: 'Category', plural: 'Categories' },
+				{ level: 2, name: 'Section', plural: 'Sections' },
+				{ level: 3, name: 'Forum', plural: 'Forums' }
+			]
 		},
 		roles: [
 			{ id: 'guest', name: 'Guest', level: 0, description: 'Basic authenticated user' },
@@ -127,8 +136,8 @@ function getDefaultConfig(): SectionsConfig {
 				id: 'moderator',
 				name: 'Moderator',
 				level: 2,
-				description: 'Can manage channels and moderate',
-				capabilities: ['channel.create', 'message.delete']
+				description: 'Can manage forums and moderate',
+				capabilities: ['forum.create', 'message.delete']
 			},
 			{
 				id: 'section-admin',
@@ -147,83 +156,36 @@ function getDefaultConfig(): SectionsConfig {
 		],
 		cohorts: [
 			{ id: 'admin', name: 'Administrators', description: 'Global administrators' },
-			{ id: 'approved', name: 'Approved Users', description: 'Manually approved' },
-			{ id: 'business', name: 'Business Partners', description: 'Business collaborators' },
-			{ id: 'moomaa-tribe', name: 'Moomaa Tribe', description: 'Core community' }
+			{ id: 'approved', name: 'Approved Users', description: 'Manually approved' }
 		],
-		sections: [
+		categories: [
 			{
-				id: 'public-lobby',
-				name: 'Public Lobby',
-				description: 'Welcome area for visitors',
-				icon: '👋',
+				id: 'general',
+				name: 'General',
+				description: 'Public discussion areas',
+				icon: '🏠',
 				order: 1,
-				access: { requiresApproval: false, defaultRole: 'guest', autoApprove: true },
-				features: {
-					showStats: true,
-					allowChannelCreation: false,
-					calendar: { access: 'full', canCreate: false }
-				},
-				ui: { color: '#6366f1' }
-			},
-			{
-				id: 'community-rooms',
-				name: 'Community Rooms',
-				description: 'Core community chatrooms',
-				icon: '🌙',
-				order: 2,
-				access: { requiresApproval: true, defaultRole: 'member', autoApprove: false },
-				features: {
-					showStats: true,
-					allowChannelCreation: true,
-					calendar: { access: 'full', canCreate: true }
-				},
-				ui: { color: '#8b5cf6' }
-			},
-			{
-				id: 'dreamlab',
-				name: 'DreamLab',
-				description: 'Creative and experimental projects',
-				icon: '✨',
-				order: 3,
-				access: { requiresApproval: true, defaultRole: 'member', autoApprove: false },
-				features: {
-					showStats: true,
-					allowChannelCreation: true,
-					calendar: { access: 'availability', canCreate: true, cohortRestricted: true }
-				},
-				ui: { color: '#ec4899' }
+				sections: [
+					{
+						id: 'public-lobby',
+						name: 'Public Lobby',
+						description: 'Welcome area for visitors',
+						icon: '👋',
+						order: 1,
+						access: { requiresApproval: false, defaultRole: 'guest', autoApprove: true },
+						calendar: { access: 'full', canCreate: false },
+						ui: { color: '#6366f1' },
+						showStats: true,
+						allowForumCreation: false
+					}
+				]
 			}
 		],
 		calendarAccessLevels: [
-			{
-				id: 'full',
-				name: 'Full Access',
-				description: 'All details visible',
-				canView: true,
-				canViewDetails: true
-			},
-			{
-				id: 'availability',
-				name: 'Availability Only',
-				description: 'Dates only',
-				canView: true,
-				canViewDetails: false
-			},
-			{
-				id: 'cohort',
-				name: 'Cohort Restricted',
-				description: 'Cohort match required',
-				canView: true,
-				canViewDetails: 'cohort-match'
-			},
-			{
-				id: 'none',
-				name: 'No Access',
-				description: 'Hidden',
-				canView: false,
-				canViewDetails: false
-			}
+			{ id: 'full', name: 'Full Access', description: 'All details visible', canView: true, canViewDetails: true },
+			{ id: 'availability', name: 'Availability Only', description: 'Dates only', canView: true, canViewDetails: false },
+			{ id: 'cohort', name: 'Cohort Restricted', description: 'Cohort match required', canView: true, canViewDetails: 'cohort-match' },
+			{ id: 'none', name: 'No Access', description: 'Hidden', canView: false, canViewDetails: false }
 		],
 		channelVisibility: [
 			{ id: 'public', name: 'Public', description: 'All section members' },
@@ -233,12 +195,97 @@ function getDefaultConfig(): SectionsConfig {
 	};
 }
 
-// Config accessor functions
+// Load config once at module level
 const config = loadConfig();
+
+// ============================================================================
+// APP CONFIG
+// ============================================================================
 
 export function getAppConfig() {
 	return config.app;
 }
+
+export function getTiers(): TierConfig[] {
+	return config.app.tiers || [
+		{ level: 1, name: 'Category', plural: 'Categories' },
+		{ level: 2, name: 'Section', plural: 'Sections' },
+		{ level: 3, name: 'Forum', plural: 'Forums' }
+	];
+}
+
+export function getDefaultPath(): string {
+	return config.app.defaultPath || '/general/public-lobby';
+}
+
+// ============================================================================
+// CATEGORIES (Tier 1)
+// ============================================================================
+
+export function getCategories(): CategoryConfig[] {
+	return config.categories.sort((a, b) => a.order - b.order);
+}
+
+export function getCategory(categoryId: CategoryId): CategoryConfig | undefined {
+	return config.categories.find((c) => c.id === categoryId);
+}
+
+export function getDefaultCategory(): CategoryConfig {
+	const defaultPath = config.app.defaultPath || '/general/public-lobby';
+	const categoryId = defaultPath.split('/')[1];
+	return getCategory(categoryId) || config.categories[0];
+}
+
+// ============================================================================
+// SECTIONS (Tier 2)
+// ============================================================================
+
+export function getSections(): SectionConfig[] {
+	// Flatten all sections from all categories
+	return config.categories
+		.flatMap((cat) => cat.sections.map((sec) => ({ ...sec, _categoryId: cat.id })))
+		.sort((a, b) => a.order - b.order);
+}
+
+export function getSectionsByCategory(categoryId: CategoryId): SectionConfig[] {
+	const category = getCategory(categoryId);
+	if (!category) return [];
+	return category.sections.sort((a, b) => a.order - b.order);
+}
+
+export function getSection(sectionId: SectionId): SectionConfig | undefined {
+	for (const category of config.categories) {
+		const section = category.sections.find((s) => s.id === sectionId);
+		if (section) return section;
+	}
+	return undefined;
+}
+
+export function getSectionWithCategory(sectionId: SectionId): { section: SectionConfig; category: CategoryConfig } | undefined {
+	for (const category of config.categories) {
+		const section = category.sections.find((s) => s.id === sectionId);
+		if (section) return { section, category };
+	}
+	return undefined;
+}
+
+export function getDefaultSection(): SectionConfig {
+	const defaultPath = config.app.defaultPath || '/general/public-lobby';
+	const parts = defaultPath.split('/').filter(Boolean);
+	if (parts.length >= 2) {
+		const section = getSection(parts[1]);
+		if (section) return section;
+	}
+	return config.categories[0]?.sections[0];
+}
+
+export function getSectionsByAccess(requiresApproval: boolean): SectionConfig[] {
+	return getSections().filter((s) => s.access.requiresApproval === requiresApproval);
+}
+
+// ============================================================================
+// ROLES
+// ============================================================================
 
 export function getRoles(): RoleConfig[] {
 	return config.roles;
@@ -248,6 +295,31 @@ export function getRole(roleId: RoleId): RoleConfig | undefined {
 	return config.roles.find((r) => r.id === roleId);
 }
 
+export function roleHasCapability(roleId: RoleId, capability: string): boolean {
+	const role = getRole(roleId);
+	if (!role) return false;
+	if (role.id === 'admin') return true;
+	return role.capabilities?.includes(capability) ?? false;
+}
+
+export function roleIsHigherThan(roleA: RoleId, roleB: RoleId): boolean {
+	const a = getRole(roleA);
+	const b = getRole(roleB);
+	if (!a || !b) return false;
+	return a.level > b.level;
+}
+
+export function getHighestRole(roles: RoleId[]): RoleId {
+	if (roles.length === 0) return 'guest';
+	return roles.reduce((highest, current) => {
+		return roleIsHigherThan(current, highest) ? current : highest;
+	}, roles[0]);
+}
+
+// ============================================================================
+// COHORTS
+// ============================================================================
+
 export function getCohorts(): CohortConfig[] {
 	return config.cohorts;
 }
@@ -256,61 +328,18 @@ export function getCohort(cohortId: CohortId): CohortConfig | undefined {
 	return config.cohorts.find((c) => c.id === cohortId);
 }
 
-export function getSections(): SectionConfig[] {
-	return config.sections.sort((a, b) => a.order - b.order);
-}
-
-export function getSection(sectionId: SectionId): SectionConfig | undefined {
-	return config.sections.find((s) => s.id === sectionId);
-}
-
-export function getDefaultSection(): SectionConfig {
-	return getSection(config.app.defaultSection) || config.sections[0];
-}
-
-export function getSectionsByAccess(requiresApproval: boolean): SectionConfig[] {
-	return config.sections.filter((s) => s.access.requiresApproval === requiresApproval);
-}
+// ============================================================================
+// CALENDAR
+// ============================================================================
 
 export function getCalendarAccessLevel(level: CalendarAccessLevel) {
 	return config.calendarAccessLevels.find((l) => l.id === level);
 }
 
-/**
- * Check if a role has a specific capability
- */
-export function roleHasCapability(roleId: RoleId, capability: string): boolean {
-	const role = getRole(roleId);
-	if (!role) return false;
+// ============================================================================
+// SUPERUSER
+// ============================================================================
 
-	// Admin has all capabilities
-	if (role.id === 'admin') return true;
-
-	return role.capabilities?.includes(capability) ?? false;
-}
-
-/**
- * Check if one role is higher than another
- */
-export function roleIsHigherThan(roleA: RoleId, roleB: RoleId): boolean {
-	const a = getRole(roleA);
-	const b = getRole(roleB);
-	if (!a || !b) return false;
-	return a.level > b.level;
-}
-
-/**
- * Get the highest role from a list
- */
-export function getHighestRole(roles: RoleId[]): RoleId {
-	if (roles.length === 0) return 'guest';
-
-	return roles.reduce((highest, current) => {
-		return roleIsHigherThan(current, highest) ? current : highest;
-	}, roles[0]);
-}
-
-// Superuser accessor
 export function getSuperuser(): SuperuserConfig | undefined {
 	return config.superuser;
 }
@@ -319,19 +348,76 @@ export function isSuperuser(pubkey: string): boolean {
 	return config.superuser?.pubkey === pubkey;
 }
 
-// Export typed section IDs for backward compatibility
-export type { SectionId as ChannelSection } from './types';
+// ============================================================================
+// NAVIGATION HELPERS
+// ============================================================================
 
-/**
- * Legacy compatibility: SECTION_CONFIG object
- * Maps section ID to SectionConfig for existing code
- */
+import type { BreadcrumbItem } from './types';
+
+export function getBreadcrumbs(categoryId?: CategoryId, sectionId?: SectionId, forumName?: string): BreadcrumbItem[] {
+	const crumbs: BreadcrumbItem[] = [
+		{ label: 'Home', path: '/', icon: '🏠' }
+	];
+
+	if (categoryId) {
+		const category = getCategory(categoryId);
+		if (category) {
+			crumbs.push({
+				label: category.name,
+				path: `/${categoryId}`,
+				icon: category.icon
+			});
+		}
+	}
+
+	if (sectionId) {
+		const section = getSection(sectionId);
+		if (section) {
+			crumbs.push({
+				label: section.name,
+				path: `/${categoryId}/${sectionId}`,
+				icon: section.icon
+			});
+		}
+	}
+
+	if (forumName) {
+		crumbs.push({
+			label: forumName,
+			path: '#',
+			icon: '💬'
+		});
+	}
+
+	return crumbs;
+}
+
+export function getCategoryPath(categoryId: CategoryId): string {
+	return `/${categoryId}`;
+}
+
+export function getSectionPath(categoryId: CategoryId, sectionId: SectionId): string {
+	return `/${categoryId}/${sectionId}`;
+}
+
+export function getForumPath(categoryId: CategoryId, sectionId: SectionId, forumId: string): string {
+	return `/${categoryId}/${sectionId}/${forumId}`;
+}
+
+// ============================================================================
+// LEGACY COMPATIBILITY
+// ============================================================================
+
+// For code that still uses SECTION_CONFIG map
 export function getSectionConfigMap(): Record<string, SectionConfig> {
 	const map: Record<string, SectionConfig> = {};
-	for (const section of config.sections) {
+	for (const section of getSections()) {
 		map[section.id] = section;
 	}
 	return map;
 }
 
 export const SECTION_CONFIG = getSectionConfigMap();
+
+// Export type aliases
+export type { SectionId as ChannelSection } from './types';

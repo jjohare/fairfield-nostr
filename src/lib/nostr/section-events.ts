@@ -261,7 +261,7 @@ export function getSectionCalendarAccess(
   const section = getSection(sectionId);
   if (!section) return 'none';
 
-  const calendarConfig = section.features.calendar;
+  const calendarConfig = section.calendar;
 
   if (calendarConfig.access === 'none') return 'none';
 

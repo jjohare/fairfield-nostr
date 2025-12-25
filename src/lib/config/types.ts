@@ -1,11 +1,14 @@
 /**
  * Configuration Types
- * Type definitions for YAML-based section configuration
+ * Type definitions for YAML-based 3-tier BBS configuration
+ * Hierarchy: Category → Section → Forum (NIP-28 Channel)
  */
 
 export type RoleId = 'guest' | 'member' | 'moderator' | 'section-admin' | 'admin';
 export type CohortId = string;
+export type CategoryId = string;
 export type SectionId = string;
+export type ForumId = string;
 export type CalendarAccessLevel = 'full' | 'availability' | 'cohort' | 'none';
 export type ChannelVisibility = 'public' | 'cohort' | 'invite';
 
@@ -28,38 +31,73 @@ export interface CohortConfig {
 	description: string;
 }
 
-export interface SectionAccessConfig {
+export interface AccessConfig {
 	requiresApproval: boolean;
 	defaultRole: RoleId;
-	autoApprove: boolean;
+	autoApprove?: boolean;
 	requiredCohorts?: CohortId[];
 }
 
-export interface SectionCalendarConfig {
+export interface CalendarConfig {
 	access: CalendarAccessLevel;
 	canCreate: boolean;
 	cohortRestricted?: boolean;
 }
 
-export interface SectionFeaturesConfig {
-	showStats: boolean;
-	allowChannelCreation: boolean;
-	calendar: SectionCalendarConfig;
-}
-
-export interface SectionUIConfig {
+export interface UIConfig {
 	color: string;
 }
 
+/**
+ * Tier configuration for naming flexibility
+ */
+export interface TierConfig {
+	level: number;
+	name: string;
+	plural: string;
+}
+
+/**
+ * Forum (Tier 3) - Maps to NIP-28 Channel
+ * Forums are dynamically populated from Nostr events
+ */
+export interface ForumConfig {
+	id: ForumId;
+	name: string;
+	description: string;
+	icon?: string;
+	order: number;
+	pinned?: boolean;
+	locked?: boolean;
+}
+
+/**
+ * Section (Tier 2) - Container for Forums
+ */
 export interface SectionConfig {
 	id: SectionId;
 	name: string;
 	description: string;
 	icon: string;
 	order: number;
-	access: SectionAccessConfig;
-	features: SectionFeaturesConfig;
-	ui: SectionUIConfig;
+	access: AccessConfig;
+	calendar: CalendarConfig;
+	ui: UIConfig;
+	allowForumCreation?: boolean;
+	showStats?: boolean;
+}
+
+/**
+ * Category (Tier 1) - Top-level container
+ */
+export interface CategoryConfig {
+	id: CategoryId;
+	name: string;
+	description: string;
+	icon: string;
+	order: number;
+	sections: SectionConfig[];
+	ui?: UIConfig;
 }
 
 export interface CalendarAccessLevelConfig {
@@ -79,7 +117,8 @@ export interface ChannelVisibilityConfig {
 export interface AppConfig {
 	name: string;
 	version: string;
-	defaultSection: SectionId;
+	defaultPath: string; // e.g., '/general/public-lobby'
+	tiers?: TierConfig[];
 }
 
 export interface SuperuserConfig {
@@ -95,15 +134,27 @@ export interface DeploymentConfig {
 	frontendUrl?: string;
 }
 
-export interface SectionsConfig {
+export interface BBSConfig {
 	app: AppConfig;
 	superuser?: SuperuserConfig;
 	deployment?: DeploymentConfig;
 	roles: RoleConfig[];
 	cohorts: CohortConfig[];
-	sections: SectionConfig[];
+	categories: CategoryConfig[];
 	calendarAccessLevels: CalendarAccessLevelConfig[];
 	channelVisibility: ChannelVisibilityConfig[];
+}
+
+// Alias for backward compatibility during migration
+export type SectionsConfig = BBSConfig;
+
+/**
+ * Breadcrumb navigation item
+ */
+export interface BreadcrumbItem {
+	label: string;
+	path: string;
+	icon?: string;
 }
 
 /**

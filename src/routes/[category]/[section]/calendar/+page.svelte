@@ -6,8 +6,7 @@
   import { authStore } from '$lib/stores/auth';
   import { userStore } from '$lib/stores/user';
   import { ndk, connectRelay, isConnected } from '$lib/nostr/relay';
-  import { RELAY_URL } from '$lib/config';
-  import { getSection, getSections } from '$lib/config';
+  import { RELAY_URL, getSectionWithCategory, getBreadcrumbs, getCategories } from '$lib/config';
   import {
     fetchSectionEvents,
     getSectionCalendarAccess,
@@ -15,9 +14,8 @@
   } from '$lib/nostr/section-events';
   import { fetchTribeBirthdayEvents } from '$lib/nostr/birthdays';
   import type { CalendarEvent } from '$lib/nostr/calendar';
-  import type { ChannelSection } from '$lib/types/channel';
+  import Breadcrumb from '$lib/components/navigation/Breadcrumb.svelte';
   import EventCalendar from '$lib/components/events/EventCalendar.svelte';
-  import EventCard from '$lib/components/events/EventCard.svelte';
 
   let events: (SectionEvent | CalendarEvent)[] = [];
   let loading = true;
@@ -26,10 +24,14 @@
   let viewMode: 'calendar' | 'list' = 'calendar';
   let accessLevel: 'full' | 'availability' | 'none' = 'none';
 
-  $: sectionId = $page.params.section as ChannelSection;
-  $: section = getSection(sectionId);
-  $: sections = getSections();
+  $: categoryId = $page.params.category;
+  $: sectionId = $page.params.section;
+  $: sectionInfo = getSectionWithCategory(sectionId);
+  $: section = sectionInfo?.section;
+  $: category = sectionInfo?.category;
+  $: breadcrumbs = section && category ? [...getBreadcrumbs(categoryId, sectionId), { label: 'Calendar', path: `/${categoryId}/${sectionId}/calendar` }] : [];
   $: userCohorts = $userStore.profile?.cohorts || [];
+  $: categories = getCategories();
 
   onMount(async () => {
     await authStore.waitForReady();
@@ -39,15 +41,14 @@
       return;
     }
 
-    // Validate section exists
-    if (!section) {
+    if (!section || !category) {
       error = `Section "${sectionId}" not found`;
       loading = false;
       return;
     }
 
-    // Check calendar access
-    accessLevel = getSectionCalendarAccess(userCohorts, sectionId);
+    // Check calendar access using section ID cast to ChannelSection
+    accessLevel = getSectionCalendarAccess(userCohorts, sectionId as import('$lib/types/channel').ChannelSection);
 
     if (accessLevel === 'none') {
       error = 'You do not have access to this section calendar';
@@ -61,15 +62,14 @@
       }
 
       // Fetch section events
-      const sectionEvents = await fetchSectionEvents(sectionId);
+      const sectionEvents = await fetchSectionEvents(sectionId as import('$lib/types/channel').ChannelSection);
 
-      // Also fetch tribe birthdays if this is the moomaa-tribe section
+      // Also fetch tribe birthdays for community sections
       let birthdayEvents: CalendarEvent[] = [];
       if (sectionId === 'community-rooms' && $authStore.publicKey) {
         birthdayEvents = await fetchTribeBirthdayEvents($authStore.publicKey);
       }
 
-      // Combine and sort events
       events = [...sectionEvents, ...birthdayEvents].sort((a, b) => a.start - b.start);
     } catch (e) {
       console.error('Failed to load section events:', e);
@@ -81,8 +81,6 @@
 
   function handleEventClick(event: CustomEvent<SectionEvent | CalendarEvent>) {
     const ev = event.detail;
-
-    // For section events, navigate to the original message
     if ('messageId' in ev && ev.messageId) {
       goto(`${base}/chat?channel=${ev.channelId}&message=${ev.messageId}`);
     }
@@ -92,12 +90,11 @@
     console.log('Day clicked:', event.detail);
   }
 
-  function navigateToSection(targetSection: string) {
-    goto(`${base}/${targetSection}/calendar`);
+  function navigateToSectionCalendar(catId: string, secId: string) {
+    goto(`${base}/${catId}/${secId}/calendar`);
   }
 
   function formatEventForDisplay(event: SectionEvent | CalendarEvent): CalendarEvent {
-    // If it's an availability-only view, hide details
     if (accessLevel === 'availability' && !('id' in event && event.id.startsWith('birthday-'))) {
       return {
         ...event,
@@ -117,8 +114,9 @@
 </svelte:head>
 
 <div class="container mx-auto p-4 max-w-6xl">
-  <!-- Header -->
-  <div class="mb-6">
+  <Breadcrumb items={breadcrumbs} />
+
+  <div class="mt-6 mb-6">
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div>
         <h1 class="text-3xl font-bold mb-2">
@@ -140,26 +138,14 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <!-- View Toggle -->
         <div class="btn-group">
           <button
             class="btn btn-sm"
             class:btn-active={viewMode === 'calendar'}
             on:click={() => (viewMode = 'calendar')}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </button>
           <button
@@ -167,19 +153,8 @@
             class:btn-active={viewMode === 'list'}
             on:click={() => (viewMode = 'list')}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 6h16M4 10h16M4 14h16M4 18h16"
-              />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
             </svg>
           </button>
         </div>
@@ -193,23 +168,25 @@
       <div class="card bg-base-200 shadow-lg">
         <div class="card-body p-4">
           <h3 class="font-bold text-sm mb-3">Section Calendars</h3>
-          <div class="space-y-1">
-            {#each sections as sec}
-              <button
-                class="btn btn-sm btn-block justify-start gap-2"
-                class:btn-primary={sectionId === sec.id}
-                class:btn-ghost={sectionId !== sec.id}
-                on:click={() => navigateToSection(sec.id)}
-              >
-                <span>{sec.icon}</span>
-                <span class="truncate">{sec.name}</span>
-              </button>
+          <div class="space-y-2">
+            {#each categories as cat}
+              <div class="text-xs text-base-content/60 uppercase font-semibold mt-2">{cat.icon} {cat.name}</div>
+              {#each cat.sections || [] as sec}
+                <button
+                  class="btn btn-sm btn-block justify-start gap-2"
+                  class:btn-primary={sectionId === sec.id}
+                  class:btn-ghost={sectionId !== sec.id}
+                  on:click={() => navigateToSectionCalendar(cat.id, sec.id)}
+                >
+                  <span>{sec.icon}</span>
+                  <span class="truncate">{sec.name}</span>
+                </button>
+              {/each}
             {/each}
           </div>
         </div>
       </div>
 
-      <!-- Stats -->
       <div class="card bg-base-200 shadow-lg">
         <div class="card-body p-4">
           <h3 class="font-bold text-sm mb-3">Event Stats</h3>
@@ -228,7 +205,6 @@
         </div>
       </div>
 
-      <!-- Access Info -->
       <div class="card bg-base-200 shadow-lg">
         <div class="card-body p-4">
           <h3 class="font-bold text-sm mb-3">Access Level</h3>
@@ -241,7 +217,7 @@
               <div class="badge badge-error">No Access</div>
             {/if}
           </div>
-          {#if section?.features.calendar.canCreate && accessLevel === 'full'}
+          {#if section?.calendar?.canCreate && accessLevel === 'full'}
             <p class="text-xs text-base-content/60 mt-2">
               You can create events in this section
             </p>
@@ -308,25 +284,9 @@
                   </div>
                   {#if accessLevel === 'full' && event.location}
                     <div class="flex items-center gap-1 text-sm text-base-content/60 mt-2">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                        />
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
                       {event.location}
                     </div>
