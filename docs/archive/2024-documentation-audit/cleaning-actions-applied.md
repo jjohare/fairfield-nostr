@@ -64,7 +64,7 @@ title: [Document Title]
 description: [Concise description]
 category: [architecture|feature|reference|deployment]
 tags: [relevant, tags, here]
-last_updated: YYYY-MM-DD
+last_updated: 2025-12-23
 ---
 ```
 

@@ -189,7 +189,7 @@ Every markdown file must include YAML front matter:
 title: Document Title
 description: Brief one-sentence description
 status: draft
-last_updated: 2025-12-20
+last_updated: 2025-12-23
 ---
 ```
 
@@ -200,7 +200,7 @@ last_updated: 2025-12-20
 title: Channel Configuration Guide
 description: Learn how to configure and customise channel settings in nostr-BBS
 status: approved
-last_updated: 2025-12-20
+last_updated: 2025-12-23
 category: guide
 difficulty: intermediate
 tags:

@@ -4,7 +4,7 @@ description: Comprehensive quality assessment of nostr-BBS documentation corpus
 category: maintenance
 tags: [quality-assurance, validation, documentation, metrics]
 status: final
-last_updated: 2023-12-23
+last_updated: 2025-12-23
 version: 1.1.0
 ---
 

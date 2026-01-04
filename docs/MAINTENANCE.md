@@ -2,7 +2,7 @@
 title: Documentation Maintenance Guide
 description: Procedures for maintaining and updating project documentation
 status: approved
-last_updated: 2025-12-20
+last_updated: 2025-12-23
 category: maintenance
 tags: [maintenance, documentation]
 ---
@@ -199,7 +199,7 @@ git commit --no-verify -m "docs: emergency fix"
 title: Document Title
 description: Brief description
 status: draft|review|approved|deprecated
-last_updated: YYYY-MM-DD
+last_updated: 2025-12-23
 category: guide|reference|api|tutorial
 tags: [maintenance, documentation]
 ---

@@ -89,7 +89,7 @@ title: [Document Title]
 description: [Concise description under 160 characters]
 category: [architecture|feature|reference|deployment|quality|development]
 tags: [relevant, searchable, keywords]
-last_updated: YYYY-MM-DD
+last_updated: 2025-12-23
 ---
 ```
 

@@ -216,7 +216,7 @@ Every documentation file must include:
 title: Your Document Title
 description: Brief description of the document
 status: draft  # draft|review|approved|deprecated
-last_updated: 2025-12-23  # YYYY-MM-DD format
+last_updated: 2025-12-23
 category: guide  # Optional: guide|api|reference|feature
 difficulty: intermediate  # Required for guides only
 api_version: 1.0  # Required for API docs only
