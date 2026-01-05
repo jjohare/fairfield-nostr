@@ -824,7 +824,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ### JavaScriptSolidServer
 
-- **Repository**: https://github.com/CommunitySolidServer/CommunitySolidServer
+- **Repository**: https://github.com/JavaScriptSolidServer/JavaScriptSolidServer
+- **Author**: Melvin Carvalho
 - **License**: MIT
 - **Usage**: SOLID pod server providing personal data storage with WebID authentication
 - **Integration**: Enables users to store and control their own data while authenticating via Nostr keypairs
@@ -838,14 +839,14 @@ MIT License - see [LICENSE](LICENSE) for details.
 <table>
 <tr>
 <td align="center" width="50%">
-<a href="https://github.com/CommunitySolidServer/CommunitySolidServer">
-<strong>Community Solid Server</strong>
+<a href="https://github.com/JavaScriptSolidServer/JavaScriptSolidServer">
+<strong>JavaScriptSolidServer</strong>
 </a>
 <br/>
-<sub>SOLID/WebID infrastructure enabling decentralized personal data storage</sub>
+<sub>Melvin Carvalho's SOLID/WebID server enabling decentralized personal data storage</sub>
 </td>
 <td align="center" width="50%">
-<a href="https://github.com/Agentic-Alliance">
+<a href="https://github.com/agenticalliance">
 <strong>Agentic Alliance</strong>
 </a>
 <br/>
