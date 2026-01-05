@@ -6,6 +6,8 @@ claude-flow.config.json
 .swarm/
 .hive-mind/
 .claude-flow/
+JavaScriptSolidServer/.claude-flow/
+JavaScriptSolidServer/.swarm/
 memory/
 coordination/
 memory/claude-flow-data.json
@@ -62,4 +64,3 @@ coverage
 *~
 .npmrc
 test-results/
-
