@@ -9,9 +9,9 @@ import { browser } from '$app/environment';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import type { BBSConfig, CategoryConfig, SectionConfig } from '$lib/config/types';
 
-const SETUP_KEY = 'minimoonoir-setup-complete';
-const CONFIG_KEY = 'minimoonoir-custom-config';
-const DEPLOYMENT_KEY = 'minimoonoir-deployment-config';
+const SETUP_KEY = 'nostr-bbs-setup-complete';
+const CONFIG_KEY = 'nostr-bbs-custom-config';
+const DEPLOYMENT_KEY = 'nostr-bbs-deployment-config';
 
 export type SetupStep =
 	| 'welcome'

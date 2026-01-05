@@ -6,7 +6,7 @@
  * Access Model:
  * - public-lobby: Auto-approved for all authenticated users
  * - community-rooms: Requires admin approval
- * - dreamlab: Requires admin approval
+ * - creative: Requires admin approval
  *
  * Flow:
  * 1. User sees section stats/preview

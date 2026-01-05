@@ -1,11 +1,11 @@
 /**
  * Live Endpoint E2E Tests
- * Tests against https://dreamlab-ai.github.io/fairfield/
+ * Tests against https://creative-ai.github.io/nostr-bbs/
  */
 
 import { test, expect, type Page } from '@playwright/test';
 
-const LIVE_URL = 'https://dreamlab-ai.github.io/fairfield';
+const LIVE_URL = 'https://creative-ai.github.io/nostr-bbs';
 const ADMIN_MNEMONIC = 'glimpse marble confirm army sleep imitate lake balance home panic view brand';
 const ADMIN_PUBKEY = '11ed64225dd5e2c5e18f61ad43d5ad9272d08739d3a20dd25886197b0738663c';
 
@@ -34,15 +34,15 @@ async function loginWithMnemonic(page: Page, mnemonic: string) {
 }
 
 test.describe('Live Endpoint Tests', () => {
-  test('site loads and shows Fairfield branding', async ({ page }) => {
+  test('site loads and shows Nostr BBS branding', async ({ page }) => {
     await page.goto(LIVE_URL);
     await page.waitForLoadState('networkidle');
 
     // Take screenshot of landing page
     await page.screenshot({ path: '/tmp/playwright-screenshots/01-landing.png', fullPage: true });
 
-    // Should see Fairfield title or login options
-    const hasTitle = await page.getByText(/Fairfield/i).isVisible({ timeout: 5000 }).catch(() => false);
+    // Should see Nostr BBS title or login options
+    const hasTitle = await page.getByText(/Nostr BBS/i).isVisible({ timeout: 5000 }).catch(() => false);
     const hasLogin = await page.getByRole('link', { name: /login/i }).isVisible({ timeout: 3000 }).catch(() => false);
     const hasSignup = await page.getByRole('link', { name: /create.*account|sign.*up/i }).isVisible({ timeout: 3000 }).catch(() => false);
 
@@ -177,18 +177,18 @@ test.describe('Live Endpoint Tests', () => {
     await page.screenshot({ path: '/tmp/playwright-screenshots/07-sections.png', fullPage: true });
 
     // Check for expected section names
-    const hasFairfieldGuests = await page.getByText('Fairfield Guests').isVisible({ timeout: 5000 }).catch(() => false);
+    const hasNostr BBSGuests = await page.getByText('Nostr BBS Guests').isVisible({ timeout: 5000 }).catch(() => false);
     const hasMiniMooNoir = await page.getByText('MiniMooNoir').isVisible({ timeout: 5000 }).catch(() => false);
-    const hasDreamLab = await page.getByText('DreamLab').isVisible({ timeout: 5000 }).catch(() => false);
+    const hasCreative = await page.getByText('Creative').isVisible({ timeout: 5000 }).catch(() => false);
 
     console.log(`Section visibility:`);
-    console.log(`  - Fairfield Guests: ${hasFairfieldGuests}`);
+    console.log(`  - Nostr BBS Guests: ${hasNostr BBSGuests}`);
     console.log(`  - MiniMooNoir: ${hasMiniMooNoir}`);
-    console.log(`  - DreamLab: ${hasDreamLab}`);
+    console.log(`  - Creative: ${hasCreative}`);
 
     // Get page HTML to inspect
     const pageContent = await page.content();
-    const sectionMatches = pageContent.match(/(Fairfield Guests|MiniMooNoir|DreamLab)/g);
+    const sectionMatches = pageContent.match(/(Nostr BBS Guests|MiniMooNoir|Creative)/g);
     console.log('Sections found in HTML:', sectionMatches);
   });
 

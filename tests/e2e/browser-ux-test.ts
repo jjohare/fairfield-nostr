@@ -1,6 +1,6 @@
 /**
  * Comprehensive Browser UX/UI Test
- * Tests the Fairfield app across multiple user agents, checking console errors,
+ * Tests the Nostr BBS app across multiple user agents, checking console errors,
  * feature functionality, and visual rendering.
  */
 

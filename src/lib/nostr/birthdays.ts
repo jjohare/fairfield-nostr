@@ -97,12 +97,12 @@ export function birthdaysToCalendarEvents(
 
 /**
  * Fetch birthday calendar events for current user's tribe
- * Returns empty array if user is not in moomaa-tribe
+ * Returns empty array if user is not in members
  */
 export async function fetchTribeBirthdayEvents(
   userPubkey: string
 ): Promise<CalendarEvent[]> {
-  const tribeCohort: CohortName = 'moomaa-tribe';
+  const tribeCohort: CohortName = 'members';
 
   // Check if current user is a tribe member
   const isTribeMember = await verifyCohortMembership(userPubkey, tribeCohort);
@@ -146,7 +146,7 @@ export async function getUpcomingBirthdays(
   userPubkey: string,
   days: number = 30
 ): Promise<BirthdayEntry[]> {
-  const tribeCohort: CohortName = 'moomaa-tribe';
+  const tribeCohort: CohortName = 'members';
 
   // Check if current user is a tribe member
   const isTribeMember = await verifyCohortMembership(userPubkey, tribeCohort);

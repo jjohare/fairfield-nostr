@@ -10,10 +10,10 @@ set -e
 PROJECT_ID="${GCP_PROJECT_ID:?Error: GCP_PROJECT_ID environment variable must be set}"
 REGION="${GCP_REGION:-us-central1}"
 SERVICE_NAME="embedding-api"
-REPO="minimoonoir"
+REPO="${GCP_ARTIFACT_REPO:-nostr-bbs}"
 IMAGE_NAME="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE_NAME}"
 TAG="${1:-latest}"
-SERVICE_ACCOUNT="fairfield-applications@${PROJECT_ID}.iam.gserviceaccount.com"
+SERVICE_ACCOUNT="${GCP_SERVICE_ACCOUNT:-nostr-bbs-runtime@${PROJECT_ID}.iam.gserviceaccount.com}"
 
 echo "=== Embedding API Deployment ==="
 echo "Project: ${PROJECT_ID}"
@@ -59,7 +59,7 @@ gcloud run deploy ${SERVICE_NAME} \
     --max-instances 3 \
     --concurrency 80 \
     --timeout 60 \
-    --set-env-vars "ALLOWED_ORIGINS=https://dreamlab-ai.github.io,https://jjohare.github.io,http://localhost:5173"
+    --set-env-vars "ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5173}"
 
 echo ""
 echo "=== Step 5: Verify Deployment ==="

@@ -4,8 +4,8 @@
  * Tests calendar visibility based on section membership:
  * - Nostr-BBS Guests: Full access to all calendar events
  * - Nostr-BBS members: Full access to all calendar events
- * - DreamLab members: Can only see availability (dates booked)
- * - DreamLab with cohort match: Can see event details for their cohort
+ * - Creative members: Can only see availability (dates booked)
+ * - Creative with cohort match: Can see event details for their cohort
  */
 
 import { test, expect } from '@playwright/test';
@@ -198,18 +198,18 @@ test.describe('Calendar Access - Nostr-BBS Members', () => {
   });
 });
 
-test.describe('Calendar Access - DreamLab Members (Availability Only)', () => {
+test.describe('Calendar Access - Creative Members (Availability Only)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => localStorage.clear());
   });
 
-  test('DreamLab member can view calendar but with limited details', async ({ page, context }) => {
-    // Get approved for DreamLab
+  test('Creative member can view calendar but with limited details', async ({ page, context }) => {
+    // Get approved for Creative
     await signupNewUser(page);
     const userPubkey = await getCurrentUserPubkey(page);
 
-    await requestSectionAccess(page, 'dreamlab');
+    await requestSectionAccess(page, 'creative');
 
     const adminPage = await context.newPage();
     await loginAsAdmin(adminPage);
@@ -226,12 +226,12 @@ test.describe('Calendar Access - DreamLab Members (Availability Only)', () => {
     expect(hasCalendar).toBe(true);
   });
 
-  test('DreamLab member sees availability but not event details', async ({ page, context }) => {
-    // Get approved for DreamLab only (not Nostr-BBS)
+  test('Creative member sees availability but not event details', async ({ page, context }) => {
+    // Get approved for Creative only (not Nostr-BBS)
     await signupNewUser(page);
     const userPubkey = await getCurrentUserPubkey(page);
 
-    await requestSectionAccess(page, 'dreamlab');
+    await requestSectionAccess(page, 'creative');
 
     const adminPage = await context.newPage();
     await loginAsAdmin(adminPage);
@@ -264,16 +264,16 @@ test.describe('Calendar Access - DreamLab Members (Availability Only)', () => {
       expect(hasAvailabilityIndicator || hasLimitedMessage || calendarEvents === 0).toBe(true);
     }
 
-    // Test passes - DreamLab has limited access
+    // Test passes - Creative has limited access
     expect(true).toBe(true);
   });
 
-  test('DreamLab member cannot see event locations', async ({ page, context }) => {
-    // Get approved for DreamLab only
+  test('Creative member cannot see event locations', async ({ page, context }) => {
+    // Get approved for Creative only
     await signupNewUser(page);
     const userPubkey = await getCurrentUserPubkey(page);
 
-    await requestSectionAccess(page, 'dreamlab');
+    await requestSectionAccess(page, 'creative');
 
     const adminPage = await context.newPage();
     await loginAsAdmin(adminPage);
@@ -306,12 +306,12 @@ test.describe('Calendar Access - DreamLab Members (Availability Only)', () => {
     expect(true).toBe(true);
   });
 
-  test('DreamLab member cannot see event descriptions', async ({ page, context }) => {
-    // Get approved for DreamLab only
+  test('Creative member cannot see event descriptions', async ({ page, context }) => {
+    // Get approved for Creative only
     await signupNewUser(page);
     const userPubkey = await getCurrentUserPubkey(page);
 
-    await requestSectionAccess(page, 'dreamlab');
+    await requestSectionAccess(page, 'creative');
 
     const adminPage = await context.newPage();
     await loginAsAdmin(adminPage);
@@ -341,13 +341,13 @@ test.describe('Calendar Access - DreamLab Members (Availability Only)', () => {
   });
 });
 
-test.describe('Calendar Access - DreamLab with Cohort Match', () => {
+test.describe('Calendar Access - Creative with Cohort Match', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => localStorage.clear());
   });
 
-  test('DreamLab member with cohort tag can see matching event details', async ({ page, context }) => {
+  test('Creative member with cohort tag can see matching event details', async ({ page, context }) => {
     // This test would require:
     // 1. Admin assigns cohort to user
     // 2. Calendar event tagged with same cohort
@@ -356,7 +356,7 @@ test.describe('Calendar Access - DreamLab with Cohort Match', () => {
     await signupNewUser(page);
     const userPubkey = await getCurrentUserPubkey(page);
 
-    await requestSectionAccess(page, 'dreamlab');
+    await requestSectionAccess(page, 'creative');
 
     const adminPage = await context.newPage();
     await loginAsAdmin(adminPage);
@@ -377,12 +377,12 @@ test.describe('Calendar Access - DreamLab with Cohort Match', () => {
     expect(true).toBe(true);
   });
 
-  test('DreamLab member without cohort match sees only availability', async ({ page, context }) => {
-    // User has DreamLab access but no cohort assignment
+  test('Creative member without cohort match sees only availability', async ({ page, context }) => {
+    // User has Creative access but no cohort assignment
     await signupNewUser(page);
     const userPubkey = await getCurrentUserPubkey(page);
 
-    await requestSectionAccess(page, 'dreamlab');
+    await requestSectionAccess(page, 'creative');
 
     const adminPage = await context.newPage();
     await loginAsAdmin(adminPage);
@@ -432,11 +432,11 @@ test.describe('Calendar Access - Edge Cases', () => {
   });
 
   test('user with multiple section approvals has highest access level', async ({ page, context }) => {
-    // User approved for both DreamLab and Nostr-BBS
+    // User approved for both Creative and Nostr-BBS
     await signupNewUser(page);
     const userPubkey = await getCurrentUserPubkey(page);
 
-    await requestSectionAccess(page, 'dreamlab');
+    await requestSectionAccess(page, 'creative');
     await requestSectionAccess(page, 'Nostr-BBS-rooms');
 
     const adminPage = await context.newPage();
@@ -453,7 +453,7 @@ test.describe('Calendar Access - Edge Cases', () => {
 
     await navigateToCalendar(page);
 
-    // Should have full access (Nostr-BBS grants full, overrides DreamLab limited)
+    // Should have full access (Nostr-BBS grants full, overrides Creative limited)
     const eventCount = await page.locator('[data-event], .event, .calendar-event').count();
 
     if (eventCount > 0) {

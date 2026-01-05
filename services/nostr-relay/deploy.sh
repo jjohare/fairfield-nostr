@@ -8,10 +8,10 @@ set -e
 PROJECT_ID="${GCP_PROJECT_ID:?Error: GCP_PROJECT_ID environment variable must be set}"
 REGION="${GCP_REGION:-us-central1}"
 SERVICE_NAME="nostr-relay"
-REPO="minimoonoir"
+REPO="nostr-bbs"
 IMAGE_NAME="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE_NAME}"
 TAG="${1:-latest}"
-SERVICE_ACCOUNT="fairfield-applications@${PROJECT_ID}.iam.gserviceaccount.com"
+SERVICE_ACCOUNT="nostr-bbs-runtime@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo "=== Nostr Relay Deployment ==="
 echo "Image: ${IMAGE_NAME}:${TAG}"

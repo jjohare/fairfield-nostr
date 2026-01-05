@@ -92,28 +92,28 @@ test.describe('Channel Management', () => {
     }
   });
 
-  test('cohort filter shows moomaa-tribe channels', async ({ page }) => {
+  test('cohort filter shows members channels', async ({ page }) => {
     // Wait for channels to load
     await page.waitForSelector('[data-testid="channel-list"]', { timeout: 5000 });
 
     // Find cohort filter
-    const moomaaFilter = page.getByRole('button', { name: /moomaa-tribe|moomaa/i });
+    const membersFilter = page.getByRole('button', { name: /members|members/i });
 
-    if (await moomaaFilter.count() > 0) {
-      await moomaaFilter.click();
+    if (await membersFilter.count() > 0) {
+      await membersFilter.click();
 
       // Wait for filter to apply
       await page.waitForTimeout(500);
 
-      // Verify only moomaa channels are shown
+      // Verify only members channels are shown
       const channels = page.locator('[data-testid="channel-item"]');
       const count = await channels.count();
 
       if (count > 0) {
-        // Check each channel has moomaa cohort badge
+        // Check each channel has members cohort badge
         for (let i = 0; i < count; i++) {
           const channel = channels.nth(i);
-          const cohortBadge = channel.locator('[data-cohort="moomaa-tribe"]');
+          const cohortBadge = channel.locator('[data-cohort="members"]');
           await expect(cohortBadge).toBeVisible();
         }
       }
@@ -261,7 +261,7 @@ test.describe('Channel Management', () => {
     // by filtering to a non-existent cohort or mocking empty response
 
     // Try to find a filter that would show no results
-    const filters = ['business', 'moomaa-tribe'];
+    const filters = ['business', 'members'];
 
     for (const filterName of filters) {
       const filter = page.getByRole('button', { name: new RegExp(filterName, 'i') });

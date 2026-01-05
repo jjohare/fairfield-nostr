@@ -23,7 +23,7 @@ const TEST_USERS = {
     name: 'Queen Seraphina',
     displayName: 'Queen Seraphina',
     avatar: 'https://robohash.org/queen-seraphina?set=set4&size=200x200',
-    about: 'Super Administrator of Minimoonoir BBS',
+    about: 'Super Administrator of Nostr BBS BBS',
     mnemonic: 'glimpse marble confirm army sleep imitate lake balance home panic view brand',
     role: 'super_admin'
   },

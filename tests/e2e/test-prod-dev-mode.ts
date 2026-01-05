@@ -28,7 +28,7 @@ import { chromium } from 'playwright';
   errors.slice(0, 3).forEach(e => console.log('  - ' + e.substring(0, 100)));
 
   const content = await page.content();
-  console.log('Page has Fairfield text: ' + content.includes('Fairfield'));
+  console.log('Page has Nostr BBS text: ' + content.includes('Nostr BBS'));
   console.log('Page has Development Mode text: ' + content.includes('Development Mode'));
   console.log('Page has Login as Admin text: ' + content.includes('Login as Admin'));
 

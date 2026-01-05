@@ -9,7 +9,7 @@ export interface Channel {
   name: string;                                  // From kind 39000 metadata
   description: string;
   picture?: string;                              // Avatar URL
-  cohorts: ('business' | 'moomaa-tribe')[];
+  cohorts: ('business' | 'members')[];
   section: ChannelSection;                       // Section category
   visibility: ChannelVisibility;                 // Visibility within section
   isEncrypted: boolean;                          // E2E vs transport only
@@ -50,13 +50,13 @@ const { subscribe, set, update } = writable<ChannelStore>(initialState);
  *
  * @param ndk - NDK instance connected to relay
  * @param userPubkey - Current user's public key
- * @param userCohorts - User's cohort tags (business, moomaa-tribe, or both)
+ * @param userCohorts - User's cohort tags (business, members, or both)
  * @returns Promise<Channel[]>
  */
 export async function fetchChannels(
   ndk: NDK,
   userPubkey: string,
-  userCohorts: ('business' | 'moomaa-tribe')[]
+  userCohorts: ('business' | 'members')[]
 ): Promise<Channel[]> {
   update(state => ({ ...state, loading: true, error: null }));
 
@@ -141,7 +141,7 @@ function buildChannelFromEvents(
   memberEvents: NDKEvent[],
   requestEvents: NDKEvent[],
   userPubkey: string,
-  userCohorts: ('business' | 'moomaa-tribe')[]
+  userCohorts: ('business' | 'members')[]
 ): Channel | null {
   // Extract group ID from 'd' tag
   const groupId = metaEvent.tags.find(t => t[0] === 'd')?.[1];
@@ -150,11 +150,11 @@ function buildChannelFromEvents(
   // Extract cohort tags
   const channelCohorts = metaEvent.tags
     .filter(t => t[0] === 'cohort')
-    .map(t => t[1] as 'business' | 'moomaa-tribe');
+    .map(t => t[1] as 'business' | 'members');
 
   // Apply cohort filtering logic as per SPARC:
   // - business cohort sees business channels
-  // - moomaa-tribe sees moomaa channels
+  // - members sees members channels
   // - dual-cohort users see all (unified view)
   const hasMatchingCohort = channelCohorts.some(channelCohort =>
     userCohorts.includes(channelCohort)
@@ -284,7 +284,7 @@ export const availableChannels = {
 /**
  * Filter channels by cohort
  */
-export function getChannelsByCohort(cohort: 'business' | 'moomaa-tribe'): Channel[] {
+export function getChannelsByCohort(cohort: 'business' | 'members'): Channel[] {
   const state = get(channelStore);
   return state.channels.filter(c => c.cohorts.includes(cohort));
 }
@@ -300,7 +300,7 @@ export function getChannelsBySection(section: ChannelSection): Channel[] {
 // Lazy-initialized derived stores for section filtering
 let _publicLobbyChannels: ReturnType<typeof derived<typeof channelStore, Channel[]>> | null = null;
 let _communityRoomsChannels: ReturnType<typeof derived<typeof channelStore, Channel[]>> | null = null;
-let _dreamlabChannels: ReturnType<typeof derived<typeof channelStore, Channel[]>> | null = null;
+let _creativeChannels: ReturnType<typeof derived<typeof channelStore, Channel[]>> | null = null;
 
 /**
  * Get channels for public-lobby section (lazy initialization)
@@ -327,15 +327,15 @@ export function getCommunityRoomsChannels() {
 }
 
 /**
- * Get channels for dreamlab section (lazy initialization)
+ * Get channels for creative section (lazy initialization)
  */
-export function getDreamlabChannels() {
-  if (!_dreamlabChannels) {
-    _dreamlabChannels = derived(channelStore, $store =>
-      $store.channels.filter(c => c.section === 'dreamlab')
+export function getCreativeChannels() {
+  if (!_creativeChannels) {
+    _creativeChannels = derived(channelStore, $store =>
+      $store.channels.filter(c => c.section === 'creative')
     );
   }
-  return _dreamlabChannels;
+  return _creativeChannels;
 }
 
 // Backwards-compatible exports for section filtering
@@ -347,8 +347,8 @@ export const communityRoomsChannels = {
   subscribe: (fn: (value: Channel[]) => void) => getCommunityRoomsChannels().subscribe(fn)
 };
 
-export const dreamlabChannels = {
-  subscribe: (fn: (value: Channel[]) => void) => getDreamlabChannels().subscribe(fn)
+export const creativeChannels = {
+  subscribe: (fn: (value: Channel[]) => void) => getCreativeChannels().subscribe(fn)
 };
 
 /**

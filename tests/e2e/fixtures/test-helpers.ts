@@ -119,7 +119,7 @@ export async function signupNewUser(page: Page): Promise<string> {
 /**
  * Navigate to a specific section
  */
-export async function navigateToSection(page: Page, section: 'public-lobby' | 'community-rooms' | 'dreamlab'): Promise<void> {
+export async function navigateToSection(page: Page, section: 'public-lobby' | 'community-rooms' | 'creative'): Promise<void> {
   // Ensure we're on chat page
   await page.goto('/chat');
 
@@ -127,7 +127,7 @@ export async function navigateToSection(page: Page, section: 'public-lobby' | 'c
   const sectionNames: Record<string, RegExp> = {
     'public-lobby': /public lobby|public/i,
     'community-rooms': /community rooms|community/i,
-    'dreamlab': /dreamlab|dream lab/i
+    'creative': /creative|dream lab/i
   };
 
   const sectionCard = page.getByText(sectionNames[section]).first();
@@ -137,7 +137,7 @@ export async function navigateToSection(page: Page, section: 'public-lobby' | 'c
 /**
  * Request access to a section
  */
-export async function requestSectionAccess(page: Page, section: 'community-rooms' | 'dreamlab', message?: string): Promise<void> {
+export async function requestSectionAccess(page: Page, section: 'community-rooms' | 'creative', message?: string): Promise<void> {
   // Click on section card
   await navigateToSection(page, section);
 

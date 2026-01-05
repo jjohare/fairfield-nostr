@@ -25,7 +25,7 @@ A decentralized community bulletin board system built on the Nostr protocol. Fea
 - **Semantic Vector Search** - AI-powered similarity search with HNSW indexing (100k+ messages)
 - **PWA Support** - Installable app with offline message queue
 - **Serverless Architecture** - Zero infrastructure costs on free tier
-- **Cohort-Based Access** - Business, moomaa-tribe, and admin roles
+- **Cohort-Based Access** - Business, members, and admin roles
 
 ## Quick Start
 
@@ -419,12 +419,12 @@ graph TB
     subgraph Cohorts["User Cohorts"]
         Admin2["admin<br/>Full system access"]
         Business["business<br/>Business community"]
-        MoomaaTribe["moomaa-tribe<br/>Premium members"]
+        MoomaaTribe["members<br/>Premium members"]
         Public["public<br/>Read-only access"]
     end
 
     subgraph Access["Channel Access (Kind 9022)"]
-        Channel1["meditation-circle<br/>cohorts: [admin, moomaa-tribe]"]
+        Channel1["meditation-circle<br/>cohorts: [admin, members]"]
         Channel2["business-network<br/>cohorts: [admin, business]"]
         Channel3["announcements<br/>cohorts: [public]"]
     end
@@ -1047,7 +1047,7 @@ npm test -- --watch
 
 ### Relay Security
 - NIP-42 authentication required for writes
-- Cohort-based whitelist (business, moomaa-tribe, admin)
+- Cohort-based whitelist (business, members, admin)
 - Event validation and signature verification
 - NIP-09 deletion support
 

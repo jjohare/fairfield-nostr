@@ -146,7 +146,7 @@ test.describe('Admin - Create Chatrooms', () => {
     expect(hasSuccess).toBe(true);
   });
 
-  test('admin can create chatroom in DreamLab', async ({ page }) => {
+  test('admin can create chatroom in Creative', async ({ page }) => {
     await loginAsAdmin(page);
 
     await page.goto('/admin');
@@ -155,14 +155,14 @@ test.describe('Admin - Create Chatrooms', () => {
     await createButton.click();
 
     const nameInput = page.getByPlaceholder(/channel name|name/i);
-    await nameInput.fill('DreamLab Projects');
+    await nameInput.fill('Creative Projects');
 
     const descInput = page.getByPlaceholder(/description/i);
     if (await descInput.isVisible({ timeout: 1000 }).catch(() => false)) {
       await descInput.fill('Creative projects and experimentation');
     }
 
-    // Select DreamLab section
+    // Select Creative section
     const sectionSelect = page.locator('select').filter({ hasText: /section|area/i });
     if (await sectionSelect.isVisible({ timeout: 1000 }).catch(() => false)) {
       await sectionSelect.selectOption({ label: /dream/i });
@@ -173,7 +173,7 @@ test.describe('Admin - Create Chatrooms', () => {
 
     await page.waitForTimeout(1500);
 
-    const hasSuccess = await page.getByText(/created|success|dreamlab.*project/i).isVisible({ timeout: 3000 }).catch(() => false);
+    const hasSuccess = await page.getByText(/created|success|creative.*project/i).isVisible({ timeout: 3000 }).catch(() => false);
     expect(hasSuccess).toBe(true);
   });
 
@@ -260,7 +260,7 @@ test.describe('Admin - Pending Access Requests', () => {
       await page.waitForTimeout(1000);
 
       // Should see request list
-      const hasRequests = await page.getByText(/request|Nostr-BBS|dreamlab/i).count();
+      const hasRequests = await page.getByText(/request|Nostr-BBS|creative/i).count();
       expect(hasRequests).toBeGreaterThanOrEqual(1);
     } else {
       // Requests might be shown on main admin page
@@ -476,7 +476,7 @@ test.describe('Admin - Section Management', () => {
     await page.goto('/admin');
 
     // Should see stats for each section
-    const hasStats = await page.getByText(/Nostr-BBS|Nostr-BBS|dreamlab/i).count();
+    const hasStats = await page.getByText(/Nostr-BBS|Nostr-BBS|creative/i).count();
     expect(hasStats).toBeGreaterThanOrEqual(1);
   });
 
@@ -496,7 +496,7 @@ test.describe('Admin - Section Management', () => {
     await page.goto('/chat');
 
     // Should be able to view all sections
-    const sections = ['Nostr-BBS-guests', 'Nostr-BBS-rooms', 'dreamlab'];
+    const sections = ['Nostr-BBS-guests', 'Nostr-BBS-rooms', 'creative'];
 
     for (const section of sections) {
       const sectionCard = page.locator(`text=/${section.replace('-', '.*')}/i`).first();

@@ -10,7 +10,7 @@
 
 import { browser } from '$app/environment';
 
-export type CohortName = 'admin' | 'approved' | 'business' | 'moomaa-tribe';
+export type CohortName = 'admin' | 'approved' | 'business' | 'members';
 
 export interface WhitelistEntry {
   pubkey: string;

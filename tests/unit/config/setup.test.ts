@@ -346,10 +346,10 @@ channelVisibility:
 			setupStore.setAppSettings({ name: 'Test App' });
 			setupStore.completeSetup();
 
-			expect(localStorageMock['minimoonoir-setup-complete']).toBe('true');
-			expect(localStorageMock['minimoonoir-custom-config']).toBeDefined();
+			expect(localStorageMock['nostr-bbs-setup-complete']).toBe('true');
+			expect(localStorageMock['nostr-bbs-custom-config']).toBeDefined();
 
-			const stored = JSON.parse(localStorageMock['minimoonoir-custom-config']);
+			const stored = JSON.parse(localStorageMock['nostr-bbs-custom-config']);
 			expect(stored.app.name).toBe('Test App');
 		});
 	});
@@ -361,8 +361,8 @@ channelVisibility:
 			const needed = get(needsSetup);
 			expect(needed).toBe(false);
 
-			expect(localStorageMock['minimoonoir-setup-complete']).toBe('true');
-			expect(localStorageMock['minimoonoir-custom-config']).toBeUndefined();
+			expect(localStorageMock['nostr-bbs-setup-complete']).toBe('true');
+			expect(localStorageMock['nostr-bbs-custom-config']).toBeUndefined();
 		});
 	});
 
@@ -377,8 +377,8 @@ channelVisibility:
 			const step = get(currentSetupStep);
 			expect(step).toBe('welcome');
 
-			expect(localStorageMock['minimoonoir-setup-complete']).toBeUndefined();
-			expect(localStorageMock['minimoonoir-custom-config']).toBeUndefined();
+			expect(localStorageMock['nostr-bbs-setup-complete']).toBeUndefined();
+			expect(localStorageMock['nostr-bbs-custom-config']).toBeUndefined();
 		});
 	});
 
@@ -440,7 +440,7 @@ channelVisibility:
 
 	describe('persistence', () => {
 		it('should load completed state from localStorage', () => {
-			localStorageMock['minimoonoir-setup-complete'] = 'true';
+			localStorageMock['nostr-bbs-setup-complete'] = 'true';
 
 			// Need to reload the module to test initial load
 			// For this test, we verify the getter works
@@ -453,14 +453,14 @@ channelVisibility:
 				app: { name: 'Persisted App', version: '1.0.0', defaultSection: 'test' }
 			};
 
-			localStorageMock['minimoonoir-custom-config'] = JSON.stringify(config);
+			localStorageMock['nostr-bbs-custom-config'] = JSON.stringify(config);
 
 			// In real scenario, this would be loaded on store creation
 			// For testing, verify the completeSetup saves correctly
 			setupStore.setAppSettings({ name: 'Persisted App' });
 			setupStore.completeSetup();
 
-			const stored = JSON.parse(localStorageMock['minimoonoir-custom-config']);
+			const stored = JSON.parse(localStorageMock['nostr-bbs-custom-config']);
 			expect(stored.app.name).toBe('Persisted App');
 		});
 	});

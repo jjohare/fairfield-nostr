@@ -85,8 +85,8 @@ cohorts:
     name: 'Business Partners'
     description: 'Business collaborators'
 
-  - id: 'moomaa-tribe'
-    name: 'Moomaa Tribe'
+  - id: 'members'
+    name: 'Members'
     description: 'Core community members'
 
 # 3-Tier Hierarchy: Categories containing Sections
@@ -220,8 +220,8 @@ categories:
     icon: '🛠️'
     order: 3
     sections:
-      - id: 'dreamlab'
-        name: 'DreamLab'
+      - id: 'creative'
+        name: 'Creative'
         description: 'Creative and experimental projects'
         icon: '✨'
         order: 1

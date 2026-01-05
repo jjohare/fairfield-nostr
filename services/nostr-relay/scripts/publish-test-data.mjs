@@ -147,7 +147,7 @@ async function main() {
   const sampleRequests = [
     {
       seed: 'user-alice',
-      section: 'moomaa-tribe',
+      section: 'members',
       message: "Hi! I've been practicing TM for 5 years and would love to join the MooMaa tribe discussions.",
     },
     {
@@ -157,7 +157,7 @@ async function main() {
     },
     {
       seed: 'user-carol',
-      section: 'moomaa-tribe',
+      section: 'members',
       message: 'Long-time meditator from the golden dome. Would love to connect with the community.',
     },
     {
@@ -167,7 +167,7 @@ async function main() {
     },
     {
       seed: 'user-eve',
-      section: 'moomaa-tribe',
+      section: 'members',
       message: 'Just moved to Nostr-BBS for the program. Excited to meet fellow practitioners!',
     },
   ];

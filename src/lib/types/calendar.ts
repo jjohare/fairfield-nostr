@@ -1,5 +1,5 @@
 /**
- * Calendar Types - Fairfield Event System
+ * Calendar Types - BBS Event System
  * Extends the base calendar system with comprehensive event categorization,
  * visibility controls, and venue management
  */
@@ -33,7 +33,7 @@ export type EventCategory =
 /**
  * Event venue type categorization
  */
-export type EventVenueType = 'fairfield' | 'offsite' | 'online' | 'external';
+export type EventVenueType = 'onsite' | 'offsite' | 'online' | 'external';
 
 /**
  * Event visibility layer levels
@@ -110,7 +110,7 @@ export interface EventVenue {
 	type: EventVenueType;
 
 	/**
-	 * Specific room or area (for Fairfield events)
+	 * Specific room or area (for onsite events)
 	 */
 	room?: string;
 
@@ -296,11 +296,11 @@ export interface EventMetadata {
 }
 
 /**
- * Extended Fairfield Event
+ * Extended BBS Event
  * Extends the base CalendarEvent with comprehensive categorization,
  * visibility controls, and venue management
  */
-export interface FairfieldEvent extends CalendarEvent {
+export interface BBSEvent extends CalendarEvent {
 	/**
 	 * Venue and location information
 	 */

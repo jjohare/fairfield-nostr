@@ -6,9 +6,9 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/minimoonoir/embedding-api:$COMMIT_SHA'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/nostr-bbs/embedding-api:$COMMIT_SHA'
       - '-t'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/minimoonoir/embedding-api:latest'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/nostr-bbs/embedding-api:latest'
       - '.'
     dir: 'services/embedding-api'
 
@@ -17,7 +17,7 @@ steps:
     args:
       - 'push'
       - '--all-tags'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/minimoonoir/embedding-api'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/nostr-bbs/embedding-api'
 
   # Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -27,14 +27,14 @@ steps:
       - 'deploy'
       - 'embedding-api'
       - '--image'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/minimoonoir/embedding-api:$COMMIT_SHA'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/nostr-bbs/embedding-api:$COMMIT_SHA'
       - '--region'
       - 'us-central1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
       - '--service-account'
-      - 'fairfield-applications@$PROJECT_ID.iam.gserviceaccount.com'
+      - 'nostr-bbs-runtime@$PROJECT_ID.iam.gserviceaccount.com'
       - '--memory'
       - '2Gi'
       - '--cpu'
@@ -48,11 +48,14 @@ steps:
       - '--timeout'
       - '60'
       - '--set-env-vars'
-      - 'ALLOWED_ORIGINS=https://dreamlab-ai.github.io,https://jjohare.github.io,http://localhost:5173'
+      - 'ALLOWED_ORIGINS=${_ALLOWED_ORIGINS}'
 
 images:
-  - 'us-central1-docker.pkg.dev/$PROJECT_ID/minimoonoir/embedding-api:$COMMIT_SHA'
-  - 'us-central1-docker.pkg.dev/$PROJECT_ID/minimoonoir/embedding-api:latest'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/nostr-bbs/embedding-api:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/nostr-bbs/embedding-api:latest'
+
+substitutions:
+  _ALLOWED_ORIGINS: 'http://localhost:5173'
 
 options:
   machineType: 'E2_HIGHCPU_8'

@@ -33,7 +33,7 @@ test.describe('Section Preview and Stats', () => {
     // Should see all three sections
     await expect(page.getByText(/Nostr-BBS guests/i)).toBeVisible();
     await expect(page.getByText(/Nostr-BBS|minimoo noir/i)).toBeVisible();
-    await expect(page.getByText(/dreamlab|dream lab/i)).toBeVisible();
+    await expect(page.getByText(/creative|dream lab/i)).toBeVisible();
   });
 
   test('authenticated user can view all section stats', async ({ page }) => {
@@ -60,9 +60,9 @@ test.describe('Section Preview and Stats', () => {
     // Nostr-BBS Guests should show as accessible (no approval needed)
     const Nostr-BBSCard = page.locator('text=/Nostr-BBS guests/i').locator('..');
 
-    // Nostr-BBS and DreamLab should show request access or pending
+    // Nostr-BBS and Creative should show request access or pending
     const minimooCard = page.locator('text=/Nostr-BBS/i').locator('..');
-    const dreamlabCard = page.locator('text=/dreamlab/i').locator('..');
+    const creativeCard = page.locator('text=/creative/i').locator('..');
 
     // Check for status indicators
     const hasRequestButton = await minimooCard.getByRole('button', { name: /request access/i }).isVisible({ timeout: 2000 }).catch(() => false);
@@ -194,32 +194,32 @@ test.describe('Nostr-BBS Section (Requires Approval)', () => {
   });
 });
 
-test.describe('DreamLab Section (Requires Approval)', () => {
+test.describe('Creative Section (Requires Approval)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => localStorage.clear());
   });
 
-  test('new user cannot access DreamLab without approval', async ({ page }) => {
+  test('new user cannot access Creative without approval', async ({ page }) => {
     await signupNewUser(page);
 
     await page.goto('/chat');
 
-    // DreamLab should show "Request Access" button
-    const dreamlabCard = page.locator('text=/dreamlab/i').locator('..');
-    const requestButton = dreamlabCard.getByRole('button', { name: /request access/i });
+    // Creative should show "Request Access" button
+    const creativeCard = page.locator('text=/creative/i').locator('..');
+    const requestButton = creativeCard.getByRole('button', { name: /request access/i });
 
     await expect(requestButton).toBeVisible({ timeout: 3000 });
   });
 
-  test('user can request access to DreamLab', async ({ page }) => {
+  test('user can request access to Creative', async ({ page }) => {
     await signupNewUser(page);
 
     await page.goto('/chat');
 
     // Request access
-    const dreamlabCard = page.locator('text=/dreamlab/i').locator('..');
-    const requestButton = dreamlabCard.getByRole('button', { name: /request access/i });
+    const creativeCard = page.locator('text=/creative/i').locator('..');
+    const requestButton = creativeCard.getByRole('button', { name: /request access/i });
     await requestButton.click();
 
     await page.waitForTimeout(1000);
@@ -229,14 +229,14 @@ test.describe('DreamLab Section (Requires Approval)', () => {
     expect(isPending).toBe(true);
   });
 
-  test('DreamLab request with optional message', async ({ page }) => {
+  test('Creative request with optional message', async ({ page }) => {
     await signupNewUser(page);
 
     await page.goto('/chat');
 
     // Click request button
-    const dreamlabCard = page.locator('text=/dreamlab/i').locator('..');
-    const requestButton = dreamlabCard.getByRole('button', { name: /request access/i });
+    const creativeCard = page.locator('text=/creative/i').locator('..');
+    const requestButton = creativeCard.getByRole('button', { name: /request access/i });
     await requestButton.click();
 
     // Look for message input
@@ -366,8 +366,8 @@ test.describe('Multi-Section Access', () => {
     await page.reload();
     await page.waitForTimeout(1000);
 
-    // Request DreamLab
-    await requestSectionAccess(page, 'dreamlab');
+    // Request Creative
+    await requestSectionAccess(page, 'creative');
 
     await page.reload();
     await page.waitForTimeout(1000);
@@ -383,7 +383,7 @@ test.describe('Multi-Section Access', () => {
     const userPubkey = await getCurrentUserPubkey(page);
 
     await requestSectionAccess(page, 'Nostr-BBS-rooms');
-    await requestSectionAccess(page, 'dreamlab');
+    await requestSectionAccess(page, 'creative');
 
     // Admin approves only Nostr-BBS
     const adminPage = await context.newPage();
@@ -398,11 +398,11 @@ test.describe('Multi-Section Access', () => {
     const minimooCard = page.locator('text=/Nostr-BBS/i').locator('..');
     const hasMinimooAccess = await minimooCard.getByRole('button', { name: /enter/i }).isVisible({ timeout: 2000 }).catch(() => false);
 
-    // DreamLab should still be pending
-    const dreamlabCard = page.locator('text=/dreamlab/i').locator('..');
-    const dreamlabPending = await dreamlabCard.getByText(/pending/i).isVisible({ timeout: 2000 }).catch(() => false);
+    // Creative should still be pending
+    const creativeCard = page.locator('text=/creative/i').locator('..');
+    const creativePending = await creativeCard.getByText(/pending/i).isVisible({ timeout: 2000 }).catch(() => false);
 
     expect(hasMinimooAccess).toBe(true);
-    expect(dreamlabPending).toBe(true);
+    expect(creativePending).toBe(true);
   });
 });

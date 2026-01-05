@@ -2,13 +2,13 @@
   import { createEventDispatcher } from 'svelte';
   import Modal from '../ui/Modal.svelte';
   import { createCalendarEvent } from '$lib/nostr/calendar';
-  import type { FairfieldEvent, EventCategory, EventVenueType } from '$lib/types/calendar';
+  import type { BBSEvent, EventCategory, EventVenueType } from '$lib/types/calendar';
   import type { SectionId, CohortId } from '$lib/config/types';
 
   export let isOpen = false;
   export let defaultDate: Date | undefined = undefined;
   export let defaultSection: string | undefined = undefined;
-  export let onEventCreated: ((event: FairfieldEvent) => void) | undefined = undefined;
+  export let onEventCreated: ((event: BBSEvent) => void) | undefined = undefined;
 
   const dispatch = createEventDispatcher();
 
@@ -25,7 +25,7 @@
     endDate: defaultDate || new Date(),
     endTime: '10:00',
     isAllDay: false,
-    venueType: 'fairfield' as EventVenueType,
+    venueType: 'onsite' as EventVenueType,
     room: 'main-room',
     address: '',
     virtualLink: '',
@@ -62,7 +62,7 @@
     { id: 'planning', name: 'Planning', icon: '📋' }
   ];
 
-  // Rooms for Fairfield venue
+  // Rooms for Onsite venue
   const rooms = [
     { id: 'main-room', name: 'Main Room' },
     { id: 'garden', name: 'Garden' },
@@ -74,7 +74,7 @@
   const sections: Array<{ id: SectionId; name: string }> = [
     { id: 'public-lobby', name: 'Public Lobby' },
     { id: 'community-rooms', name: 'Community Rooms' },
-    { id: 'dreamlab', name: 'DreamLab' }
+    { id: 'creative', name: 'Creative' }
   ];
 
   // Cohort options
@@ -82,7 +82,7 @@
     { id: 'admin', name: 'Administrators' },
     { id: 'approved', name: 'Approved Users' },
     { id: 'business', name: 'Business Partners' },
-    { id: 'moomaa-tribe', name: 'Moomaa Tribe' }
+    { id: 'members', name: 'Members' }
   ];
 
   function validateStep(step: number): boolean {
@@ -107,7 +107,7 @@
     }
 
     if (step === 3) {
-      if (formData.venueType === 'fairfield' && !formData.room) {
+      if (formData.venueType === 'onsite' && !formData.room) {
         validationErrors.room = 'Please select a room';
       }
       if ((formData.venueType === 'offsite' || formData.venueType === 'external') && !formData.address.trim()) {
@@ -157,9 +157,9 @@
 
       // Build location string
       let location = '';
-      if (formData.venueType === 'fairfield') {
+      if (formData.venueType === 'onsite') {
         const roomName = rooms.find(r => r.id === formData.room)?.name || formData.room;
-        location = `Fairfield - ${roomName}`;
+        location = `Onsite - ${roomName}`;
       } else if (formData.venueType === 'online') {
         location = `Online: ${formData.virtualLink}`;
       } else {
@@ -186,13 +186,13 @@
         throw new Error('Failed to create event');
       }
 
-      // Build FairfieldEvent (extended event type)
-      const fairfieldEvent: FairfieldEvent = {
+      // Build BBSEvent (extended event type)
+      const onsiteEvent: BBSEvent = {
         ...event,
         venue: {
           type: formData.venueType,
-          room: formData.venueType === 'fairfield' ? formData.room : undefined,
-          address: formData.venueType !== 'fairfield' && formData.venueType !== 'online' ? formData.address : undefined,
+          room: formData.venueType === 'onsite' ? formData.room : undefined,
+          address: formData.venueType !== 'onsite' && formData.venueType !== 'online' ? formData.address : undefined,
           virtualLink: formData.venueType === 'online' ? formData.virtualLink : undefined
         },
         category: {
@@ -232,13 +232,13 @@
 
       // Success callback
       if (onEventCreated) {
-        onEventCreated(fairfieldEvent);
+        onEventCreated(onsiteEvent);
       }
 
-      dispatch('eventCreated', fairfieldEvent);
+      dispatch('eventCreated', onsiteEvent);
 
       // Show success toast (you can implement a toast system)
-      console.log('Event created successfully:', fairfieldEvent);
+      console.log('Event created successfully:', onsiteEvent);
 
       // Close modal and reset
       handleClose();
@@ -266,7 +266,7 @@
       endDate: defaultDate || new Date(),
       endTime: '10:00',
       isAllDay: false,
-      venueType: 'fairfield',
+      venueType: 'onsite',
       room: 'main-room',
       address: '',
       virtualLink: '',
@@ -450,15 +450,15 @@
           <span class="label-text">Venue Type</span>
         </label>
         <div class="flex gap-2 flex-wrap">
-          <label class="label cursor-pointer border rounded-lg p-3 flex-1 min-w-[120px] {formData.venueType === 'fairfield' ? 'border-primary bg-primary/10' : 'border-base-300'}">
+          <label class="label cursor-pointer border rounded-lg p-3 flex-1 min-w-[120px] {formData.venueType === 'onsite' ? 'border-primary bg-primary/10' : 'border-base-300'}">
             <input
               type="radio"
               class="radio radio-primary"
               bind:group={formData.venueType}
-              value="fairfield"
+              value="onsite"
               disabled={isSubmitting}
             />
-            <span class="label-text ml-2">Fairfield</span>
+            <span class="label-text ml-2">Onsite</span>
           </label>
           <label class="label cursor-pointer border rounded-lg p-3 flex-1 min-w-[120px] {formData.venueType === 'offsite' ? 'border-primary bg-primary/10' : 'border-base-300'}">
             <input
@@ -493,7 +493,7 @@
         </div>
       </div>
 
-      {#if formData.venueType === 'fairfield'}
+      {#if formData.venueType === 'onsite'}
         <div class="form-control">
           <label class="label" for="room">
             <span class="label-text">Room <span class="text-error">*</span></span>

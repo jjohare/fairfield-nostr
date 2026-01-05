@@ -17,7 +17,7 @@ on:
 env:
   SERVICE_NAME: image-api
   GCP_REGION: us-central1
-  GCS_BUCKET: minimoonoir-images
+  GCS_BUCKET: nostr-bbs-images
 
 jobs:
   deploy:
@@ -47,23 +47,23 @@ jobs:
         working-directory: services/image-api
         run: |
           docker build \
-            -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/minimoonoir/${{ env.SERVICE_NAME }}:${{ github.sha }} \
-            -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/minimoonoir/${{ env.SERVICE_NAME }}:latest \
+            -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/nostr-bbs/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/nostr-bbs/${{ env.SERVICE_NAME }}:latest \
             .
 
       - name: Push Docker image
         run: |
-          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/minimoonoir/${{ env.SERVICE_NAME }}:${{ github.sha }}
-          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/minimoonoir/${{ env.SERVICE_NAME }}:latest
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/nostr-bbs/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/nostr-bbs/${{ env.SERVICE_NAME }}:latest
 
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/minimoonoir/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --image ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/nostr-bbs/${{ env.SERVICE_NAME }}:${{ github.sha }} \
             --region ${{ env.GCP_REGION }} \
             --platform managed \
             --allow-unauthenticated \
-            --service-account fairfield-applications@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --service-account nostr-bbs-runtime@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
             --memory 512Mi \
             --cpu 1 \
             --max-instances 10 \

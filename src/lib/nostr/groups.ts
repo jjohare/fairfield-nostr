@@ -647,7 +647,7 @@ export async function updateGroupMetadata(
     name: string;
     about?: string;
     picture?: string;
-    cohorts?: ('business' | 'moomaa-tribe')[];
+    cohorts?: ('business' | 'members')[];
     visibility?: 'listed' | 'unlisted' | 'preview';
     encrypted?: boolean;
   },

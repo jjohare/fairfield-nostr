@@ -6,7 +6,7 @@
 import type { UserPermissions, SectionId, CohortId, RoleId } from '$lib/config/types';
 import { canAccessSection, canCreateCalendarEvent } from '$lib/config/permissions';
 import type {
-	FairfieldEvent,
+	BBSEvent,
 	EventCategory,
 	EventVenueType,
 	EventStatus,
@@ -14,7 +14,7 @@ import type {
 } from '$lib/types/calendar';
 
 // Re-export types for convenience
-export type { VisibilityLayer, EventCategory, EventStatus, FairfieldEvent };
+export type { VisibilityLayer, EventCategory, EventStatus, BBSEvent };
 export type VenueType = EventVenueType;
 
 /**
@@ -46,7 +46,7 @@ export interface EventVisibilityRules {
 
 /**
  * Internal event display structure for visibility functions
- * Compatible with FairfieldEvent from types/calendar.ts
+ * Compatible with BBSEvent from types/calendar.ts
  */
 export interface CalendarDisplayEvent {
 	id: string;
@@ -117,7 +117,7 @@ function normalizeVisibility(event: CalendarDisplayEvent): EventVisibilityRules 
 		return event.visibility as EventVisibilityRules;
 	}
 
-	// Convert from FairfieldEvent visibility format
+	// Convert from BBSEvent visibility format
 	const vis = event.visibility as {
 		visibleToSections?: SectionId[];
 		visibleToCohorts?: CohortId[];
@@ -452,7 +452,7 @@ export function getVenueTypeIcon(venueType: EventVenueType | undefined): string 
 	if (!venueType) return '📍';
 
 	const icons: Record<EventVenueType, string> = {
-		fairfield: '🏠',
+		onsite: '🏠',
 		offsite: '📍',
 		online: '💻',
 		external: '🌍'

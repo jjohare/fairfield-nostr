@@ -44,7 +44,7 @@ export function getCalendarAccessLevel(section: ChannelSection): CalendarAccessL
  * Access rules:
  * - public-lobby: full access to all events
  * - community-rooms: full access to all events
- * - dreamlab: availability-only access (can see dates booked, not details)
+ * - creative: availability-only access (can see dates booked, not details)
  */
 export function canViewCalendarEvent(
   userSections: ChannelSection[],
@@ -61,7 +61,7 @@ export function canViewCalendarEvent(
 /**
  * Check if user can view event details (not just availability)
  *
- * For dreamlab users:
+ * For creative users:
  * - Only returns true if event has cohort tag matching user's cohorts
  *
  * For users with full access sections:
@@ -81,10 +81,10 @@ export function canViewEventDetails(
     return true;
   }
 
-  // DreamLab users need cohort match to see details
-  const hasDreamLabAccess = userSections.includes('dreamlab');
+  // Creative users need cohort match to see details
+  const hasCreativeAccess = userSections.includes('creative');
 
-  if (hasDreamLabAccess && eventCohortTag) {
+  if (hasCreativeAccess && eventCohortTag) {
     return userCohorts.includes(eventCohortTag);
   }
 
@@ -119,11 +119,11 @@ export function filterCalendarEvents(
     if (hasFullAccess) {
       accessLevel = 'full';
     } else {
-      // Check DreamLab access
-      const hasDreamLabAccess = userSections.includes('dreamlab');
+      // Check Creative access
+      const hasCreativeAccess = userSections.includes('creative');
 
-      if (hasDreamLabAccess) {
-        // DreamLab users can see details if cohort matches, otherwise availability only
+      if (hasCreativeAccess) {
+        // Creative users can see details if cohort matches, otherwise availability only
         const canSeeDetails = eventCohortTag && userCohorts.includes(eventCohortTag);
         accessLevel = canSeeDetails ? 'full' : 'availability-only';
       } else {

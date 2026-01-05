@@ -8,10 +8,10 @@ set -e
 PROJECT_ID="${GCP_PROJECT_ID:?Error: GCP_PROJECT_ID environment variable must be set}"
 REGION="${GCP_REGION:-us-central1}"
 SERVICE_NAME="link-preview-api"
-REPO="minimoonoir"
+REPO="nostr-bbs"
 IMAGE_NAME="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE_NAME}"
 TAG="${1:-latest}"
-SERVICE_ACCOUNT="fairfield-applications@${PROJECT_ID}.iam.gserviceaccount.com"
+SERVICE_ACCOUNT="nostr-bbs-runtime@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo "=== Link Preview API Deployment ==="
 echo "Image: ${IMAGE_NAME}:${TAG}"
@@ -40,7 +40,7 @@ gcloud run deploy ${SERVICE_NAME} \
     --min-instances 0 \
     --max-instances 5 \
     --timeout 30 \
-    --set-env-vars "ALLOWED_ORIGINS=https://dreamlab-ai.github.io,https://jjohare.github.io,http://localhost:5173"
+    --set-env-vars "ALLOWED_ORIGINS=http://localhost:5173"
 
 SERVICE_URL=$(gcloud run services describe ${SERVICE_NAME} --region ${REGION} --format 'value(status.url)')
 echo "Deployed: ${SERVICE_URL}"

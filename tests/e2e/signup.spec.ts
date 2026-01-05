@@ -21,8 +21,8 @@ test.describe('User Signup Flow', () => {
   test('homepage loads successfully', async ({ page }) => {
     await page.goto('/');
 
-    // Check page title (app uses "Minimoomaa Noir" display name)
-    await expect(page).toHaveTitle(/Minimoomaa Noir/i);
+    // Check page title (app uses "Minimembers Noir" display name)
+    await expect(page).toHaveTitle(/Minimembers Noir/i);
 
     // Check main heading exists
     const heading = page.getByRole('heading', { level: 1 });

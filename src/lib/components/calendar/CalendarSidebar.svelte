@@ -24,8 +24,8 @@
   let selectedSections: string[] = [];
 
   // Venue types for filter UI
-  const venueTypeOptions: EventVenueType[] = ['fairfield', 'offsite', 'online', 'external'];
-  const sectionOptions = ['public_lobby', 'community', 'dreamlab'];
+  const venueTypeOptions: EventVenueType[] = ['onsite', 'offsite', 'online', 'external'];
+  const sectionOptions = ['public_lobby', 'community', 'creative'];
 
   // Subscribe to stores
   $: selectedDate = $calendarStore.selectedDate || new Date();
@@ -198,7 +198,7 @@
   <div class="sidebar-header flex items-center justify-between p-4 border-b border-base-300 dark:border-base-content/10">
     {#if isExpanded}
       <h2 class="text-lg font-bold flex items-center gap-2">
-        📅 FAIRFIELD CALENDAR
+        📅 BBS CALENDAR
       </h2>
       <button
         class="btn btn-ghost btn-sm btn-square"
