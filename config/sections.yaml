@@ -1,11 +1,11 @@
-# Fairfield BBS - 3-Tier Configuration
+# Nostr BBS - 3-Tier Configuration
 # Hierarchy: Category → Section → Forum (NIP-28 Channel)
 # Forums are dynamically populated from Nostr events tagged to sections
 
 app:
-  name: 'Fairfield - DreamLab - Cumbria'
+  name: 'Nostr BBS'
   version: '2.0.0'
-  defaultPath: '/fairfield/fairfield-guests'
+  defaultPath: '/general/public-lobby'
   tiers:
     - { level: 1, name: 'Category', plural: 'Categories' }
     - { level: 2, name: 'Section', plural: 'Sections' }
@@ -89,24 +89,20 @@ cohorts:
     name: 'Moomaa Tribe'
     description: 'Core community members'
 
-  - id: 'fairfield-residents'
-    name: 'Fairfield Residents'
-    description: 'Local community members'
-
 # 3-Tier Hierarchy: Categories containing Sections
 categories:
   #=============================================================================
-  # FAIRFIELD - Local community and public areas
+  # GENERAL - Public areas for all users
   #=============================================================================
-  - id: 'fairfield'
-    name: 'Fairfield'
-    description: 'Local community areas and announcements'
-    icon: '🏔️'
+  - id: 'general'
+    name: 'General'
+    description: 'Public discussion areas and announcements'
+    icon: '🏠'
     order: 1
     sections:
-      - id: 'fairfield-guests'
-        name: 'Fairfield Guests'
-        description: 'Welcome area for visitors - open to all authenticated users'
+      - id: 'public-lobby'
+        name: 'Public Lobby'
+        description: 'Welcome area for visitors - open to all'
         icon: '👋'
         order: 1
         access:
@@ -123,7 +119,7 @@ categories:
 
       - id: 'announcements'
         name: 'Announcements'
-        description: 'Official news and updates for the Fairfield community'
+        description: 'Official news and updates'
         icon: '📢'
         order: 2
         access:
@@ -140,7 +136,7 @@ categories:
 
       - id: 'help'
         name: 'Help & Support'
-        description: 'Get help with using the platform'
+        description: 'Get help with using the BBS'
         icon: '❓'
         order: 3
         access:
@@ -156,17 +152,17 @@ categories:
         allowForumCreation: false
 
   #=============================================================================
-  # MINIMOONOIR - Core community spaces
+  # COMMUNITY - Member-only areas
   #=============================================================================
-  - id: 'minimoonoir'
-    name: 'MiniMooNoir'
-    description: 'Core community spaces and discussions'
-    icon: '🌙'
+  - id: 'community'
+    name: 'Community'
+    description: 'Member areas and discussions'
+    icon: '👥'
     order: 2
     sections:
-      - id: 'minimoonoir-rooms'
+      - id: 'community-rooms'
         name: 'Community Rooms'
-        description: 'Core community chatrooms - request access to join'
+        description: 'Core community chatrooms'
         icon: '🌙'
         order: 1
         access:
@@ -216,18 +212,18 @@ categories:
         allowForumCreation: true
 
   #=============================================================================
-  # DREAMLAB - Creative and experimental projects
+  # PROJECTS - Creative and development work
   #=============================================================================
-  - id: 'dreamlab'
-    name: 'DreamLab'
-    description: 'Creative and experimental projects'
-    icon: '✨'
+  - id: 'projects'
+    name: 'Projects'
+    description: 'Creative and development projects'
+    icon: '🛠️'
     order: 3
     sections:
-      - id: 'dreamlab-projects'
-        name: 'Projects'
-        description: 'Creative and experimental projects - request access to join'
-        icon: '💡'
+      - id: 'dreamlab'
+        name: 'DreamLab'
+        description: 'Creative and experimental projects'
+        icon: '✨'
         order: 1
         access:
           requiresApproval: true
@@ -239,7 +235,7 @@ categories:
           canCreate: true
           cohortRestricted: true
         ui:
-          color: '#ec4899'
+          color: '#f43f5e'
         showStats: true
         allowForumCreation: true
 

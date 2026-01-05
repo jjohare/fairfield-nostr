@@ -16,9 +16,6 @@
   import type { CalendarEvent } from '$lib/nostr/calendar';
   import Breadcrumb from '$lib/components/navigation/Breadcrumb.svelte';
   import EventCalendar from '$lib/components/events/EventCalendar.svelte';
-  import { getAppConfig } from '$lib/config/loader';
-
-  const appConfig = getAppConfig();
 
   let events: (SectionEvent | CalendarEvent)[] = [];
   let loading = true;
@@ -69,7 +66,7 @@
 
       // Also fetch tribe birthdays for community sections
       let birthdayEvents: CalendarEvent[] = [];
-      if ((sectionId === 'minimoonoir-rooms' || sectionId === 'community-rooms') && $authStore.publicKey) {
+      if (sectionId === 'community-rooms' && $authStore.publicKey) {
         birthdayEvents = await fetchTribeBirthdayEvents($authStore.publicKey);
       }
 
@@ -113,7 +110,7 @@
 </script>
 
 <svelte:head>
-  <title>{section?.name || 'Section'} Calendar - {appConfig.name}</title>
+  <title>{section?.name || 'Section'} Calendar - Nostr BBS</title>
 </svelte:head>
 
 <div class="container mx-auto p-4 max-w-6xl">

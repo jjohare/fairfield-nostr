@@ -116,14 +116,13 @@ function validateConfig(config: BBSConfig): void {
 
 /**
  * Get default configuration (fallback)
- * Generic BBS configuration - customize via config/sections.yaml
  */
 function getDefaultConfig(): BBSConfig {
 	return {
 		app: {
 			name: 'Nostr BBS',
 			version: '2.0.0',
-			defaultPath: '/general/welcome',
+			defaultPath: '/general/public-lobby',
 			tiers: [
 				{ level: 1, name: 'Category', plural: 'Categories' },
 				{ level: 2, name: 'Section', plural: 'Sections' },
@@ -138,148 +137,45 @@ function getDefaultConfig(): BBSConfig {
 				name: 'Moderator',
 				level: 2,
 				description: 'Can manage forums and moderate',
-				capabilities: ['forum.create', 'forum.lock', 'message.pin', 'message.delete']
+				capabilities: ['forum.create', 'message.delete']
 			},
 			{
 				id: 'section-admin',
 				name: 'Section Admin',
 				level: 3,
 				description: 'Section administrator',
-				capabilities: ['section.manage', 'member.approve', 'member.remove', 'forum.create', 'forum.delete', 'message.pin', 'message.delete']
+				capabilities: ['section.manage', 'member.approve']
 			},
 			{
 				id: 'admin',
 				name: 'Admin',
 				level: 4,
 				description: 'Global administrator',
-				capabilities: ['admin.global', 'category.create', 'category.delete', 'section.create', 'section.delete', 'section.manage', 'member.approve', 'member.remove', 'forum.create', 'forum.delete', 'message.pin', 'message.delete', 'user.whitelist']
+				capabilities: ['admin.global']
 			}
 		],
 		cohorts: [
 			{ id: 'admin', name: 'Administrators', description: 'Global administrators' },
-			{ id: 'approved', name: 'Approved Users', description: 'Manually approved' },
-			{ id: 'members', name: 'Community Members', description: 'Core community members' }
+			{ id: 'approved', name: 'Approved Users', description: 'Manually approved' }
 		],
 		categories: [
 			{
 				id: 'general',
 				name: 'General',
 				description: 'Public discussion areas',
-				icon: '💬',
+				icon: '🏠',
 				order: 1,
 				sections: [
 					{
-						id: 'welcome',
-						name: 'Welcome',
-						description: 'Welcome area for new visitors',
+						id: 'public-lobby',
+						name: 'Public Lobby',
+						description: 'Welcome area for visitors',
 						icon: '👋',
 						order: 1,
 						access: { requiresApproval: false, defaultRole: 'guest', autoApprove: true },
 						calendar: { access: 'full', canCreate: false },
 						ui: { color: '#6366f1' },
 						showStats: true,
-						allowForumCreation: false
-					},
-					{
-						id: 'announcements',
-						name: 'Announcements',
-						description: 'Official news and updates',
-						icon: '📢',
-						order: 2,
-						access: { requiresApproval: false, defaultRole: 'guest', autoApprove: true },
-						calendar: { access: 'full', canCreate: false },
-						ui: { color: '#f59e0b' },
-						showStats: true,
-						allowForumCreation: false
-					},
-					{
-						id: 'help',
-						name: 'Help & Support',
-						description: 'Get help with using the platform',
-						icon: '❓',
-						order: 3,
-						access: { requiresApproval: false, defaultRole: 'guest', autoApprove: true },
-						calendar: { access: 'none', canCreate: false },
-						ui: { color: '#10b981' },
-						showStats: true,
-						allowForumCreation: false
-					}
-				]
-			},
-			{
-				id: 'community',
-				name: 'Community',
-				description: 'Members-only discussion spaces',
-				icon: '🌟',
-				order: 2,
-				sections: [
-					{
-						id: 'discussions',
-						name: 'Discussions',
-						description: 'General member discussions',
-						icon: '💭',
-						order: 1,
-						access: { requiresApproval: true, defaultRole: 'member', autoApprove: false },
-						calendar: { access: 'full', canCreate: true },
-						ui: { color: '#8b5cf6' },
-						showStats: true,
-						allowForumCreation: true
-					},
-					{
-						id: 'introductions',
-						name: 'Introductions',
-						description: 'Introduce yourself',
-						icon: '🙋',
-						order: 2,
-						access: { requiresApproval: true, defaultRole: 'member', autoApprove: false },
-						calendar: { access: 'none', canCreate: false },
-						ui: { color: '#06b6d4' },
-						showStats: true,
-						allowForumCreation: false
-					},
-					{
-						id: 'events',
-						name: 'Events',
-						description: 'Community events and meetups',
-						icon: '📅',
-						order: 3,
-						access: { requiresApproval: true, defaultRole: 'member', autoApprove: false },
-						calendar: { access: 'full', canCreate: true },
-						ui: { color: '#ec4899' },
-						showStats: true,
-						allowForumCreation: true
-					}
-				]
-			},
-			{
-				id: 'projects',
-				name: 'Projects',
-				description: 'Collaborative project spaces',
-				icon: '🚀',
-				order: 3,
-				sections: [
-					{
-						id: 'active-projects',
-						name: 'Active Projects',
-						description: 'Currently active project discussions',
-						icon: '💡',
-						order: 1,
-						access: { requiresApproval: true, defaultRole: 'member', autoApprove: false },
-						calendar: { access: 'availability', canCreate: true, cohortRestricted: true },
-						ui: { color: '#ec4899' },
-						showStats: true,
-						allowForumCreation: true
-					},
-					{
-						id: 'resources',
-						name: 'Resources',
-						description: 'Shared files and documentation',
-						icon: '📚',
-						order: 2,
-						access: { requiresApproval: true, defaultRole: 'member', autoApprove: false },
-						calendar: { access: 'none', canCreate: false },
-						ui: { color: '#84cc16' },
-						showStats: false,
 						allowForumCreation: false
 					}
 				]
@@ -319,7 +215,7 @@ export function getTiers(): TierConfig[] {
 }
 
 export function getDefaultPath(): string {
-	return config.app.defaultPath || '/general/welcome';
+	return config.app.defaultPath || '/general/public-lobby';
 }
 
 // ============================================================================
@@ -335,7 +231,7 @@ export function getCategory(categoryId: CategoryId): CategoryConfig | undefined 
 }
 
 export function getDefaultCategory(): CategoryConfig {
-	const defaultPath = config.app.defaultPath || '/general/welcome';
+	const defaultPath = config.app.defaultPath || '/general/public-lobby';
 	const categoryId = defaultPath.split('/')[1];
 	return getCategory(categoryId) || config.categories[0];
 }
@@ -374,7 +270,7 @@ export function getSectionWithCategory(sectionId: SectionId): { section: Section
 }
 
 export function getDefaultSection(): SectionConfig {
-	const defaultPath = config.app.defaultPath || '/general/welcome';
+	const defaultPath = config.app.defaultPath || '/general/public-lobby';
 	const parts = defaultPath.split('/').filter(Boolean);
 	if (parts.length >= 2) {
 		const section = getSection(parts[1]);

@@ -117,7 +117,7 @@ export interface ChannelVisibilityConfig {
 export interface AppConfig {
 	name: string;
 	version: string;
-	defaultPath: string; // e.g., '/fairfield/fairfield-guests'
+	defaultPath: string; // e.g., '/general/public-lobby'
 	tiers?: TierConfig[];
 }
 

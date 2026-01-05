@@ -1,7 +1,7 @@
 {
-	"name": "Fairfield - DreamLab - Cumbria",
-	"short_name": "Fairfield",
-	"description": "Decentralized community chat for Fairfield, DreamLab, and Cumbria",
+	"name": "Nostr BBS",
+	"short_name": "Nostr BBS",
+	"description": "Privacy-first Nostr messaging platform with encrypted DMs and calendar events",
 	"start_url": "./",
 	"scope": "./",
 	"display": "standalone",

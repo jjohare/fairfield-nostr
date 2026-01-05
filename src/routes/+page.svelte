@@ -27,7 +27,7 @@
 		showDevMode = devModeRequested && hasDevCredentials;
 
 		if ($isAuthenticated) {
-			goto(`${base}/chat`);
+			goto(`${base}/forums`);
 		}
 	});
 

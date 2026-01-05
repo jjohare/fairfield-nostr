@@ -22,7 +22,7 @@
 		{ id: 'upload-config', label: 'Configuration', icon: '2' },
 		{ id: 'app-settings', label: 'App Settings', icon: '3' },
 		{ id: 'admin-setup', label: 'Admin Setup', icon: '4' },
-		{ id: 'sections-setup', label: 'Sections', icon: '5' },
+		{ id: 'categories-setup', label: 'Categories', icon: '5' },
 		{ id: 'review', label: 'Review', icon: '6' }
 	];
 
@@ -443,30 +443,43 @@ sections:
 					</button>
 				</div>
 			</div>
-		{:else if $currentSetupStep === 'sections-setup'}
+		{:else if $currentSetupStep === 'categories-setup'}
 			<div>
-				<h2 class="text-2xl font-bold mb-2">Sections</h2>
+				<h2 class="text-2xl font-bold mb-2">Categories & Sections</h2>
 				<p class="text-gray-400 mb-6">
-					Sections are areas of your app with different access controls.
+					Categories contain sections, which contain forums. This is your 3-tier navigation hierarchy.
 				</p>
 
 				<div class="space-y-4 mb-6">
-					{#if $workingConfig.categories?.some(c => c.sections?.length)}
-						{#each $workingConfig.categories ?? [] as category}
-							{#each category.sections ?? [] as section}
-								<div class="bg-gray-800 rounded-lg p-4 flex items-center justify-between">
-									<div class="flex items-center gap-3">
-										<span class="text-2xl">{section.icon}</span>
-										<div>
-											<p class="font-medium">{section.name}</p>
-											<p class="text-gray-500 text-sm">{section.description}</p>
-										</div>
+					{#if $workingConfig.categories?.length}
+						{#each $workingConfig.categories as category}
+							<div class="bg-gray-800 rounded-lg p-4">
+								<div class="flex items-center gap-3 mb-3">
+									<span class="text-2xl">{category.icon}</span>
+									<div>
+										<p class="font-medium text-lg">{category.name}</p>
+										<p class="text-gray-500 text-sm">{category.description}</p>
 									</div>
-									<span class="text-sm text-gray-400">
-										{section.access.requiresApproval ? 'Approval required' : 'Auto-approve'}
-									</span>
 								</div>
-							{/each}
+								{#if category.sections?.length}
+									<div class="ml-8 space-y-2">
+										{#each category.sections as section}
+											<div class="bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+												<div class="flex items-center gap-2">
+													<span class="text-lg">{section.icon}</span>
+													<div>
+														<p class="font-medium">{section.name}</p>
+														<p class="text-gray-500 text-xs">{section.description}</p>
+													</div>
+												</div>
+												<span class="text-xs text-gray-400">
+													{section.access.requiresApproval ? 'Approval required' : 'Auto-approve'}
+												</span>
+											</div>
+										{/each}
+									</div>
+								{/if}
+							</div>
 						{/each}
 					{:else}
 						<div class="text-center py-8 text-gray-500">
