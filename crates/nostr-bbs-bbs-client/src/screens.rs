@@ -97,6 +97,25 @@ fn now_secs() -> u64 {
     (js_sys::Date::now() / 1000.0) as u64
 }
 
+/// Column count for an embedded ASCII image: 40 on phones so ~40 cells × ~9 px
+/// fits a 390 px viewport without a nested horizontal scroll, 64 on wider
+/// screens for detail. Read `innerWidth` once per render — the boundary is
+/// coarse, so a resize listener would be overkill (re-render on navigation is
+/// enough). Falls back to the wide value off-wasm (the native test target has no
+/// window).
+fn ascii_cols() -> u32 {
+    let narrow = web_sys::window()
+        .and_then(|w| w.inner_width().ok())
+        .and_then(|v| v.as_f64())
+        .map(|w| w < 640.0)
+        .unwrap_or(false);
+    if narrow {
+        40
+    } else {
+        64
+    }
+}
+
 /// Render the active screen.
 #[component]
 pub fn ScreenView(state: BbsState) -> impl IntoView {
@@ -360,7 +379,7 @@ fn board_list_for_zone(
                 >
                     "\u{2190} Zones"
                 </span>
-                <span class="bbs-dim">"  \u{203A}  "</span>
+                <span class="bbs-dim">" \u{00B7} "</span>
             })}
             <span class="accent">{zone_name}</span>
         </div>
@@ -520,7 +539,7 @@ fn thread_list(
             >
                 "\u{2190} Boards"
             </span>
-            <span class="bbs-dim">"  " {crumb_zone} "  \u{203A}  "</span>
+            <span class="bbs-dim">" \u{00B7} " {crumb_zone} " \u{203A} "</span>
             <span class="accent">{crumb_board}</span>
         </div>
         {move || {
@@ -618,7 +637,7 @@ fn thread_view(
             >
                 "\u{2190} Topics"
             </span>
-            <span class="bbs-dim">"  " {crumb_zone} " \u{203A} " {crumb_board} " \u{203A} "</span>
+            <span class="bbs-dim">" \u{00B7} " {crumb_zone} " \u{203A} " {crumb_board} " \u{203A} "</span>
             <span class="accent">{crumb_topic}</span>
         </div>
         {move || {
@@ -639,24 +658,50 @@ fn thread_view(
                             let reply_id = p.id.clone();
                             let reply_pk = p.pubkey.clone();
                             let is_root = p.id == root_ref;
+                            // A post is a CARD, not a `.bbs-row` — rows are `white-space:pre`
+                            // single-line selectables; a post body must wrap. The card also
+                            // drops the row hit-test target so the index.html slide gesture
+                            // (which hit-tests `.bbs-row`) no longer fires on posts — posts
+                            // aren't selectable, reply is their only action. Article/header/
+                            // body/actions is the class contract C1's CSS pairs with.
+                            let cols = ascii_cols();
                             view! {
-                                <div class="bbs-row bbs-post-row" class:bbs-post-root=is_root>
-                                    <span class="accent">{format!("<{who}> ")}</span>
-                                    {body}
-                                    " "
-                                    <span class="bbs-link bbs-dim" role="button" tabindex="0"
-                                        aria-label="Reply to this post"
-                                        on:click=move |_| reply_to.set(Some((reply_id.clone(), reply_pk.clone())))
-                                        on:keydown={
-                                            let reply_id = p.id.clone();
-                                            let reply_pk = p.pubkey.clone();
-                                            on_activate(move || reply_to.set(Some((reply_id.clone(), reply_pk.clone()))))
-                                        }
-                                    >"[reply]"</span>
-                                </div>
-                                {imgs.into_iter().map(|src| view! {
-                                    <div class="bbs-ascii-row"><AsciiImg src=src cols=64 /></div>
-                                }).collect_view()}
+                                <article class="bbs-post-card" class:bbs-post-root=is_root>
+                                    <header class="bbs-post-head">
+                                        <span class="accent bbs-post-author">{format!("<{who}>")}</span>
+                                    </header>
+                                    <div class="bbs-post-body">{body}</div>
+                                    {(!imgs.is_empty()).then(|| view! {
+                                        {imgs.into_iter().map(|src| {
+                                            // The original URL, opened in a new tab — the ASCII
+                                            // render is legible-ish at 40 cols but never the full
+                                            // image; this is the escape hatch to the real thing.
+                                            let open_href = src.clone();
+                                            view! {
+                                                <div class="bbs-ascii-row">
+                                                    <AsciiImg src=src cols=cols />
+                                                    <a class="bbs-link bbs-ascii-open"
+                                                        href=open_href target="_blank" rel="noopener"
+                                                    >"open image \u{2197}"</a>
+                                                </div>
+                                            }
+                                        }).collect_view()}
+                                    })}
+                                    <div class="bbs-post-actions">
+                                        <button class="bbs-link bbs-post-reply" type="button"
+                                            aria-label="Reply to this post"
+                                            on:click=move |_| reply_to.set(Some((reply_id.clone(), reply_pk.clone())))
+                                            on:keydown={
+                                                // A native <button> already fires click on
+                                                // Enter/Space, but Space also scrolls the page by
+                                                // default — swallow it here so activation is clean.
+                                                let reply_id = p.id.clone();
+                                                let reply_pk = p.pubkey.clone();
+                                                on_activate(move || reply_to.set(Some((reply_id.clone(), reply_pk.clone()))))
+                                            }
+                                        >"[ reply ]"</button>
+                                    </div>
+                                </article>
                             }
                         })
                         .collect_view()}
@@ -1136,7 +1181,7 @@ fn pod(cfg: StoredValue<BbsConfig>) -> impl IntoView {
                                         {r.name} {suffix}
                                     </div>
                                     {img_url.map(|src| view! {
-                                        <div class="bbs-ascii-row"><AsciiImg src=src cols=72 /></div>
+                                        <div class="bbs-ascii-row"><AsciiImg src=src cols=ascii_cols() /></div>
                                     })}
                                 }
                             }).collect_view()}
@@ -1296,10 +1341,13 @@ fn chat(store: RelayStore) -> impl IntoView {
                         let who = author_label(&profiles, &p.pubkey);
                         let body = p.content.clone();
                         let imgs = extract_image_urls(&p.content);
+                        // Narrow cols on phones so the render fits the viewport
+                        // without a nested h-scroll (same rule as thread posts).
+                        let cols = ascii_cols();
                         view! {
                             <div class="bbs-row"><span class="accent">{format!("<{who}> ")}</span>{body}</div>
-                            {imgs.into_iter().map(|src| view! {
-                                <div class="bbs-ascii-row"><AsciiImg src=src cols=64 /></div>
+                            {imgs.into_iter().map(move |src| view! {
+                                <div class="bbs-ascii-row"><AsciiImg src=src cols=cols /></div>
                             }).collect_view()}
                         }
                     }).collect_view()}

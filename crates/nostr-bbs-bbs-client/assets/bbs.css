@@ -159,10 +159,22 @@ html, body {
 /* ── Main menu ───────────────────────────────────────────────────────────── */
 .bbs-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 0 2rem; }
 @media (max-width: 640px) { .bbs-menu { grid-template-columns: 1fr; } }
+/* Menu items are now real <button>s (a11y: interactive in the tree, D4). The
+ * reset strips native chrome so they render IDENTICALLY to the old StaticText —
+ * inheriting the terminal font/colour, left-aligned, full-width so the whole row
+ * is the hit target. Selection styling still comes from `.selected` below. */
 .bbs-menu-item {
   cursor: pointer;
   padding: 0 0.25rem;
   white-space: pre;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: 100%;
+  /* No `text-shadow` here: the phosphor-glow rule above (.bbs-menu-item) must
+   * keep winning, so the button reset deliberately leaves it untouched. */
 }
 .bbs-menu-item .key { color: var(--accent); }
 .bbs-menu-item.selected, .bbs-menu-item:hover {
@@ -245,7 +257,10 @@ a, .bbs-link { color: var(--accent); }
  * they auto-recolour across all four themes with no per-theme duplication. */
 .bbs-ascii-row { margin: 0.4rem 0; }
 .bbs-banner-img { margin: 0.5rem 0 0; }
-.ascii-img-wrap { overflow-x: auto; }
+/* ASCII art scrolls INSIDE this wrap only — `max-width:100%` pins it to the
+ * column so wide art can never widen the document (page-level h-scroll is the
+ * one invariant we never break). */
+.ascii-img-wrap { overflow-x: auto; max-width: 100%; }
 
 /* Content ASCII images (File Base, Message Base posts) read as contained
    "files" — a subtle phosphor-framed box with a small label. The masthead
@@ -396,12 +411,51 @@ a, .bbs-link { color: var(--accent); }
 .bbs-thread-meta { flex: 0 0 auto; }
 .bbs-thread-row.selected .bbs-thread-meta, .bbs-thread-row:hover .bbs-thread-meta { color: var(--select-fg); }
 
-/* Thread view: the root post is subtly framed so it reads as the topic opener. */
-.bbs-post-row.bbs-post-root {
+/* Thread view post card (D1). Replaces the old single-line `.bbs-post-row` — a
+ * post is not a selectable row (reply is its only action), so it is an <article>
+ * card, not a `.bbs-row`. On desktop it stays as compact as the old terminal
+ * line: the author head and body render INLINE so each post reads like one
+ * phosphor line ("<who> body text …"); mobile (below) breaks them onto their own
+ * lines with card spacing. */
+.bbs-post-card { margin: 0.2rem 0; padding: 0.1rem 0; }
+.bbs-post-head { display: inline; }
+.bbs-post-head .bbs-post-author { color: var(--accent); margin-right: 0.4rem; }
+/* Body wraps and breaks unbreakable tokens (URLs / hex / long words) so a post
+ * can never push the document wider than the viewport — the overflow-0 invariant.
+ * `display:inline` keeps the classic single-line terminal look on desktop. */
+.bbs-post-body {
+  display: inline;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+/* Reply sits after the body on desktop; the button carries a ≥44px tap box that
+ * only asserts itself on mobile (inline-flex keeps it unobtrusive on desktop). */
+.bbs-post-actions { display: inline; margin-left: 0.4rem; }
+.bbs-post-actions .bbs-post-reply {
+  background: none; border: 0; font: inherit; color: var(--accent);
+  cursor: pointer; padding: 0; text-shadow: inherit;
+  display: inline-flex; align-items: center;
+}
+.bbs-post-actions .bbs-post-reply:hover { color: var(--fg-bright); }
+/* The root post is subtly framed so it reads as the topic opener. */
+.bbs-post-card.bbs-post-root {
+  display: block;
   border-left: 2px solid var(--accent);
   padding-left: 0.4rem;
   background: color-mix(in srgb, var(--accent) 4%, var(--bg));
 }
+
+/* "open image ↗" affordance under an ASCII render — a real tappable link to the
+ * original at a ≥44px box (D3). Dim so it doesn't compete with the art above. */
+.bbs-ascii-open {
+  display: inline-flex; align-items: center;
+  min-height: 44px;
+  color: var(--fg-dim);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+.bbs-ascii-open:hover { color: var(--fg-bright); }
 
 /* Composer image affordance: the file input is visually hidden (its own
    `[ ▸ image ]` control triggers it) but stays focusable/operable. */
@@ -424,8 +478,10 @@ a, .bbs-link { color: var(--accent); }
   border-left: 2px solid #ff5555; padding-left: 0.5rem; margin-bottom: 0.4rem;
 }
 
-/* Breadcrumb / back control on board + thread views. */
-.bbs-crumb { display: flex; align-items: center; flex-wrap: wrap; white-space: normal; }
+/* Breadcrumb / back control on board + thread views. A flex `gap` guarantees
+ * segments never visually concatenate ("← BoardsWelcome") even if the Rust
+ * markup omits separator whitespace (D5). */
+.bbs-crumb { display: flex; align-items: center; flex-wrap: wrap; gap: 0 0.4rem; white-space: normal; }
 .bbs-crumb .bbs-link { display: inline-flex; align-items: center; min-height: 44px; }
 
 /* Persistent, skinned bottom navigation bar. */
@@ -506,10 +562,14 @@ html.bbs-reduced-motion .sentry-radar::before { animation: none; }
   /* Status/footer/nav-labels rendered ~9–11 px; lift clear of the 12 px type
      floor on a 13 px root (0.95rem = 12.35 px). Colours are untouched, so the
      amber-palette AA contrast (10.8:1 status, 6.6:1 dim) is unchanged (A11y). */
-  .bbs-statusbar { font-size: 0.95rem; }
-  .bbs-footer { font-size: 0.95rem; }
-  .bbs-navitem .lab { font-size: 0.95rem; }
-  .bbs-landing-foot { font-size: 0.95rem; }
+  /* Type scale ≤640px (D6): exactly three content sizes — 0.92rem meta/dim
+     (≈12px, the floor), 1rem body, 1.15rem list rows. All the old scattered
+     0.95rem meta values collapse onto 0.92rem here; no content rule drops below
+     12px except the `.ascii-img` art cells (exempt: those are images). */
+  .bbs-statusbar { font-size: 0.92rem; }
+  .bbs-footer { font-size: 0.92rem; }
+  .bbs-navitem .lab { font-size: 0.92rem; }
+  .bbs-landing-foot { font-size: 0.92rem; }
 
   .bbs-menu {
     display: flex;
@@ -558,20 +618,44 @@ html.bbs-reduced-motion .sentry-radar::before { animation: none; }
      pictures (.bbs-ascii-row) and link previews still render as ASCII. */
   .bbs-section-hero { display: none; }
 
-  /* Posted/preview ASCII images stay, sized to the narrow column (kept legible;
-     wide art scrolls horizontally in its own container rather than shrinking away). */
-  .ascii-img { font-size: 0.5rem; }
+  /* Posted/preview ASCII images stay, sized to the narrow column. `clamp` gives
+     a legible floor (7px) that scales with the viewport up to 10px — the old flat
+     0.5rem was 6.5px, illegible (D3). `line-height:1` keeps the grid square so
+     the art doesn't smear. At the responsive 40-col render (~9px/col ≈ 360px) it
+     fits a 390px viewport without the wrap needing to scroll. These cells are the
+     ONE type-scale exemption (they're images, not text). */
+  .ascii-img { font-size: clamp(7px, 2.2vw, 10px); line-height: 1; }
+
+  /* Thread post cards (D1): on mobile a post becomes a spaced card, not a
+     terminal line — author head and body each get their own line, with clear
+     separation and a full-width reply button that meets the 44px tap minimum. */
+  .bbs-post-card {
+    display: block;
+    padding: 0.5rem 0.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .bbs-post-head { display: block; margin-bottom: 0.25rem; }
+  .bbs-post-body { display: block; font-size: 1rem; }
+  .bbs-post-actions { display: block; margin-left: 0; margin-top: 0.35rem; }
+  .bbs-post-actions .bbs-post-reply {
+    min-height: 44px;
+    padding: 0 0.4rem;
+    margin-left: -0.4rem;             /* align the tap box with the text edge */
+  }
 
   /* Keyboard hints are meaningless without a keyboard — swap them for a touch
      hint that names the bottom bar (the primary return path). Slide over rows to
      move the highlight, lift to select; the bar below jumps between sections. */
   .bbs-fkeys { display: none; }
   .bbs-footer::before {
-    content: "use the bar below to move around \00B7 slide over rows, lift to open";
+    /* \0020 (a real space) follows the middot explicitly: a bare space after a
+       hex escape is swallowed as the escape's terminator, so "\00B7 slide"
+       rendered as "·slide" with no gap. */
+    content: "use the bar below to move around \00B7\0020slide over rows, lift to open";
     display: block;
     margin-bottom: 0.15rem;
     color: var(--fg-dim);
-    font-size: 0.95rem;              /* ≥12 px on the 13 px mobile root (A11y) */
+    font-size: 0.92rem;              /* meta size — ≈12 px on the 13 px mobile root (A11y) */
   }
   .bbs-cmdline input, .bbs-signin .bbs-key { font-size: 16px; }  /* stop iOS focus-zoom */
 }

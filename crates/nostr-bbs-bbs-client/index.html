@@ -107,7 +107,21 @@
          highlight, lift to select. A thin bridge onto the existing keyboard
          model — it hit-tests the item under the touch and drives the app's own
          ArrowUp/ArrowDown/Enter handlers, so every screen behaves identically
-         to the keyboard. No-op without touch (mouse never fires these). -->
+         to the keyboard. No-op without touch (mouse never fires these).
+
+         Menu items are real <button>s now (a11y). `closest('.bbs-menu-item')`
+         already matches them (selector match ignores tag), so hit-testing is
+         unchanged. Two button-specific constraints are handled below:
+          - Selection state has ONE source of truth — Rust's `selected` signal.
+            This script only SYNTHESISES ArrowUp/Down/Enter and reads back the
+            `.selected` class; it never writes that class, so a JS highlight can
+            never diverge from the Rust one.
+          - A tapped button takes focus, and the Rust key-guard skips keydowns
+            while a button is focused (so a native button-Enter isn't doubled).
+            That is correct for a pure tap (the native button click selects it),
+            but it would also swallow the synthetic Enter we fire at the end of a
+            SLIDE that moved to a different item. So when a slide has moved, we
+            blur the focused control before firing Enter — see touchend. -->
     <script>
       (function () {
         function selectable() {
@@ -115,7 +129,7 @@
         }
         function fire(key) { document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true })); }
         function itemAt(x, y) { var el = document.elementFromPoint(x, y); return el ? el.closest('.bbs-menu-item, .bbs-row') : null; }
-        var lastIdx = -1, active = false, over = false;
+        var lastIdx = -1, active = false, over = false, moved = false;
         function curIndex(items) {
           if (lastIdx >= 0) return lastIdx;            // track in JS — the DOM `.selected` lags the re-render
           var d = items.findIndex(function (e) { return e.classList.contains('selected'); });
@@ -129,6 +143,7 @@
           if (target !== cur) {
             var key = target > cur ? 'ArrowDown' : 'ArrowUp';
             for (var i = 0; i < Math.abs(target - cur); i++) fire(key);
+            moved = true;                              // a real slide, not a tap-in-place
           }
           lastIdx = target;
           item.scrollIntoView({ block: 'nearest' });
@@ -136,7 +151,7 @@
         }
         document.addEventListener('touchstart', function (e) {
           var t = e.touches[0]; if (!t) return;
-          lastIdx = -1;
+          lastIdx = -1; moved = false;
           var it = itemAt(t.clientX, t.clientY);
           if (!it) { active = false; return; }
           active = true; over = true; moveTo(it);
@@ -148,8 +163,14 @@
           if (it) { over = true; if (moveTo(it)) e.preventDefault(); } else { over = false; }
         }, { passive: false });
         document.addEventListener('touchend', function () {
-          if (active && over) fire('Enter');
-          active = false; lastIdx = -1;
+          if (active && over) {
+            // On a slide that moved, drop focus first so the focused start-button
+            // doesn't make the Rust key-guard swallow our Enter. A pure tap keeps
+            // focus and lets the native button/row click do the single select.
+            if (moved && document.activeElement && document.activeElement.blur) document.activeElement.blur();
+            fire('Enter');
+          }
+          active = false; lastIdx = -1; moved = false;
         }, { passive: true });
       })();
     </script>

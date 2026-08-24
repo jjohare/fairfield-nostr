@@ -340,16 +340,34 @@ pub fn MainMenu(state: BbsState) -> impl IntoView {
                 .into_iter()
                 .enumerate()
                 .map(|(i, s)| {
+                    // Every screen in `menu_order` has a shortcut, so `menu_key` is
+                    // always `Some` here — the `' '` fallback never fires. The digit
+                    // is a plain, unconditional text node inside the row: it is NOT
+                    // gated on `selected`, so it can't vanish on the highlighted row.
+                    // (The live "[ ] Members" glitch came from the old inline-JS
+                    // selection rewriting a non-interactive row's markup and eating
+                    // the digit; a real button driven by the `selected` signal removes
+                    // the need for that JS rewrite entirely.)
                     let key = s.menu_key().unwrap_or(' ');
+                    let title = s.title();
+                    // `selection` is the SINGLE source of the `.selected` class. A
+                    // tap sets the selection to this row *and* navigates, so a
+                    // JS/touch hit-test can never leave the visual highlight pointing
+                    // at a different row than the model (no two-rows-lit desync).
                     let selected = move || state.selection.get() == i;
+                    let aria = format!("{title}, shortcut {key}");
                     view! {
-                        <div
+                        <button
                             class="bbs-menu-item"
                             class:selected=selected
-                            on:click=move |_| state.go(s)
+                            aria-label=aria
+                            on:click=move |_| {
+                                state.selection.set(i);
+                                state.go(s);
+                            }
                         >
-                            "[" <span class="key">{key}</span> "] " {s.title()}
-                        </div>
+                            "[" <span class="key">{key}</span> "] " {title}
+                        </button>
                     }
                 })
                 .collect_view()}
@@ -511,10 +529,16 @@ pub fn install_key_handler(state: BbsState, store: RelayStore, cfg: StoredValue<
                     return;
                 }
                 // A focused custom button (zone card, thread/member row, back
-                // control, toggle) or native <button>/<a> owns Enter/Space — its
-                // own handler activates it, so don't ALSO drive the global nav
-                // model (which would double-navigate). Other keys still pass so
-                // arrows / digits keep working while a control is focused.
+                // control, toggle), a main-menu item (`.bbs-menu-item`, now a real
+                // <button>), or native <button>/<a> owns Enter/Space — its own
+                // on:click activates it, so don't ALSO drive the global nav model
+                // (which would double-navigate). We deliberately scope the bail to
+                // Enter/Space ONLY and let every other key fall through: this is why
+                // arrows / j / k / digits / t / ? keep driving the BBS nav model even
+                // while a menu button holds focus (e.g. after a tap or Tab). Native
+                // button semantics handle activation; we handle traversal. Exempting
+                // the whole button would break arrow/digit navigation from the menu —
+                // hence the key-scoped guard rather than an element-scoped one.
                 let k = ev.key();
                 let is_button = tag.eq_ignore_ascii_case("button")
                     || tag.eq_ignore_ascii_case("a")
