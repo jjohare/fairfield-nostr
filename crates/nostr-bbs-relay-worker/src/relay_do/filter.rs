@@ -43,12 +43,23 @@ pub struct NostrFilter {
 
 impl NostrRelayDO {
     /// Build WHERE conditions from a NIP-01 filter (shared by REQ and COUNT).
+    ///
+    /// Returns an optional "tag driver" FROM-clause fragment: a
+    /// `(SELECT DISTINCT event_id FROM event_tags WHERE …)` subquery built
+    /// from the FIRST tag filter (#e/#p/#t…). The caller CROSS JOINs it ahead
+    /// of `events` so SQLite reads only the matching tag rows plus one PK
+    /// lookup each — O(matches) — instead of walking the whole kind and
+    /// probing per row, which is O(history) and was ~80% of all D1 rows read
+    /// (measured live: sparse-channel REQ 422→4 rows, gift-wrap poll 169→42).
+    /// Any additional tag filters become EXISTS conditions. Placeholders are
+    /// numbered (?N), so the driver's params order-mix freely with the rest.
     pub(crate) fn build_filter_conditions(
         filter: &NostrFilter,
         conditions: &mut Vec<String>,
         params: &mut Vec<JsValue>,
         param_idx: &mut u32,
-    ) {
+    ) -> Option<String> {
+        let mut tag_driver: Option<String> = None;
         if let Some(ref ids) = filter.ids {
             if !ids.is_empty() {
                 let placeholders: Vec<String> = ids
@@ -134,28 +145,32 @@ impl NostrRelayDO {
                 continue;
             }
 
-            let mut tag_conditions: Vec<String> = Vec::new();
-            for v in &tag_values {
-                if v.is_empty() {
-                    continue;
-                }
-                // instr() substring match instead of LIKE: D1's SQLite rejects
-                // the LIKE+ESCAPE pattern for 64-char hex values with
-                // "LIKE or GLOB pattern too complex" (SQLITE_ERROR 7500), and
-                // query_events swallows the error — every tag-filtered REQ
-                // (#e/#p/#t…) silently returned zero rows. instr has no pattern
-                // engine and is case-sensitive, which is what nostr tag values
-                // want. Strip quotes so a value can't escape the JSON-quoted
-                // needle context.
-                let sanitized = v.replace('"', "");
-                let needle = format!("\"{tag_name}\",\"{sanitized}\"");
-                tag_conditions.push(format!("instr(tags, ?{}) > 0", *param_idx));
-                params.push(JsValue::from_str(&needle));
+            let nonempty: Vec<&&str> = tag_values.iter().filter(|v| !v.is_empty()).collect();
+            if !nonempty.is_empty() {
+                let name_placeholder = format!("?{}", *param_idx);
+                params.push(JsValue::from_str(tag_name));
                 *param_idx += 1;
-            }
-
-            if !tag_conditions.is_empty() {
-                conditions.push(format!("({})", tag_conditions.join(" OR ")));
+                let value_placeholders: Vec<String> = nonempty
+                    .iter()
+                    .map(|v| {
+                        let p = format!("?{}", *param_idx);
+                        params.push(JsValue::from_str(v));
+                        *param_idx += 1;
+                        p
+                    })
+                    .collect();
+                let values = value_placeholders.join(",");
+                if tag_driver.is_none() {
+                    tag_driver = Some(format!(
+                        "(SELECT DISTINCT event_id FROM event_tags \
+                         WHERE name = {name_placeholder} AND value IN ({values}))"
+                    ));
+                } else {
+                    conditions.push(format!(
+                        "EXISTS (SELECT 1 FROM event_tags t WHERE t.event_id = events.id \
+                         AND t.name = {name_placeholder} AND t.value IN ({values}))"
+                    ));
+                }
             } else {
                 conditions.push("1 = 0".to_string());
             }
@@ -171,6 +186,8 @@ impl NostrRelayDO {
                 *param_idx += 1;
             }
         }
+
+        tag_driver
     }
 }
 

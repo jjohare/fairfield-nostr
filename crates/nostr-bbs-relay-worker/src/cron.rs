@@ -561,12 +561,14 @@ pub async fn sweep_retention(env: &Env) -> Result<RetentionSweepResult, String> 
     }
 
     // ---- Phase 2: NIP-40 expiration (any kind) ----
-    // `json_each` walks the outer tags array; each `.value` is a
-    // `[name, value, …]` sub-array. An event is expired when it carries an
-    // `["expiration", <ts>]` tag whose timestamp is already in the past.
-    let expiry_sql = "SELECT e.id AS id FROM events e, json_each(e.tags) je \
-         WHERE json_extract(je.value, '$[0]') = 'expiration' \
-           AND CAST(json_extract(je.value, '$[1]') AS INTEGER) < ?1 \
+    // Probe the trigger-maintained event_tags side table (migration 0004)
+    // instead of json_each over every events row: the old form full-scanned
+    // the table on every 5-minute cron tick (~10% of all D1 rows read).
+    // name='expiration' is an index seek touching only events that actually
+    // carry the tag — normally zero rows.
+    let expiry_sql = "SELECT DISTINCT event_id AS id FROM event_tags \
+         WHERE name = 'expiration' \
+           AND CAST(value AS INTEGER) < ?1 \
          LIMIT ?2";
 
     loop {
