@@ -6,3 +6,4 @@
 | 2026-08-15 | performance-scaling | Given that the configured `perf` evaluator (`cargo bench -p nostr-bbs-core`) pro | NONE | NONE | yes | INCONCLUSIVE |  | f5b8b5cf8961 |  |
 | 2026-08-16 | nip-compliance | Given the two sanctioned evaluator entrypoints (`cargo test --workspace` and `ca | NONE | NONE | yes | INCONCLUSIVE |  | 3b3b7ba988bf |  |
 | 2026-08-16 | nip-compliance | Given the official `perf` evaluator receipts for `nostr-bbs-core` at commit `ef5 | NONE | NONE | yes | INCONCLUSIVE |  | 1f8b2b2ae969 |  |
+| 2026-08-21 | forum-thread-model | Given the sanctioned `perf` evaluator (`cargo bench -p nostr-bbs-core`) and the  | NONE | NONE | yes | INCONCLUSIVE |  | 1a9490e1e4f4 |  |
