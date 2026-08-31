@@ -26,8 +26,16 @@ numbers to the living docs).
 governing document **in the same change**, and regenerate this index
 (`node scripts/adr-index-gen.js docs/adr` — it fails CI on invalid frontmatter).
 
-_1 record(s). Regenerate with_ `node scripts/adr-index-gen.js docs/adr`.
+_9 record(s). Regenerate with_ `node scripts/adr-index-gen.js docs/adr`.
 
 | ID | Title | Date | Decision | Impl | Activation | Supersedes | Superseded by | Owner | Repo |
 |----|-------|------|----------|------|------------|------------|---------------|-------|------|
 | [ADR-2001](ADR-2001-corpus-consolidation.md) | Consolidate the ADR corpus into living ground-truth docs plus a thin ledger | 2026-08-31 | accepted | complete | live | — | — | nostr-rust-forum maintainers (DreamLab AI) | nostr-rust-forum |
+| [ADR-2002](ADR-2002-canary-first-upstream-nostr-absorption.md) | Absorb upstream `nostr` canary-first — keep hand-rolled core until Shape A is proven | 2026-08-31 | accepted | partial | staged | — | — | jjohare | nostr-rust-forum |
+| [ADR-2003](ADR-2003-derive-subkey-raw-hmac-js-parity.md) | Derive purpose-scoped subkeys with raw HMAC-SHA256, not HKDF, for byte-for-byte JS parity | 2026-08-31 | accepted | complete | live | — | — | jjohare | nostr-rust-forum |
+| [ADR-2004](ADR-2004-device-keys-default-off-dual-worker-gate.md) | Gate revocable device keys default-off behind exact `DEVICE_KEYS_ENABLED == "true"`, checked in both workers | 2026-08-31 | accepted | complete | live | — | — | jjohare | nostr-rust-forum |
+| [ADR-2005](ADR-2005-gift-wrap-recipient-tag-admission.md) | Admit gift-wraps on the recipient `p` tag, whitelist-gated, never on the ephemeral author | 2026-08-31 | accepted | complete | live | — | — | jjohare | nostr-rust-forum |
+| [ADR-2006](ADR-2006-trust-demotion-cron-tl3-never.md) | Run trust demotion time-driven on the cron trigger with hysteresis; never auto-demote TL3 | 2026-08-31 | accepted | complete | live | — | — | jjohare | nostr-rust-forum |
+| [ADR-2007](ADR-2007-kit-exact-pin-beta-channel.md) | Pin `solid-pod-rs` to an exact version and publish the kit on a single `1.0.0-beta.N` channel | 2026-08-31 | accepted | complete | live | — | — | jjohare | nostr-rust-forum |
+| [ADR-2008](ADR-2008-bbs-signer-holds-key-directly.md) | Let the retro BBS client hold its SecretKey directly, diverging from the ADR-105 `sign()` seam | 2026-08-31 | accepted | complete | live | — | — | jjohare | nostr-rust-forum |
+| [ADR-2009](ADR-2009-acl-sidecar-coerce-to-control.md) | Coerce every `.acl`/`.meta` sidecar access to `Control` via the shared upstream policy, reads and writes alike | 2026-08-31 | accepted | complete | live | — | — | jjohare | nostr-rust-forum |
