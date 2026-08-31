@@ -247,7 +247,7 @@ pub fn derive_from_prf(prf_output: &[u8; 32], derivation_salt: &[u8]) -> Result<
 /// Returns [`KeyError::InvalidSecretKey`] if the HMAC output is not a valid
 /// secp256k1 scalar (zero or >= curve order) — astronomically unlikely.
 ///
-/// [ADR-094]: ../../../docs/adr/ADR-094-deterministic-subkey-derivation.md
+/// [ADR-094]: ../../../docs/archive/adr/ADR-094-deterministic-subkey-derivation.md
 pub fn derive_subkey(root: &SecretKey, tag: &str) -> Result<SecretKey, KeyError> {
     // HMAC-SHA-256 keyed with the root's 32 secret bytes; message is the UTF-8 tag.
     let mut mac = HmacSha256::new_from_slice(root.as_bytes())

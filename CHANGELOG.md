@@ -214,7 +214,7 @@ their prior versions.
   rebind. Shared contract in `nostr-bbs-core::boot_profile`; feature is gated
   on `window.__ENV__.BBS_PWA_ENABLED` (default off). Design trio:
   `docs/prd/prd-zone-bound-bbs-pwa.md`,
-  `docs/adr/ADR-109-zone-bound-bbs-pwa-install.md`,
+  `docs/archive/adr/ADR-109-zone-bound-bbs-pwa-install.md`,
   `docs/ddd/ddd-zone-bound-bbs-pwa.md`.
 - **Quote-and-append topic replies** (forum-client). Every post in a topic
   carries a "Reply" that quotes that message and appends the reply at the
@@ -324,7 +324,7 @@ soak of `nostr-bbs-forum-client`; see the operator overlay's
 
 ### Added
 
-- **Zone-first landing and scoped navigation** ([ADR-107](docs/adr/ADR-107-zone-first-landing-and-scoped-navigation.md)):
+- **Zone-first landing and scoped navigation** ([ADR-107](docs/archive/adr/ADR-107-zone-first-landing-and-scoped-navigation.md)):
   a member authorised for exactly one locked zone now lands on that zone instead
   of the generic forums index. The home zone is derived client-side from
   `ZONE_CONFIG × cohorts` via `Zone::is_member` (`home_zone_for`) — exactly one
@@ -344,7 +344,7 @@ soak of `nostr-bbs-forum-client`; see the operator overlay's
   without touching the relay whitelist. Not compiled into release builds.
 
 BBS mobile-first redesign — "split the difference" (2026-07); see
-[ADR-108](docs/adr/ADR-108-bbs-mobile-first-redesign.md) and the operator
+[ADR-108](docs/archive/adr/ADR-108-bbs-mobile-first-redesign.md) and the operator
 overlay's `docs/sprint/bbs-redesign-2026-07.md`. Reimagines the retro BBS client
 (`nostr-bbs-bbs-client`, served at `/community/bbs/`) after a live mobile UX
 audit: the phosphor skin, ASCII image rendering, numbered menu and keyboard model

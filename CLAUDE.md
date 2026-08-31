@@ -1,3 +1,20 @@
+## Architecture ground truth (consolidated 2026-08-31)
+
+The ADR corpus was consolidated on 2026-08-31. **Ground truth lives in two living
+docs, not in the old ADRs.** The pack for any area is its living doc in `docs/` plus
+the thin ledger records in `docs/adr/` that amend it:
+
+- `docs/BASELINE-architecture.md` — crate topology, upstream `nostr` absorption,
+  pod mesh, CF Workers, ACL, NIP-05, kit publishing, both clients.
+- `docs/IDENTITY-keys-and-trust.md` — key derivation, device keys, key lifecycle,
+  agent identity, DM delivery, gift-wrap admission, trust levels.
+
+**Lookup order:** living doc → its `file:line` citations into code → `docs/adr/`
+ledger → `docs/archive/adr/` (ADRs 086–109, **history only, never authority** — it
+was frozen because it drifted from the code). New decisions: copy
+`docs/adr/TEMPLATE.md`, update the affected living doc in the same change, and run
+`node scripts/adr-index-gen.js docs/adr`.
+
 ## Agentic QE v3
 
 This project uses **Agentic QE v3** - a Domain-Driven Quality Engineering platform with 13 bounded contexts, ReasoningBank learning, HNSW vector search, and Agent Teams coordination (ADR-064).

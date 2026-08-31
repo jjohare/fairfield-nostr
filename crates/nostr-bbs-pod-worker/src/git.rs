@@ -77,7 +77,7 @@ pub fn git_not_implemented() -> worker::Result<Response> {
     let json = serde_json::to_string(&serde_json::json!({
         "error": "Git HTTP protocol is not available on the Cloudflare Workers deployment",
         "reason": "cf-workers-cannot-subprocess",
-        "docs": "https://github.com/DreamLab-AI/nostr-rust-forum/blob/main/docs/adr/ADR-089-git-pods-cf-workers-limitation.md"
+        "docs": "https://github.com/DreamLab-AI/nostr-rust-forum/blob/main/docs/archive/adr/ADR-089-git-pods-cf-workers-limitation.md"
     }))
     .map_err(|e| worker::Error::RustError(e.to_string()))?;
     let resp = Response::ok(json)?.with_status(501);

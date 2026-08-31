@@ -398,7 +398,7 @@
 - **Decision:** FREEZE — mark publish=false (or 0.0.x pre-release) until a transport ships, so a 1.0.0-beta of an empty crate is not published; keep the scaffold documented.
 
 ### (stubs-adrs) Stale solid-pod-rs version-pin comments contradict the actual pin (0.5.0-alpha.3)  — *· unverified (plausible)*
-- **Evidence:** Cargo.toml:123-141; docs/adr/ADR-086-nip05-pod-federation.md:160-166; crates/nostr-bbs-pod-worker/src/export.rs:7; crates/nostr-bbs-core/src/did.rs:13,138
+- **Evidence:** Cargo.toml:123-141; docs/archive/adr/ADR-086-nip05-pod-federation.md:160-166; crates/nostr-bbs-pod-worker/src/export.rs:7; crates/nostr-bbs-core/src/did.rs:13,138
 - **Detail:** Root Cargo.toml:141 pins solid-pod-rs = 0.5.0-alpha.3, but the comment block immediately above (Cargo.toml:123-140) narrates 0.4.0-alpha.3 for the core flag, and 'Registry dep: 0.4.0-alpha.17 is published from git tag v0.4.0-alpha.17... the alpha.15 aliasing... is resolved'. ADR-086 §8 and export.rs:7 further cite 'alpha.11'. None of these match the live 0.5.0-alpha.3 pin. A reader cannot tell whi
 - **Decision:** FIX the comments to describe the real 0.5.0-alpha.3 pin, and add a closeout task to bump the pin once the solid-pod-rs closeout/2026-07-03 fixes publish (verify the did_nostr_types binding change lands).
 
@@ -408,7 +408,7 @@
 - **Decision:** FINISH (wire a JSON-LD→Turtle converter) or ACCEPT with an honest 406/Vary response rather than mislabelling the body as JSON-LD; document the limitation in the pod content-negotiation contract.
 
 ### (stubs-adrs) ADR-101 accepted-but-deferred leaves device-key users with no DMs; ADR-105 passkey governance-write attribution gap deferred  — *· unverified (plausible)*
-- **Evidence:** docs/adr/ADR-101-multi-device-dm-delivery.md:3; docs/adr/ADR-099-revocable-device-keys.md:4; docs/adr/ADR-105-bbs-door-games-and-write-architecture.md:§6-amendment; docs/diagrams/00-anomaly-register.md:O6
+- **Evidence:** docs/archive/adr/ADR-101-multi-device-dm-delivery.md:3; docs/archive/adr/ADR-099-revocable-device-keys.md:4; docs/archive/adr/ADR-105-bbs-door-games-and-write-architecture.md:§6-amendment; docs/diagrams/00-anomaly-register.md:O6
 - **Detail:** ADR-101 (Multi-device NIP-17 DM delivery) is 'Accepted (implementation deferred — ADR-099 phase 2)': a user who onboards a phone with a device key sees the full forum but receives no DMs on that device (gift-wraps are encrypted to the master). It is gated behind DEVICE_KEYS_ENABLED (default off) so latent, but it is a documented functional gap, related to anomaly O6 (NIP-07 users get a silent no-o
 - **Decision:** FREEZE (documented) — before enabling DEVICE_KEYS_ENABLED, either implement ADR-101 multi-wrap send or surface a clear 'no DMs on this device' UI warning to close O6; keep the ADR-105 passkey-attribution note tracked.
 

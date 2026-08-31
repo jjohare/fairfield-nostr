@@ -96,7 +96,7 @@ fn render_public_type_index_acl(owner_did: &str) -> Vec<u8> {
 /// pulls in `tokio::process` for the `git init` subprocess fallback,
 /// which has no `wasm32-unknown-unknown` target. CF Workers also lacks
 /// process-spawning and a Tokio runtime, so the upstream code path is
-/// structurally unreachable here. See **ADR-089** (`docs/adr/ADR-089-git-pods-cf-workers-limitation.md`)
+/// structurally unreachable here. See **ADR-089** (`docs/archive/adr/ADR-089-git-pods-cf-workers-limitation.md`)
 /// for the option matrix and shipping decision. Pods provisioned by
 /// this worker are LDP+R2 prefixes with no git history; the parallel
 /// agentbox deployment of the same kit does git-init on its server
