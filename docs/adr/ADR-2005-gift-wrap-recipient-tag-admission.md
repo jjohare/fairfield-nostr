@@ -49,3 +49,13 @@ event so the routing decision is unit-testable without a D1 lookup.
 - Whitelist-gated admission: `nip_handlers.rs:510-518`.
 - Gift-wraps excluded from ban-gating: `nip_handlers.rs:58-64`.
 - Established at `verified_commit` 7795af5 (`git rev-parse --short HEAD`).
+
+## Closeout extension — 2026-09-04
+
+Work packages: CP-04/05. Accountable owner: the existing owner above, with forum release/identity maintainers for cross-service acceptance. Historical verification and activation declarations are preserved; this review does not re-certify a live deployment.
+
+The relay extracts the recipient and checks membership for gift-wrap admission. Admission of a signed envelope is separate from recipient read visibility, decryption and user acknowledgement.
+
+**Acceptance condition:** Test missing/multiple recipient tags, member/non-member recipients, authenticated read visibility, replay and recipient delivery under the pinned client/relay versions. Preserve the explicit ban-gating exception and document its abuse-control boundary.
+
+Dependencies: CP-01 release identity and the relevant identity, governance and recovery journeys. Reopen when the governed source, dependency, deployment profile or consumer contract changes. See the [estate forum review](../../../VisionFlow/docs/estate-review/forum-decisions.md) and [current source/test receipt](../../../VisionFlow/docs/estate-review/evidence/forum-closeout-snapshot.json).

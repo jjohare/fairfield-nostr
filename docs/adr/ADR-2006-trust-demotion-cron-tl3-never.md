@@ -29,8 +29,7 @@ gate — and TL3 is an administrative grant, not an earned level.
 
 Demotion is **time-driven and runs only on the scheduled (cron) trigger**, alongside the
 profile-backfill sweep, never inline on admission. It applies **hysteresis** (TL2 demotes
-at 90% of the promotion threshold combined with ~6-month inactivity), steps one level per
-qualifying sweep with TL0 as a hard floor, and **never auto-demotes TL3** (admin-granted
+at 90% of the promotion threshold combined with ~6-month inactivity), can move TL2 directly to TL0 when TL1 criteria are not met, with TL0 as a hard floor, and **never auto-demotes TL3** (admin-granted
 levels and exempt rows are untouchable by the sweep). Promotion stays on the EOSE read
 tally; demotion stays on the cron sweep.
 
@@ -51,3 +50,100 @@ tally; demotion stays on the cron sweep.
 - Ladder, hysteresis and "TL3 never auto-demoted": `crates/nostr-bbs-relay-worker/src/trust.rs:9-10,26-35`;
   promotion never computes/modifies TL3: `trust.rs:165,200-202`.
 - Established at `verified_commit` 7795af5 (`git rev-parse --short HEAD`).
+
+## Closeout extension — 2026-09-04
+
+Work packages: CP-04/05/08. Accountable owner: the existing owner above, with forum release/identity maintainers for cross-service acceptance. Historical verification and activation declarations are preserved; this review does not re-certify a live deployment.
+
+Source can demote TL2 directly to TL0. It ignores execution errors from separate trust UPDATE and audit INSERT operations, then returns the planned level. The sweep counts that return as a decrease. A source-query SQLite fixture starts with 400 eligible rows, processes 200 and leaves 200 because OFFSET advances after qualifying rows leave the result set.
+
+**Acceptance condition:** Use stable pagination over the mutation boundary and explicit committed/error outcomes. Verify more than one batch, tied timestamps, TL2-to-TL0, TL3/admin exclusions, write/audit failures and restart reconciliation. Counts must represent committed changes; protect audit/state consistency. This is source and synthetic-query evidence, not a deployed D1 reproduction.
+
+Dependencies: CP-01 release identity and the relevant identity, governance and recovery journeys. Reopen when the governed source, dependency, deployment profile or consumer contract changes. See the [estate forum review](../../../VisionFlow/docs/estate-review/forum-decisions.md) and [current source/test receipt](../../../VisionFlow/docs/estate-review/evidence/forum-closeout-snapshot.json).
+
+Implementation status changed from complete to partial because committed sweep coverage and audit outcomes are not established by the current implementation. The accepted cron/TL3 policy is retained.
+
+## Acceptance progress — 2026-09-05
+
+**Implemented.** The sweep moved to `crates/nostr-bbs-relay-worker/src/trust_sweep.rs` and now pages the
+candidate set with a **keyset cursor** over `(COALESCE(last_active_at, 0) ASC, pubkey ASC)` instead of
+`LIMIT/OFFSET`. The offset form was unsound for this workload: the sweep mutates `trust_level`, the very
+column its candidate predicate filters on, so rows demoted out of the TL1–TL2 band left the result set
+underneath the offset. Neither cursor component is written by a demotion, so every row's ordering key is
+stable across the mutation boundary, and the `pubkey` tiebreak makes the order total for a cohort sharing
+one `last_active_at`.
+
+Outcomes are explicit. Every scanned row resolves to exactly one of committed, held (with a named
+`HoldReason`), or failed (with the error), and `scanned == demoted + held + failed` is asserted in test and
+checked on the live path. `demoted` counts confirmed commits only — the previous implementation discarded
+both write results and then returned the *planned* level, so a failed write was indistinguishable from a
+committed one. A page-query failure now sets `aborted` rather than presenting as clean completion.
+
+Audit and state commit together: the `whitelist` `UPDATE` and the `admin_log` `INSERT` are submitted as one
+D1 `batch`, which executes in a single implicit transaction. The `UPDATE` carries an optimistic guard on the
+observed level and a `meta().changes == 0` check, so an admin grant landing mid-sweep is reported as a
+conflict rather than clobbered.
+
+Three structural changes reinforce the accepted policy rather than restating it. `trust::decide_demotion` is
+now a pure function and the single authority for the decision. The `#[cfg(test)]` policy mirror in `cron.rs`
+— which carried a comment insisting the two "MUST stay in lockstep" — is deleted; the tests exercise the live
+function through an argument-shaping adapter, so drift is impossible rather than merely discouraged. And
+`trust::check_demotion`, the per-pubkey entry point, is deleted: it had no caller but the sweep, and its
+absence makes this ADR's "demotion never runs on the hot path" invariant structural. The sweep also selects
+the full candidate row in its page query; the previous code re-read each row and reloaded every threshold
+setting from D1 per candidate.
+
+TL2 → TL0 is **retained**, because this ADR's Decision explicitly permits it when the TL1 criteria are not
+met. "One step" is enforced as one committed transition per row per sweep, guaranteed by a cursor that never
+revisits a row.
+
+**Tests and results.** `cargo test -p nostr-bbs-relay-worker --features test-exports` — 452 passed, 0 failed,
+no warnings. Fourteen new tests in `trust_sweep::tests` cover: 400 rows across multiple batches (the exact
+scenario the closeout recorded as 400 → 200); tied timestamps across ten pages with a no-revisit assertion;
+TL2 → TL1 and TL2 → TL0; TL3, admin/exempt and TL0-floor exclusions; a row that clears hysteresis being held
+and counted; commit failure not counted as a demotion and not stalling the sweep; audit-half failure leaving
+neither the level nor the audit changed; page-query failure aborting; truncation reporting a resume point;
+and sweep-to-sweep convergence with no double counting. An in-memory store reproduces the feedback loop the
+`OFFSET` form tripped over — a committed demotion changes the eligible set the next page query runs against.
+
+**Local D1 reproduction.** The sweep was then run against a real worker: `wrangler dev --local` (workerd +
+miniflare, local D1/SQLite), the release `worker-build` output, and wrangler's local cron trigger
+(`GET /cdn-cgi/local/scheduled`) invoking the actual scheduled handler. No remote binding and no credentials.
+The `whitelist` table is provisioned outside this repository, so a local fixture table was created with the
+columns the sweep reads; `admin_log` and `governance_receipts` were created by the worker's own
+`ensure_schema`. Four runs:
+
+1. **Full sweep** over 400 idle TL1 rows (the first 200 sharing one identical `last_active_at`, so the keyset
+   tiebreak is exercised against real SQLite ordering) plus the six named fixtures. Result
+   `scanned=403 demoted=402`. All 400 idle rows reached TL0 — the `OFFSET` implementation processed 200 of
+   these and reported clean completion. Every exclusion held: TL3 stayed TL3, the admin TL2 row stayed TL2,
+   the active row was never a candidate. TL2 → TL0 and TL2 → TL1 both landed correctly, and `admin_log`
+   carried exactly 402 entries — one per committed change.
+2. **Convergence.** Re-running the sweep committed nothing further and left the audit count at 402.
+3. **Audit-write failure injection.** 100 rows reset to TL1 and `admin_log` renamed away, so the audit
+   `INSERT` — the second statement of the commit batch — fails. Result
+   `scanned=102 demoted=0 held=2 failed=100 aborted=false`, and **not one trust level changed**. That is the
+   D1 batch proving genuinely all-or-nothing: a failed audit half rolls back its paired `UPDATE`. Under the
+   previous implementation these 100 would have been counted as demotions.
+4. **Restart reconciliation.** With `admin_log` restored, the next sweep committed exactly the 100 that had
+   failed and nothing else (`demoted=100 failed=0`), taking the audit count to 502 — no duplicates from the
+   failed attempt, and no operator intervention.
+
+**Browser receipts.** None; this path has no browser surface.
+
+**Remaining.** No *deployed* (remote) D1 exercise — the reproduction above is local workerd/miniflare, which
+shares D1's SQLite engine and batch semantics but is not the production binding. A cron tick interrupted
+mid-page is not exercised. The `DEMOTION_MAX_ROWS` resume point is reported but not persisted, so the next
+tick restarts from the first candidate; that is correct but not minimal on a very large backlog.
+
+**Governed paths changed:** `crates/nostr-bbs-relay-worker/src/trust_sweep.rs` (new),
+`crates/nostr-bbs-relay-worker/src/trust.rs`, `crates/nostr-bbs-relay-worker/src/cron.rs`,
+`crates/nostr-bbs-relay-worker/src/lib.rs`. Receipts:
+[`adr-2006-trust-sweep.json`](../estate-closeout/2026-09-05/adr-2006-trust-sweep.json) and
+[`adr-2006-local-d1-reproduction.json`](../estate-closeout/2026-09-05/adr-2006-local-d1-reproduction.json).
+
+`implementation_status` returns to `complete`: the acceptance condition is scoped by its own text to source
+and synthetic-query evidence, and every clause of it — stable pagination over the mutation boundary,
+committed/error outcomes, multiple batches, tied timestamps, TL2-to-TL0, TL3/admin exclusions, write and
+audit failure, restart reconciliation, audit/state consistency — is now established. The deployed-D1 gap is
+recorded above and is not part of that condition.

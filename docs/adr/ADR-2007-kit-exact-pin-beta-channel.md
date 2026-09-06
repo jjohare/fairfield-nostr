@@ -50,3 +50,13 @@ reconciled to the in-tree version as part of each release.
   in-tree crate version `1.0.0-beta.9`: `crates/nostr-bbs-core/Cargo.toml:3`.
 - Stale published-version comment (reconciliation debt): `Cargo.toml:157`.
 - Established at `verified_commit` 7795af5 (`git rev-parse --short HEAD`).
+
+## Closeout extension — 2026-09-04
+
+Work packages: CP-01/04/08. Accountable owner: the existing owner above, with forum release/identity maintainers for cross-service acceptance. Historical verification and activation declarations are preserved; this review does not re-certify a live deployment.
+
+Cargo.toml has the exact =0.5.0-alpha.7 core-only pin. Other estate consumers use different pod revisions; shared naming does not establish equal WAC behaviour.
+
+**Acceptance condition:** Publish a resolved dependency/features manifest, registry/artifact receipt and consumer compatibility checks. Include malformed/missing ACL, sidecar and cache visibility tests on this consumed version; a newer sibling server test cannot certify this build.
+
+Dependencies: CP-01 release identity and the relevant identity, governance and recovery journeys. Reopen when the governed source, dependency, deployment profile or consumer contract changes. See the [estate forum review](../../../VisionFlow/docs/estate-review/forum-decisions.md) and [current source/test receipt](../../../VisionFlow/docs/estate-review/evidence/forum-closeout-snapshot.json).

@@ -54,3 +54,13 @@ living doc records the divergence as the ground truth.
 - Parses and holds `SecretKey`, zeroized on drop: `signer.rs:34,207-210,382-384`.
 - Same-origin adoption paths (no `sign()` seam): `signer.rs:250-257,305-327`.
 - Established at `verified_commit` 7795af5 (`git rev-parse --short HEAD`).
+
+## Closeout extension — 2026-09-04
+
+Work packages: CP-04/06. Accountable owner: the existing owner above, with forum release/identity maintainers for cross-service acceptance. Historical verification and activation declarations are preserved; this review does not re-certify a live deployment.
+
+The two local-key backends and extension-backed signing have different custody boundaries. Rust buffer cleanup does not establish erasure of browser storage or JavaScript copies.
+
+**Acceptance condition:** Exercise adoption priority, logout, reload, storage clearing, signer cancellation and origin boundaries for each backend in a browser. State which persisted credentials survive each action and bind the resulting signature to the user-visible action.
+
+Dependencies: CP-01 release identity and the relevant identity, governance and recovery journeys. Reopen when the governed source, dependency, deployment profile or consumer contract changes. See the [estate forum review](../../../VisionFlow/docs/estate-review/forum-decisions.md) and [current source/test receipt](../../../VisionFlow/docs/estate-review/evidence/forum-closeout-snapshot.json).

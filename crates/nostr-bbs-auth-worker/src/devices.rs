@@ -31,6 +31,9 @@
 //! crate's `schema::ensure_schema` pattern.
 
 use nostr_bbs_core::admin_shared::PubkeyRow;
+use nostr_bbs_core::feature_gate::{
+    device_keys_enabled as core_device_keys_enabled, DEVICE_KEYS_ENABLED_VAR,
+};
 use nostr_bbs_core::event::{verify_event_strict, NostrEvent};
 use serde::Deserialize;
 use serde_json::json;
@@ -88,11 +91,26 @@ fn relay_db(env: &Env) -> Result<worker::D1Database> {
 /// Is the device-key feature enabled? Reads `DEVICE_KEYS_ENABLED`, exact match
 /// `"true"`. Default off: any unset/empty/other value → disabled. This is the
 /// single gate point ADR-099 requires (off = no behaviour change anywhere).
+///
+/// ADR-2004 keeps this check **independent** of the relay worker's — each
+/// worker reads its own binding and decides alone, with no cross-worker call.
+/// Only the parse *rule* is shared ([`nostr_bbs_core::feature_gate`]), so the
+/// two cannot drift on what `"true"` means; the ADR's "kept in lockstep"
+/// requirement thereby holds by construction rather than by review.
 fn device_keys_enabled(env: &Env) -> bool {
-    env.var("DEVICE_KEYS_ENABLED")
-        .map(|v| v.to_string())
-        .map(|v| v == "true")
-        .unwrap_or(false)
+    device_keys_enabled_raw(
+        env.var(DEVICE_KEYS_ENABLED_VAR)
+            .ok()
+            .map(|v| v.to_string())
+            .as_deref(),
+    )
+}
+
+/// Pure seam over [`device_keys_enabled`]: the same decision, taken on the raw
+/// var value instead of a `worker::Env`, so the gate is unit-testable natively.
+/// Delegates to the shared rule — this crate defines no parse of its own.
+fn device_keys_enabled_raw(raw: Option<&str>) -> bool {
+    core_device_keys_enabled(raw)
 }
 
 /// Create the `device_keys` table idempotently in `RELAY_DB` on first use.
@@ -534,6 +552,7 @@ pub async fn handle_revoke(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nostr_bbs_core::feature_gate::{DeviceGatePosture, DualWorkerGate};
 
     fn good_pubkey() -> String {
         "a".repeat(64)
@@ -820,17 +839,21 @@ mod tests {
     #[test]
     fn gate_default_off_semantics() {
         // device_keys_enabled is exact-match "true"; everything else is off.
-        // We can't construct an Env in a native unit test, but we pin the policy
-        // here so the comparison literal can't drift: only the exact string
-        // "true" enables; "True"/"1"/"yes"/""/absent must all stay disabled.
-        let enables = |v: &str| v == "true";
-        assert!(enables("true"));
-        assert!(!enables("True"));
-        assert!(!enables("TRUE"));
-        assert!(!enables("1"));
-        assert!(!enables("yes"));
-        assert!(!enables(""));
-        assert!(!enables("false"));
+        // An `Env` cannot be constructed in a native unit test, so the decision
+        // is exercised through `device_keys_enabled_raw` — the pure seam
+        // `device_keys_enabled(&Env)` actually calls with the raw var value.
+        // (This test previously asserted against a locally re-declared closure
+        // `|v| v == "true"`, which tested the closure and not the production
+        // gate; it would have passed against any implementation at all.)
+        let enables = device_keys_enabled_raw;
+        assert!(enables(Some("true")));
+        assert!(!enables(Some("True")));
+        assert!(!enables(Some("TRUE")));
+        assert!(!enables(Some("1")));
+        assert!(!enables(Some("yes")));
+        assert!(!enables(Some("")));
+        assert!(!enables(Some("false")));
+        assert!(!enables(None));
     }
 
     // ── revoke ownership SQL shape (security-load-bearing) ───────────────
@@ -867,5 +890,123 @@ mod tests {
         assert!(sql.contains("owner_pubkey TEXT NOT NULL"));
         assert!(sql.contains("revoked INTEGER NOT NULL DEFAULT 0"));
         assert!(sql.contains("IF NOT EXISTS"));
+    }
+
+    // ── ADR-2004: the auth worker's half of the dual-worker device-key gate ──
+    //
+    // ADR-2004 (Decision): "The whole feature is **default-off** behind a single
+    // Worker var `DEVICE_KEYS_ENABLED`, enabled only on the **exact** string
+    // `"true"` (any unset/empty/other value → off), and the identical exact-match
+    // gate is duplicated **independently in both the auth worker and the relay
+    // worker** rather than shared."
+    //
+    // `device_keys_enabled(&Env)` is `Env`-bound, so the decision is taken in the
+    // pure seam `device_keys_enabled_raw` which it calls with the raw var value.
+    // These tests exercise that seam — the same predicate the three
+    // `/api/devices*` handlers gate on (register / list / revoke all 404 when it
+    // is false, touching no database).
+
+    /// Every realistic spelling an operator or CI template might emit, and the
+    /// exact-match verdict ADR-2004 mandates. Only `"true"` enables.
+    #[test]
+    fn gate_variant_matrix_auth_worker() {
+        // input → enabled?
+        let cases: &[(Option<&str>, bool)] = &[
+            (None, false),          // unset  — the default deployment
+            (Some("true"), true),   // the ONLY enabling value
+            (Some("false"), false), // stock wrangler.toml value
+            (Some("TRUE"), false),  // case variants do not enable
+            (Some("True"), false),
+            (Some("False"), false),
+            (Some(""), false),       // present but empty
+            (Some("0"), false),      // truthy aliases do not enable
+            (Some("1"), false),
+            (Some("yes"), false),
+            (Some("no"), false),
+            (Some(" true "), false), // whitespace is not trimmed
+            (Some("true "), false),
+            (Some(" true"), false),
+            (Some("\ttrue\n"), false),
+            (Some("\"true\""), false),
+        ];
+        for (raw, expected) in cases {
+            assert_eq!(
+                device_keys_enabled_raw(*raw),
+                *expected,
+                "DEVICE_KEYS_ENABLED={raw:?} should be enabled={expected}"
+            );
+        }
+    }
+
+    /// Default-off is the property, not an accident of the table above: absence
+    /// and unparseable values must both disable.
+    #[test]
+    fn gate_defaults_off_when_unset_or_unparseable() {
+        assert!(!device_keys_enabled_raw(None));
+        assert!(!device_keys_enabled_raw(Some("")));
+        assert!(!device_keys_enabled_raw(Some("not-a-bool")));
+        assert!(!device_keys_enabled_raw(Some("truthy")));
+    }
+
+    /// The auth worker must not re-implement the rule: it delegates to the one
+    /// shared parser, which is what keeps the two workers in lockstep (ADR-2004
+    /// Consequences: "Duplicated gate logic in two crates must be kept in
+    /// lockstep; a fix to one must be mirrored").
+    #[test]
+    fn gate_delegates_to_the_shared_parser() {
+        for raw in [
+            None,
+            Some("true"),
+            Some("TRUE"),
+            Some("false"),
+            Some(""),
+            Some("1"),
+            Some(" true "),
+        ] {
+            assert_eq!(device_keys_enabled_raw(raw), core_device_keys_enabled(raw));
+        }
+    }
+
+    /// The binding name is read from the shared constant, so the two workers
+    /// cannot drift on the key either.
+    #[test]
+    fn gate_reads_the_documented_binding_name() {
+        assert_eq!(DEVICE_KEYS_ENABLED_VAR, "DEVICE_KEYS_ENABLED");
+    }
+
+    /// Mismatched workers, auth-worker view (ADR-2004): with the auth gate ON and
+    /// the relay gate OFF, all three `/api/devices*` handlers work — a device can
+    /// be registered and revoked — but the relay "ignores a known device→owner
+    /// mapping and the author key is used as-is", so the device never gains the
+    /// owner's scope. The mismatch fails CLOSED.
+    #[test]
+    fn gate_mismatch_auth_on_relay_off_fails_closed() {
+        let gate = DualWorkerGate::from_vars(Some("true"), Some("false"));
+        assert!(!gate.is_lockstep());
+        assert_eq!(gate.posture(), DeviceGatePosture::AuthOnlyFailsClosed);
+        // Auth-worker surface (this crate) is live…
+        assert!(gate.registration_available());
+        assert!(gate.revocation_available());
+        // …but no attribution is ever rewritten.
+        assert!(!gate.device_acts_as_owner());
+    }
+
+    /// The other mismatch, and the reason lockstep matters: relay ON / auth OFF
+    /// leaves existing `device_keys` rows honoured at NIP-42 AUTH while THIS
+    /// crate 404s `register`, `list` **and `revoke`** — an already-registered
+    /// device cannot be withdrawn through the API. This half fails OPEN on
+    /// revocation, so it is the posture a partial rollout must never reach.
+    #[test]
+    fn gate_mismatch_relay_on_auth_off_leaves_devices_unrevocable() {
+        let gate = DualWorkerGate::from_vars(Some("false"), Some("true"));
+        assert!(!gate.is_lockstep());
+        assert_eq!(gate.posture(), DeviceGatePosture::RelayOnlyUnrevocable);
+        assert!(!gate.registration_available());
+        assert!(
+            !gate.revocation_available(),
+            "revoke shares this crate's gate; with it off the owner has no API \
+             route to revoke a device the relay is still honouring"
+        );
+        assert!(gate.device_acts_as_owner());
     }
 }

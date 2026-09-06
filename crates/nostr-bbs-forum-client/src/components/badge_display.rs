@@ -6,7 +6,11 @@
 
 use leptos::prelude::*;
 
-use crate::stores::badges::{badge_def, BadgeIcon as BadgeIconType, EarnedBadge};
+use crate::stores::badges::{
+    badge_def, badge_list_view, BadgeFetchState, BadgeIcon as BadgeIconType, BadgeListView,
+    EarnedBadge, BADGE_TTL_SECS,
+};
+use crate::utils::freshness::relative_age;
 
 // -- BadgeIconView: Single badge with tooltip ---------------------------------
 
@@ -68,29 +72,98 @@ pub fn BadgeBar(
 
 /// Grid layout displaying all earned badges with names and descriptions.
 /// Used on the profile page.
+///
+/// Renders four distinguishable states rather than collapsing them into an
+/// empty list (see [`crate::stores::badges::BadgeListView`]): loading, an
+/// authoritative empty answer with its as-of, the awards themselves (marked
+/// when the snapshot behind them is stale), and "could not be read", which is
+/// explicitly NOT the same claim as "this person has none".
 #[component]
 pub fn BadgeGrid(
     /// Earned badges to display.
     badges: Signal<Vec<EarnedBadge>>,
+    /// Fetch state driving the loading / empty / stale / unavailable rendering.
+    /// Defaults to a completed fetch for callers that have no state to give.
+    #[prop(optional, into)]
+    state: Option<Signal<BadgeFetchState>>,
 ) -> impl IntoView {
+    let view_state = Signal::derive(move || {
+        let now = js_sys::Date::now() / 1000.0;
+        let fetch_state = state
+            .map(|s| s.get())
+            .unwrap_or(BadgeFetchState::Loaded { as_of: now });
+        badge_list_view(fetch_state, badges.get().len(), now, BADGE_TTL_SECS)
+    });
+
     view! {
         <div class="space-y-3">
-            <h2 class="text-xs text-gray-500 font-medium">"Badges"</h2>
-            <Show
-                when=move || !badges.get().is_empty()
-                fallback=|| view! {
+            <div class="flex items-baseline justify-between gap-2">
+                <h2 class="text-xs text-gray-500 font-medium">"Badges"</h2>
+                // Freshness is always inspectable, never implied.
+                {move || {
+                    let now = js_sys::Date::now() / 1000.0;
+                    let (as_of, stale) = match view_state.get() {
+                        BadgeListView::Loading => (None, false),
+                        BadgeListView::Empty { as_of } => (Some(as_of), false),
+                        BadgeListView::Awarded { as_of, stale, .. } => (as_of, stale),
+                        BadgeListView::Unavailable { last_ok } => (last_ok, true),
+                    };
+                    as_of.map(|t| {
+                        let cls = if stale {
+                            "text-[10px] text-amber-500/80"
+                        } else {
+                            "text-[10px] text-gray-600"
+                        };
+                        let label = format!("checked {}", relative_age(Some(t), now));
+                        view! { <span class=cls>{label}</span> }
+                    })
+                }}
+            </div>
+            {move || match view_state.get() {
+                BadgeListView::Loading => view! {
+                    <p class="text-sm text-gray-600 flex items-center gap-2">
+                        <span class="inline-block w-2 h-2 rounded-full bg-gray-600 animate-pulse"></span>
+                        "Checking badges\u{2026}"
+                    </p>
+                }.into_any(),
+                // The only case in which "none" is a true statement.
+                BadgeListView::Empty { .. } => view! {
                     <p class="text-sm text-gray-600">"No badges earned yet"</p>
+                }.into_any(),
+                BadgeListView::Unavailable { last_ok } => {
+                    let now = js_sys::Date::now() / 1000.0;
+                    let detail = format!(
+                        "Badges could not be read from the relay, so this is not a claim that there are none. Last checked {}.",
+                        relative_age(last_ok, now)
+                    );
+                    view! {
+                        <div
+                            class="rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2"
+                            role="status"
+                        >
+                            <p class="text-sm text-amber-200">"Badges unavailable"</p>
+                            <p class="text-xs text-amber-100/70 mt-0.5">{detail}</p>
+                        </div>
+                    }.into_any()
                 }
-            >
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {move || {
-                        badges.get().into_iter().map(|earned| {
-                            let bid = earned.badge_id.clone();
-                            view! { <BadgeCard badge_id=bid awarded_at=earned.awarded_at /> }
-                        }).collect::<Vec<_>>()
-                    }}
-                </div>
-            </Show>
+                BadgeListView::Awarded { stale, .. } => view! {
+                    <div>
+                        <Show when=move || stale>
+                            <p class="text-xs text-amber-500/80 mb-2">
+                                "This list may be out of date."
+                            </p>
+                        </Show>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {move || {
+                                badges.get().into_iter().map(|earned| {
+                                    let bid = earned.badge_id.clone();
+                                    view! { <BadgeCard badge_id=bid awarded_at=earned.awarded_at /> }
+                                }).collect::<Vec<_>>()
+                            }}
+                        </div>
+                    </div>
+                }.into_any(),
+            }}
         </div>
     }
 }

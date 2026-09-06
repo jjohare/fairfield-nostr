@@ -11,7 +11,7 @@ use leptos_router::hooks::{use_navigate, use_query_map};
 use leptos_router::NavigateOptions;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::app::{base_href, current_app_path};
+use crate::app::{base_href, safe_return_to};
 use crate::auth::nip07;
 use crate::auth::use_auth;
 use crate::stores::preferences::use_preferences;
@@ -57,30 +57,16 @@ pub fn LoginPage() -> impl IntoView {
 
     // Read returnTo query parameter — default to /forums.
     //
-    // Normalise to a base-relative path (ADR-090): an incoming value like
-    // `/community/forums` (legacy / external links) is stripped to `/forums`
-    // so that `use_navigate(...)` doesn't re-prefix and produce
-    // `/community/community/forums`.
-    //
-    // Reject non-path values, root, and anything under /login or /signup
-    // (including query-string variants like `/login?returnTo=...`) to avoid
-    // self-referential redirect loops (QA HIGH bug #2).
+    // `returnTo` is hostile input: it rides in a query string that anybody can
+    // put in a link. `safe_return_to` (ADR-090 closeout) accepts app-internal
+    // relative paths ONLY — absolute URLs, `javascript:` / `data:` schemes,
+    // scheme-relative `//evil.example`, backslash authorities, encoded
+    // traversal and control-character splitting all fall back to `/forums`
+    // rather than becoming an open redirect. It also strips a legacy
+    // `/community/...` prefix (so `use_navigate` cannot double the base) and
+    // refuses the auth routes that would loop (QA HIGH bug #2).
     let query = use_query_map();
-    let return_to = move || {
-        let raw = query.read().get("returnTo").unwrap_or_default();
-        if raw.is_empty() || !raw.starts_with('/') {
-            return "/forums".to_string();
-        }
-        let normalised = current_app_path(&raw);
-        if normalised == "/"
-            || normalised.starts_with("/login")
-            || normalised.starts_with("/signup")
-        {
-            "/forums".to_string()
-        } else {
-            normalised
-        }
-    };
+    let return_to = move || safe_return_to(&query.read().get("returnTo").unwrap_or_default());
 
     // Redirect if already authenticated
     Effect::new(move |_| {

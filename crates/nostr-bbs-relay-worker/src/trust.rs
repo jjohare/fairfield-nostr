@@ -275,142 +275,148 @@ pub async fn check_promotion(pubkey: &str, env: &Env) -> Option<TrustLevel> {
 // Demotion check with hysteresis
 // ---------------------------------------------------------------------------
 
-/// Check whether a user should be demoted, applying 90% hysteresis.
+/// Why the demotion policy left a row's trust level alone.
 ///
-/// Demotion only occurs when:
-/// 1. Activity drops below 90% of the promotion threshold for the current level.
-/// 2. The user has been inactive for 6+ months (`inactivity_demotion_secs`).
-///
-/// TL3 users are never auto-demoted. TL1 users can be demoted to TL0.
-/// TL2 users can be demoted to TL1 or TL0.
-///
-/// ADR-102: wired into the periodic inactivity-decay sweep in
-/// [`crate::cron::sweep_inactive_demotions`]. This is inherently time-driven
-/// (the precondition is a ~6-month inactivity gate), so the cron sweep — not a
-/// request handler — is its only caller; firing it on a request would target
-/// ACTIVE users, the opposite of its precondition.
-pub async fn check_demotion(pubkey: &str, env: &Env) -> Option<TrustLevel> {
-    let db = env.d1("DB").ok()?;
-    let thresholds = TrustThresholds::load(env).await;
+/// Every hold is an explicit, named policy outcome rather than a silent
+/// "nothing happened", so a sweep can report *why* a candidate survived
+/// (ADR-2006 acceptance: explicit committed/error outcomes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HoldReason {
+    /// TL3 is an administrative grant and is never auto-demoted (ADR-2006).
+    AdminGrantedLevel,
+    /// The row carries `is_admin = 1`; admin/exempt rows are untouchable by
+    /// the sweep regardless of level or inactivity.
+    ExemptAdminRow,
+    /// TL0 is the hard floor — there is nothing below Newcomer.
+    AtFloor,
+    /// The row was active inside the inactivity window, so the demotion
+    /// precondition (~6 months idle) is not met.
+    WithinActivityWindow,
+    /// Activity still clears the hysteresis band for the level held.
+    ClearsHysteresis,
+}
 
-    let stmt = db.prepare(
-        "SELECT pubkey, trust_level, days_active, posts_read, posts_created, \
-         mod_actions_against, last_active_at, trust_level_updated_at, is_admin \
-         FROM whitelist WHERE pubkey = ?1",
-    );
-    let row = stmt
-        .bind(&[JsValue::from_str(pubkey)])
-        .ok()?
-        .first::<WhitelistTrustRow>(None)
-        .await
-        .ok()??;
+/// The outcome of evaluating one whitelist row against the demotion policy.
+///
+/// Exactly one transition per evaluation: a row is either held, or moved to a
+/// single lower level. ADR-2006 permits TL2 to land directly on TL0 when the
+/// row no longer satisfies the TL1 criteria, so "one step" means one committed
+/// transition per sweep, not one rung of the ladder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DemotionDecision {
+    /// Leave the level alone, for the stated reason.
+    Hold(HoldReason),
+    /// Lower the level. `to < from` always holds.
+    Demote { from: TrustLevel, to: TrustLevel },
+}
 
+/// Decide whether a whitelist row should be demoted, applying the ADR-2006
+/// policy: inactivity gate, hysteresis band, TL0 floor, TL3 and admin/exempt
+/// rows untouchable.
+///
+/// Pure: no I/O, no clock read (`now` is supplied). This is the single
+/// authority for the decision — both the per-pubkey [`check_demotion`] path and
+/// the paged sweep in [`crate::trust_sweep`] route through it, so the two can
+/// never drift apart.
+///
+/// Guard order is deliberate and matches the ADR's ladder: administrative
+/// levels and exempt rows are excluded before any activity arithmetic runs, so
+/// an exempt row is never even measured against the hysteresis band.
+pub fn decide_demotion(
+    row: &WhitelistTrustRow,
+    thresholds: &TrustThresholds,
+    now: i64,
+) -> DemotionDecision {
     let current = TrustLevel::from_i32(row.trust_level);
 
-    // TL3 never auto-demoted; TL0 cannot be demoted further (TL0 floor).
-    if current == TrustLevel::Trusted || current == TrustLevel::Newcomer {
-        return Some(current);
+    // TL3 is admin-granted: only an admin action can revoke it (ADR-2006).
+    if current == TrustLevel::Trusted {
+        return DemotionDecision::Hold(HoldReason::AdminGrantedLevel);
     }
-
-    // ADR-102: admin/exempt rows are never auto-demoted, regardless of trust
-    // level or inactivity. An admin can sit at TL2 without losing standing
-    // while away. This guard lives in `check_demotion` itself so it holds for
-    // every call path (the cron sweep and any future request-driven caller).
+    // TL0 is the hard floor.
+    if current == TrustLevel::Newcomer {
+        return DemotionDecision::Hold(HoldReason::AtFloor);
+    }
+    // Admin/exempt rows are never auto-demoted, at any level. An admin can sit
+    // at TL2 without losing standing while away.
     if row.is_admin.unwrap_or(0) == 1 {
-        return Some(current);
+        return DemotionDecision::Hold(HoldReason::ExemptAdminRow);
     }
 
-    let now = auth::js_now_secs() as i64;
-
-    // Check inactivity: only demote if last_active_at is old enough
+    // Inactivity gate: only rows idle for the full window are candidates.
     let last_active = row.last_active_at.unwrap_or(0.0) as i64;
-    let inactive_duration = now - last_active;
-    if inactive_duration < thresholds.inactivity_demotion_secs {
-        return Some(current);
+    if now.saturating_sub(last_active) < thresholds.inactivity_demotion_secs {
+        return DemotionDecision::Hold(HoldReason::WithinActivityWindow);
     }
 
     let hysteresis = thresholds.demotion_hysteresis_pct as f64 / 100.0;
 
     let new_level = match current {
         TrustLevel::Regular => {
-            // Demote from TL2 if below 90% of TL2 thresholds
-            let needs_demote = (row.days_active as f64)
+            // Below 90% of any TL2 threshold (or carrying a mod action) breaks
+            // the band.
+            let breaks_band = (row.days_active as f64)
                 < (thresholds.tl2_days_active as f64 * hysteresis)
                 || (row.posts_read as f64) < (thresholds.tl2_posts_read as f64 * hysteresis)
                 || (row.posts_created as f64) < (thresholds.tl2_posts_created as f64 * hysteresis)
                 || row.mod_actions_against > 0;
 
-            if needs_demote {
-                // Check if they still qualify for TL1
-                let qualifies_tl1 = compute_trust_level(
-                    row.days_active,
-                    row.posts_read,
-                    row.posts_created,
-                    row.mod_actions_against,
-                    &thresholds,
-                );
-                if qualifies_tl1 >= TrustLevel::Member {
-                    TrustLevel::Member
-                } else {
-                    TrustLevel::Newcomer
-                }
+            if !breaks_band {
+                return DemotionDecision::Hold(HoldReason::ClearsHysteresis);
+            }
+            // Land on TL1 if the row still earns it, otherwise straight to TL0.
+            let earned = compute_trust_level(
+                row.days_active,
+                row.posts_read,
+                row.posts_created,
+                row.mod_actions_against,
+                thresholds,
+            );
+            if earned >= TrustLevel::Member {
+                TrustLevel::Member
             } else {
-                current
+                TrustLevel::Newcomer
             }
         }
         TrustLevel::Member => {
-            // Demote from TL1 if below 90% of TL1 thresholds
-            let needs_demote = (row.days_active as f64)
+            let breaks_band = (row.days_active as f64)
                 < (thresholds.tl1_days_active as f64 * hysteresis)
                 || (row.posts_read as f64) < (thresholds.tl1_posts_read as f64 * hysteresis)
                 || (row.posts_created as f64) < (thresholds.tl1_posts_created as f64 * hysteresis);
 
-            if needs_demote {
-                TrustLevel::Newcomer
-            } else {
-                current
+            if !breaks_band {
+                return DemotionDecision::Hold(HoldReason::ClearsHysteresis);
             }
+            TrustLevel::Newcomer
         }
-        _ => current,
+        // Unreachable in practice: TL0 and TL3 returned above. Held rather
+        // than panicked so a future ladder rung can never crash the sweep.
+        _ => return DemotionDecision::Hold(HoldReason::AtFloor),
     };
 
-    if new_level != current {
-        let now_u64 = now as u64;
-        let _ = db
-            .prepare(
-                "UPDATE whitelist SET trust_level = ?1, trust_level_updated_at = ?2 WHERE pubkey = ?3",
-            )
-            .bind(&[
-                JsValue::from_f64(new_level.as_i32() as f64),
-                JsValue::from_f64(now_u64 as f64),
-                JsValue::from_str(pubkey),
-            ])
-            .ok()?
-            .run()
-            .await;
-
-        // Log the demotion
-        let _ = db
-            .prepare(
-                "INSERT INTO admin_log (actor_pubkey, action, target_pubkey, previous_value, new_value, reason, created_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            )
-            .bind(&[
-                JsValue::from_str("system"),
-                JsValue::from_str("trust_level_change"),
-                JsValue::from_str(pubkey),
-                JsValue::from_str(&current.as_i32().to_string()),
-                JsValue::from_str(&new_level.as_i32().to_string()),
-                JsValue::from_str("auto-demotion (hysteresis)"),
-                JsValue::from_f64(now_u64 as f64),
-            ])
-            .ok()?
-            .run()
-            .await;
+    debug_assert!(new_level < current, "demotion must lower the level");
+    DemotionDecision::Demote {
+        from: current,
+        to: new_level,
     }
-
-    Some(new_level)
 }
+
+// ---------------------------------------------------------------------------
+// No per-pubkey demotion entry point, by decision
+// ---------------------------------------------------------------------------
+//
+// ADR-2006 decides that demotion is time-driven and runs *only* on the
+// scheduled trigger: its precondition is ~6 months of inactivity, so evaluating
+// it from a request handler would fire it against active users — the exact
+// inverse of its gate — and add a write to admission latency.
+//
+// The previous `check_demotion(pubkey, env)` helper was the one seam through
+// which that could happen. It had no caller other than the sweep, so it is
+// gone: the policy now lives in the pure `decide_demotion` above, and the only
+// code that commits a demotion is `trust_sweep`, on the cron path. The
+// invariant is structural rather than conventional — there is no longer a
+// function to misuse.
 
 // ---------------------------------------------------------------------------
 // Activity tracking helpers

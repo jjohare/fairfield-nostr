@@ -1,0 +1,183 @@
+{
+  "adr": "ADR-2004",
+  "title": "Gate revocable device keys default-off behind exact DEVICE_KEYS_ENABLED == \"true\", checked in both workers",
+  "acceptance_condition": "Exercise unset/false/TRUE/true and mismatched worker configuration, active/revoked/missing mappings, reconnect and cached sessions. Record owner attribution and denial after revocation in the actual deployment profile.",
+  "scope_covered": "Static/native half of the acceptance condition: the environment-variable gate across every realistic spelling, plus the mismatched-worker configuration, plus active/revoked/missing mapping resolution through the relay's pure resolver. NOT covered: a live deployment profile (reconnect, cached sessions, real D1 rows) — see open_items.",
+  "date": "2026-09-05",
+  "flag": {
+    "name": "DEVICE_KEYS_ENABLED",
+    "kind": "Cloudflare Worker [vars] string",
+    "stock_value_both_workers": "false"
+  },
+  "workers": {
+    "auth": {
+      "crate": "nostr-bbs-auth-worker",
+      "gate_site": "crates/nostr-bbs-auth-worker/src/devices.rs::device_keys_enabled(&Env)",
+      "pure_seam": "crates/nostr-bbs-auth-worker/src/devices.rs::device_keys_enabled_raw(Option<&str>)",
+      "wrangler": "crates/nostr-bbs-auth-worker/wrangler.toml:55",
+      "guards": "POST /api/devices/register, GET /api/devices, POST /api/devices/revoke — all three return 404 {error:\"device keys disabled\"} and touch no database when off",
+      "registry_db_binding": "RELAY_DB (the relay worker's D1, per ADR-2004)"
+    },
+    "relay": {
+      "crate": "nostr-bbs-relay-worker",
+      "gate_site": "crates/nostr-bbs-relay-worker/src/relay_do/nip_handlers.rs::NostrRelayDO::device_keys_enabled(&self)",
+      "pure_seam": "crates/nostr-bbs-relay-worker/src/relay_do/nip_handlers.rs::device_keys_enabled_var(Option<&str>)",
+      "wrangler": "crates/nostr-bbs-relay-worker/wrangler.toml:21",
+      "guards": "effective_pubkey() -> effective_principal(): the device->owner attribution/authorisation rebind applied at NIP-42 AUTH read scope and at the write-gate allowlist check",
+      "registry_db_binding": "DB (its own D1)"
+    },
+    "third_reader_out_of_scope": {
+      "crate": "nostr-bbs-forum-client",
+      "site": "crates/nostr-bbs-forum-client/src/utils/devices.rs::device_keys_enabled()",
+      "channel": "window.__ENV__.DEVICE_KEYS_ENABLED (not a Worker var)",
+      "note": "UI-visibility gate only, not a security gate; parses loosely (trim + ascii-lowercase, accepts \"true\", \"1\", or a JS boolean). Diverges from the ADR-2004 exact rule. Left unchanged — see open_items."
+    }
+  },
+  "parsing_rule_enforced": {
+    "statement": "enabled iff the var is present and its value is byte-for-byte \"true\"; no trimming, no case folding, no truthy aliases; absent/empty/anything else -> disabled",
+    "adr_quote": "The whole feature is default-off behind a single Worker var DEVICE_KEYS_ENABLED, enabled only on the exact string \"true\" (any unset/empty/other value -> off)",
+    "default": "off",
+    "shared_implementation": "nostr_bbs_core::feature_gate::device_keys_enabled(Option<&str>) -> bool",
+    "shared_constants": ["DEVICE_KEYS_ENABLED_VAR = \"DEVICE_KEYS_ENABLED\"", "DEVICE_KEYS_ENABLED_ON = \"true\""],
+    "independence_preserved": "Each worker still reads its own binding and decides alone, with no cross-worker call (ADR-2004 'checked in both workers'). Only the parse rule is shared, so the ADR's 'duplicated gate logic ... must be kept in lockstep' obligation now holds by construction rather than by review. No observable behaviour changed: both workers already implemented exactly raw == \"true\"."
+  },
+  "variants_tested": [
+    {"input": null,        "spelling": "unset (binding absent)", "expected": false, "actual": false},
+    {"input": "true",      "spelling": "exact",                  "expected": true,  "actual": true},
+    {"input": "false",     "spelling": "stock wrangler value",   "expected": false, "actual": false},
+    {"input": "False",     "spelling": "title case",             "expected": false, "actual": false},
+    {"input": "FALSE",     "spelling": "upper case",             "expected": false, "actual": false},
+    {"input": "TRUE",      "spelling": "upper case",             "expected": false, "actual": false},
+    {"input": "True",      "spelling": "title case",             "expected": false, "actual": false},
+    {"input": "tRuE",      "spelling": "mixed case",             "expected": false, "actual": false},
+    {"input": "",          "spelling": "present but empty",      "expected": false, "actual": false},
+    {"input": "0",         "spelling": "numeric falsey",         "expected": false, "actual": false},
+    {"input": "1",         "spelling": "numeric truthy",         "expected": false, "actual": false},
+    {"input": "yes",       "spelling": "word truthy",            "expected": false, "actual": false},
+    {"input": "no",        "spelling": "word falsey",            "expected": false, "actual": false},
+    {"input": "on",        "spelling": "word truthy",            "expected": false, "actual": false},
+    {"input": "off",       "spelling": "word falsey",            "expected": false, "actual": false},
+    {"input": " true",     "spelling": "leading whitespace",     "expected": false, "actual": false},
+    {"input": "true ",     "spelling": "trailing whitespace",    "expected": false, "actual": false},
+    {"input": " true ",    "spelling": "padded both sides",      "expected": false, "actual": false},
+    {"input": "\ttrue\n",  "spelling": "tab/newline padded",     "expected": false, "actual": false},
+    {"input": "\"true\"",  "spelling": "quoted (TOML/JSON mis-escape)", "expected": false, "actual": false},
+    {"input": "true1",     "spelling": "prefix collision",       "expected": false, "actual": false},
+    {"input": "truthy",    "spelling": "prefix collision",       "expected": false, "actual": false},
+    {"input": "enabled",   "spelling": "arbitrary word",         "expected": false, "actual": false},
+    {"input": "not-a-bool","spelling": "unparseable",            "expected": false, "actual": false}
+  ],
+  "mapping_resolution_tested": {
+    "gate_on_active_mapping": "effective_principal(device, Some(owner), true) == owner (attribution rebound)",
+    "gate_on_missing_or_revoked_mapping": "effective_principal(device, None, true) == device (revoked rows are filtered by the SQL `revoked = 0`, and a missing table fails safe to None)",
+    "gate_off_active_mapping": "effective_principal(device, Some(owner), false) == device — ADR-2004: 'With the gate off, a known device->owner mapping is ignored and the author key is used as-is'",
+    "every_non_enabling_variant": "asserted to leave a live mapping untouched (test every_non_enabling_variant_ignores_a_live_mapping)"
+  },
+  "mismatch_cases": [
+    {
+      "posture": "AuthOnlyFailsClosed",
+      "auth_worker": "true",
+      "relay_worker": "false",
+      "behaviour": "Registration, listing and revocation are live on the auth worker; the relay never consults the registry, so a registered non-revoked device resolves to ITSELF, is not on the whitelist, and its events are denied by the write gate.",
+      "verdict": "FAILS CLOSED — no attribution is rewritten",
+      "asserted_in": [
+        "nostr-bbs-relay-worker tests/device_gate_tests.rs::mismatch_auth_enabled_relay_disabled_fails_closed",
+        "nostr-bbs-auth-worker src/devices.rs::tests::gate_mismatch_auth_on_relay_off_fails_closed",
+        "nostr-bbs-core src/feature_gate.rs::tests::mismatched_workers_have_documented_postures"
+      ]
+    },
+    {
+      "posture": "RelayOnlyUnrevocable",
+      "auth_worker": "false",
+      "relay_worker": "true",
+      "behaviour": "The relay honours any device_keys rows already present (attribution rewriting live), while the auth worker 404s register, list AND revoke — so an existing mapping cannot be withdrawn through the API; only a direct D1 write can stop it.",
+      "verdict": "FAILS OPEN on revocation — the asymmetry ADR-2004's lockstep requirement exists to prevent, and the posture a partial rollout must never reach",
+      "asserted_in": [
+        "nostr-bbs-relay-worker tests/device_gate_tests.rs::mismatch_relay_enabled_auth_disabled_is_unrevocable",
+        "nostr-bbs-auth-worker src/devices.rs::tests::gate_mismatch_relay_on_auth_off_leaves_devices_unrevocable",
+        "nostr-bbs-core src/feature_gate.rs::tests::mismatched_workers_have_documented_postures"
+      ]
+    },
+    {
+      "posture": "AuthOnlyFailsClosed (via spelling drift)",
+      "auth_worker": "true",
+      "relay_worker": "TRUE",
+      "behaviour": "A mismatch in spelling is a mismatch in meaning: the relay half parses TRUE as off, so the pair collapses to the fail-closed posture, never the enabled one.",
+      "verdict": "FAILS CLOSED",
+      "asserted_in": [
+        "nostr-bbs-relay-worker tests/device_gate_tests.rs::spelling_mismatch_between_workers_collapses_to_fail_closed",
+        "nostr-bbs-core src/feature_gate.rs::tests::spelling_mismatch_collapses_to_fail_closed"
+      ]
+    },
+    {
+      "posture": "Off (lockstep)",
+      "auth_worker": "false | unset",
+      "relay_worker": "false | unset",
+      "behaviour": "The default in every stock deployment: endpoints 404, mappings ignored.",
+      "verdict": "DEFAULT-OFF",
+      "asserted_in": ["nostr-bbs-relay-worker tests/device_gate_tests.rs::lockstep_postures_off_and_on"]
+    },
+    {
+      "posture": "On (lockstep)",
+      "auth_worker": "true",
+      "relay_worker": "true",
+      "behaviour": "Feature live on both halves; a registered non-revoked device acts as its owner.",
+      "verdict": "ENABLED",
+      "asserted_in": ["nostr-bbs-relay-worker tests/device_gate_tests.rs::lockstep_postures_off_and_on"]
+    }
+  ],
+  "defects_found": [
+    {
+      "id": "D1",
+      "severity": "medium (test integrity)",
+      "location": "crates/nostr-bbs-auth-worker/src/devices.rs::tests::gate_default_off_semantics (pre-existing)",
+      "description": "The only existing test of the auth worker's gate asserted against a locally re-declared closure `let enables = |v: &str| v == \"true\";` rather than against the production code. It tested the closure, not the gate, and would have passed unchanged against any implementation — including a truthy-on-any-value parse or a default-on gate. The dual-worker gate was therefore effectively untested on the auth side.",
+      "fix": "The test now calls the production seam `device_keys_enabled_raw`, which is the same function `device_keys_enabled(&Env)` invokes, and additionally covers the unset (None) case the closure could not express."
+    },
+    {
+      "id": "D2",
+      "severity": "low (drift risk, no live divergence)",
+      "location": "auth worker devices.rs vs relay worker nip_handlers.rs",
+      "description": "The two workers each held their own copy of the parse rule (`v == \"true\"` and `val.to_string() == \"true\"`) and their own copy of the binding-name literal. Behaviour agreed today, but nothing prevented a one-sided edit — the exact drift ADR-2004 records as the accepted cost of duplication.",
+      "fix": "Both now delegate to the single shared predicate nostr_bbs_core::feature_gate::device_keys_enabled and the shared DEVICE_KEYS_ENABLED_VAR constant. The two gate CHECKS remain independent per ADR-2004 (each worker reads its own binding, no cross-worker call); only the rule is shared. No behaviour change."
+    },
+    {
+      "id": "D3",
+      "severity": "informational",
+      "location": "crates/nostr-bbs-forum-client/src/utils/devices.rs::device_keys_enabled()",
+      "description": "A third reader of the same flag name (via window.__ENV__, not a Worker var) parses loosely: trims, ascii-lowercases, and accepts \"true\", \"1\" or a JS boolean. With DEVICE_KEYS_ENABLED=\"TRUE\" or \"1\" the client would render the device UI while both workers return 404. Not a security gate (UI visibility only) and outside ADR-2004's dual-worker scope.",
+      "fix": "NOT CHANGED — see open_items. The crate does not currently compile natively (unrelated in-flight edits by a concurrent agent), so a change could not be verified."
+    }
+  ],
+  "files_changed": [
+    "crates/nostr-bbs-core/src/feature_gate.rs (new — shared pure parser, postures, 8 unit tests)",
+    "crates/nostr-bbs-core/src/lib.rs (+1 line: pub mod feature_gate)",
+    "crates/nostr-bbs-auth-worker/src/devices.rs (gate delegates to shared parser; pure seam added; 6 new tests; 1 pre-existing fake test repaired)",
+    "crates/nostr-bbs-relay-worker/src/relay_do/nip_handlers.rs (gate delegates to shared parser; pure seam device_keys_enabled_var added)",
+    "crates/nostr-bbs-relay-worker/src/relay_do/mod.rs (test_exports: + device_keys_enabled_var, effective_principal)",
+    "crates/nostr-bbs-relay-worker/tests/device_gate_tests.rs (new — 10 integration tests under #![cfg(feature = \"test-exports\")])"
+  ],
+  "commands": [
+    {"cmd": "cargo test -p nostr-bbs-core --lib", "exit": 0, "result": "345 passed; 0 failed", "gate_tests_included": 8},
+    {"cmd": "cargo test -p nostr-bbs-auth-worker", "exit": 0, "result": "215 passed; 0 failed", "gate_tests_included": 7},
+    {"cmd": "cargo test -p nostr-bbs-relay-worker --features test-exports --test device_gate_tests", "exit": 0, "result": "10 passed; 0 failed", "gate_tests_included": 10},
+    {"cmd": "cargo clippy -p nostr-bbs-core --all-targets", "exit": 0, "result": "no warnings from feature_gate.rs (2 pre-existing warnings in an untracked test file owned by a concurrent agent: tests/identity_subkey_vectors.rs, needless call to as_bytes)"},
+    {"cmd": "cargo clippy -p nostr-bbs-auth-worker --all-targets", "exit": 0, "result": "zero warnings"},
+    {"cmd": "cargo clippy -p nostr-bbs-relay-worker --all-targets --features test-exports", "exit": 0, "result": "no warnings from the files changed here (pre-existing dead_code warnings in src/relay_do/receipts.rs, an untracked ADR-2010 file owned by a concurrent agent)"}
+  ],
+  "test_counts": {
+    "new_tests_added": 24,
+    "breakdown": {
+      "nostr-bbs-core src/feature_gate.rs": 8,
+      "nostr-bbs-auth-worker src/devices.rs": 6,
+      "nostr-bbs-relay-worker tests/device_gate_tests.rs": 10
+    },
+    "tests_repaired": 1
+  },
+  "open_items": [
+    "The whole-crate run `cargo test -p nostr-bbs-relay-worker --features test-exports` was green for the device-gate target but the crate as a whole was transiently red during this session from a concurrent agent's in-flight ADR-2010 receipts work (E0433 cannot find module `receipts`, and earlier a failing trust_sweep::tests assertion). Neither touches any file changed here; the isolated `--test device_gate_tests` run is green.",
+    "crates/nostr-bbs-forum-client does not currently compile natively (E0308/E0425 in src/app.rs from a concurrent agent's edits), so defect D3 (loose client-side parse of the same flag name) was left unfixed and unverified.",
+    "The deployment half of the ADR-2004 acceptance condition remains open: reconnect and cached-session behaviour, and owner attribution / denial-after-revocation observed against a real D1 in a live deployment profile. Nothing here re-certifies a deployment.",
+    "ADR-2004's Decision sentence says the gate is duplicated 'rather than shared'. The two gate CHECKS remain duplicated and independent; the parse RULE is now shared so the two cannot drift. If the coordinator reads the ADR as forbidding a shared parse helper as well, the change to revert is the two one-line delegations plus crates/nostr-bbs-core/src/feature_gate.rs — the tests would then need the rule restated per crate, which is the drift risk the ADR itself names."
+  ]
+}

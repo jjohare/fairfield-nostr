@@ -1,0 +1,73 @@
+{
+  "artefact": "ADR-090 / 091 / 092 + agent-disclosure badge work (Leptos forum client)",
+  "date": "2026-09-05",
+  "repo": "nostr-rust-forum",
+  "crate": "crates/nostr-bbs-forum-client",
+  "files_added": [
+    "src/utils/paths.rs (782 lines) \u2014 segment-aware base handling and returnTo validation",
+    "src/utils/reconcile.rs (255 lines) \u2014 snapshot reconciliation preserving survivor identity",
+    "src/utils/bootstrap.rs (368 lines) \u2014 deep-link bootstrap phase machine",
+    "src/utils/freshness.rs (99 lines) \u2014 staleness window and relative-age phrasing"
+  ],
+  "files_changed": [
+    "src/app.rs",
+    "src/utils/mod.rs",
+    "src/pages/channel.rs",
+    "src/pages/login.rs",
+    "src/pages/profile.rs",
+    "src/pages/setup.rs",
+    "src/pages/signup.rs",
+    "src/components/agent_badge.rs",
+    "src/components/badge_display.rs",
+    "src/stores/badges.rs",
+    "src/stores/channels.rs"
+  ],
+  "per_adr": {
+    "ADR-090": {
+      "defects": [
+        "base prefix stripped textually, so a path merely sharing the base's characters (base /community vs /communityfoo) was treated as inside the base, and an inner repeat of the base segment could be mangled",
+        "returnTo taken from the query string unvalidated \u2014 an open redirect"
+      ],
+      "fix": "strip_base / is_inside_base / app_path strip only on a proper path-segment boundary; safe_return_to accepts app-internal relative paths only, rejecting absolute URLs, scheme-relative //host, javascript:/data: schemes, backslash tricks and multi-round percent-encoded traversal (bounded at 4 decode rounds), with a length cap and a safe default route on rejection",
+      "tests": "32 in utils::paths"
+    },
+    "ADR-091": {
+      "defect": "ChannelPage appended events and never removed those absent from a later store snapshot, so counts could not decrease after a deletion",
+      "fix": "the rendered set is reconciled against the store snapshot \u2014 retain_present drops departed ids, absent_from appends new ones in snapshot order. Survivors keep their relative order and their identity, so per-item reactive state is not rebuilt",
+      "tests": "13 in utils::reconcile"
+    },
+    "ADR-092": {
+      "defects": [
+        "deep-link replay omitted the tombstone check the normal path applies",
+        "bootstrap success was an eight-second timer fallback, not a receipt"
+      ],
+      "fix": "derive_phase resolves from observed facts: an observed success beats the clock, a definitive negative ('the relay does not have this channel') is an answer rather than a timeout, and only then does the deadline apply \u2014 attributed to the furthest stage actually reached. The deadline is now purely a FAILURE path with named BootstrapFailure variants",
+      "tests": "16 in utils::bootstrap"
+    },
+    "agent-disclosure badges": {
+      "defect": "a one-shot fetch failure hid badges, indistinguishable from 'this principal has no badges'; no freshness or error state",
+      "fix": "explicit Loading / Loaded{as_of} / Stale / Unavailable states; the Unavailable branch renders a distinct panel stating it is not a claim that there are none; freshness ('checked just now') is always inspectable; a 5s no-EOSE deadline records Unavailable rather than a complete empty result",
+      "tests": "17 in components::agent_badge, 9 in stores::badges, 6 in utils::freshness"
+    }
+  },
+  "tests": {
+    "command": "cargo test -p nostr-bbs-forum-client",
+    "exit_code": 0,
+    "result": "329 passed, 0 failed",
+    "new_tests_by_module": {
+      "utils::paths": 32,
+      "utils::reconcile": 13,
+      "utils::bootstrap": 16,
+      "utils::freshness": 6,
+      "components::agent_badge": 17,
+      "stores::badges": 9
+    },
+    "wasm_build": "trunk build (dev profile + wasm-opt post-build hook) \u2014 exit 0; the client runs in a real browser, see browser-run.json"
+  },
+  "browser": "see browser-run.json \u2014 ADR-090 and ADR-092 verified end-to-end in Chrome against a local wrangler relay; ADR-091 not browser-exercisable without event signing; the badge Unavailable state did not render on a dead relay (finding recorded there)",
+  "remaining": [
+    "The badge Unavailable state is implemented, unit-tested and correctly wired at the profile call site, but does not render against an unreachable relay: the store still reaches Loaded, implying the relay client invokes its EOSE callback when the socket is not connected. That upstream defect currently defeats the fix at runtime and is the highest-value follow-up.",
+    "ADR-091 deletion reconciliation is proven only in unit tests; a browser demonstration needs Schnorr signing, unavailable in this container.",
+    "Leptos dev-mode advisory at pages/channel.rs:87 \u2014 a ParamsMap memo read outside a reactive tracking context."
+  ]
+}

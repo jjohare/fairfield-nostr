@@ -53,3 +53,13 @@ retires nothing by itself.
   `crates/nostr-bbs-core/src/` (`nip44.rs`, `gift_wrap.rs`, `keys.rs`, `signer.rs`).
 - Upstream dependency with NIP flags: `Cargo.toml` `[workspace.dependencies] nostr`.
 - Established at `verified_commit` 7795af5 (`git rev-parse --short HEAD`).
+
+## Closeout extension — 2026-09-04
+
+Work packages: CP-01/04/08. Accountable owner: the existing owner above, with forum release/identity maintainers for cross-service acceptance. Historical verification and activation declarations are preserved; this review does not re-certify a live deployment.
+
+The canary remains separate from the linked hand-rolled crypto. CI declares native workspace tests and a WASM cargo check; this pass does not establish WASM execution or an absorption verdict.
+
+**Acceptance condition:** Record target, toolchain, features, dependency lock and executed known-answer receipts before Shape A. Separate compile success from runtime success and document each module replacement with rollback and consumer parity.
+
+Dependencies: CP-01 release identity and the relevant identity, governance and recovery journeys. Reopen when the governed source, dependency, deployment profile or consumer contract changes. See the [estate forum review](../../../VisionFlow/docs/estate-review/forum-decisions.md) and [current source/test receipt](../../../VisionFlow/docs/estate-review/evidence/forum-closeout-snapshot.json).

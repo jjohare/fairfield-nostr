@@ -33,3 +33,44 @@ pub fn total_messages(&self) -> usize {
 - `CachedData` schema bumps (`message_counts` removed). Forward-compat: deserialize ignores unknown fields; old caches just don't populate counts — re-derived on first kind-42 EOSE.
 - Slight memory overhead: full event Vec instead of just a counter. Acceptable: the events were already cached for rendering.
 - Future invariant: any new aggregation MUST be a `Memo` derived from `channel_messages`. Reject PRs that introduce parallel counters.
+
+## Closeout extension — 2026-09-05
+
+Accepted design status is preserved; current implementation and deployment acceptance remain qualified. The persisted standalone counter is removed and store counts derive from deduplicated vectors. ChannelPage separately appends into MessageData without removing events absent from subsequent store snapshots; store deletion alone does not prove displayed-count reconciliation.
+
+**CP-01/06/08/09:** Verify remote deletion, replay, reconnect and mounted-page counts through the actual store-to-view path; preserve deduplication across all insertion paths.
+
+See the [current source-to-consumer assessment](../../../../VisionFlow/docs/estate-review/forum-decisions.md#forum-navigation-counts-and-cold-entry) and [source hashes](../../../../VisionFlow/docs/estate-review/evidence/forum-sprint-snapshot.json). No browser, relay or service-worker test ran in this pass. Frozen archive stubs are unchanged.
+
+## Acceptance progress — 2026-09-05
+
+**Implemented.** `ChannelPage` no longer accumulates events append-only. The rendered set is reconciled
+against the store snapshot on every update, through
+`crates/nostr-bbs-forum-client/src/utils/reconcile.rs`: `retain_present` drops every rendered item whose id
+is absent from the snapshot, `absent_from` appends the new ones in snapshot order. An event removed upstream —
+a NIP-09 deletion, a tombstone — therefore disappears and the count decreases, which it previously could not.
+
+Survivors keep their relative order **and their identity**: they are not rebuilt, so per-item reactive state
+(a thread's replies signal, an expanded/collapsed flag) survives a reconciliation pass rather than being
+reset by a wholesale re-render.
+
+**Tests and results.** 13 tests in `utils::reconcile` covering removals before appends, survivor ordering,
+snapshot-order appends, and identity preservation. `cargo test -p nostr-bbs-forum-client` — 329 passed, 0
+failed. `cargo test --workspace` — 1823 passed. `trunk build` — exit 0.
+
+**Browser receipts.** Partial. The channel header was observed in Chrome rendering counts derived from the
+store snapshot (`0 messages · 0 members`) rather than from a local accumulator, which is the shape the fix
+requires. A **deletion was not driven in the browser**: publishing a kind-42 and then a kind-5 needs
+secp256k1 Schnorr signing, and no signing library is installed in this container; the relay additionally
+gates writes on NIP-42 AUTH plus the whitelist. See
+[`browser-run.json`](../../estate-closeout/2026-09-05/browser-run.json).
+
+**Remaining.** The count actually decreasing after a real deletion is proven in unit tests only. A browser
+demonstration needs an event-signing helper in the harness — the same blocker as the ADR-2010 governance
+journey, and worth solving once for both. Incidental: a Leptos dev-mode advisory at `pages/channel.rs:87`
+reports a `ParamsMap` memo read outside a reactive tracking context; the page functions, but it may mean
+navigation between channels does not re-run that read.
+
+**Governed paths changed:** `crates/nostr-bbs-forum-client/src/utils/reconcile.rs` (new),
+`src/utils/mod.rs`, `src/pages/channel.rs`, `src/stores/channels.rs`.
+Receipt: [`adr-090-092-client.json`](../../estate-closeout/2026-09-05/adr-090-092-client.json).

@@ -21,3 +21,5 @@ numbers to the living docs).
 (next free number), fill the three-axis status honestly, update the affected
 governing document **in the same change**, and regenerate this index
 (`node scripts/adr-index-gen.js docs/adr` — it fails CI on invalid frontmatter).
+
+The [historical closeout map](../adr-history-closeout.md) resolves each frozen record to its current governing surface and remaining acceptance work. [ADR-2010](ADR-2010-durable-governance-outcome-receipts.md) is a proposed governance receipt contract; its presence in this index does not ratify it.

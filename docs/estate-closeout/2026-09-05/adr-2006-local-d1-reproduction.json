@@ -1,0 +1,106 @@
+{
+  "adr": "ADR-2006",
+  "artefact": "local D1 reproduction of the inactivity-decay demotion sweep",
+  "date": "2026-09-05",
+  "environment": {
+    "runtime": "wrangler 4.125.0 `dev --local` (workerd + miniflare, local D1/SQLite)",
+    "worker": "nostr-bbs-relay, built with `worker-build --release`",
+    "endpoint": "http://127.0.0.1:8799",
+    "persist_to": ".wrangler-closeout (local only; no remote binding used, no credentials)",
+    "trigger": "GET /cdn-cgi/local/scheduled — wrangler's local cron trigger, invoking the worker's scheduled handler",
+    "note": "The `whitelist` table is provisioned outside this repository (no CREATE TABLE for it exists in the tree; `ensure_schema` only ALTERs it), so a local fixture table was created with the exact columns the sweep reads. `governance_receipts` and `admin_log` were created by the worker's own `ensure_schema` on first request."
+  },
+
+  "fixture": {
+    "idle_tl1_rows": 400,
+    "tied_timestamps": "the first 200 idle rows share one identical last_active_at, exercising the keyset tiebreak against real SQLite ordering",
+    "named_rows": {
+      "ff..": "TL3, idle — must never be auto-demoted",
+      "ee..": "TL2, idle, is_admin=1 — exempt",
+      "dd..": "TL2, idle, days=12 reads=50 posts=10 — breaks the TL2 hysteresis band but still earns TL1",
+      "cc..": "TL2, idle, no activity — must land directly on TL0",
+      "bb..": "TL1, idle, days=100 reads=100 posts=100 — clears the TL1 band, must be held",
+      "aa..": "TL2, active 1000s ago — inside the window, must not be a candidate"
+    }
+  },
+
+  "runs": [
+    {
+      "run": 1,
+      "name": "full sweep",
+      "worker_log": "trust demotion sweep: scanned=403 demoted=402 truncated=false",
+      "expected_candidates": "403 = 400 idle TL1 + dd + cc + bb (ff/ee/aa correctly excluded by the candidate predicate)",
+      "post_state": {
+        "trust_level_0": 401,
+        "trust_level_1": 2,
+        "trust_level_2": 2,
+        "trust_level_3": 1,
+        "admin_log_trust_level_change": 402
+      },
+      "assertions_passed": [
+        "all 400 idle TL1 rows reached TL0 — the OFFSET implementation processed 200 of these and reported clean completion",
+        "aa.. remained TL2 (active, never a candidate)",
+        "bb.. remained TL1 (held: clears hysteresis)",
+        "cc.. reached TL0 (TL2 -> TL0 direct, as ADR-2006 permits)",
+        "dd.. reached TL1 (TL2 -> TL1, still earns it)",
+        "ee.. remained TL2 (admin/exempt)",
+        "ff.. remained TL3 (never auto-demoted)",
+        "audit entries == committed demotions exactly (402 == 402)"
+      ]
+    },
+    {
+      "run": 2,
+      "name": "convergence / no double counting",
+      "worker_log": "(silent — the log is gated on demoted>0 || failed>0 || truncated || aborted, and this sweep demoted nothing)",
+      "post_state": { "admin_log_trust_level_change": 402 },
+      "assertions_passed": [
+        "re-running the sweep over the same data committed nothing further",
+        "audit count unchanged at 402 — no double counting on re-run"
+      ]
+    },
+    {
+      "run": 3,
+      "name": "audit-write failure injection",
+      "setup": "100 rows reset to TL1; `admin_log` renamed away so the audit INSERT — the second statement of the commit batch — fails",
+      "worker_log": [
+        "WARNING sweep_inactive_demotions: 100 demotion(s) did not commit",
+        "trust demotion sweep: scanned=102 demoted=0 held=2 failed=100 truncated=false aborted=false"
+      ],
+      "pre_state": { "trust_level_1": 102, "trust_level_0": 301 },
+      "post_state": { "trust_level_1": 102, "trust_level_0": 301 },
+      "assertions_passed": [
+        "NOT ONE trust level changed — the D1 batch is genuinely all-or-nothing, so a failed audit INSERT rolls back its paired UPDATE",
+        "demoted=0: counts represent committed changes only. The previous implementation discarded both write results and returned the planned level, so these 100 would have been reported as demotions",
+        "failed=100 is reported explicitly, and the scanned == demoted + held + failed invariant holds (102 == 0 + 2 + 100)",
+        "held=2 (bb.. and dd..) is distinguished from failed, not collapsed into a single 'not demoted' bucket"
+      ]
+    },
+    {
+      "run": 4,
+      "name": "restart reconciliation",
+      "setup": "`admin_log` restored; sweep re-triggered",
+      "worker_log": "trust demotion sweep: scanned=102 demoted=100 held=2 failed=0 truncated=false aborted=false",
+      "post_state": {
+        "trust_level_1": 2,
+        "trust_level_0": 401,
+        "admin_log_trust_level_change": 502
+      },
+      "assertions_passed": [
+        "the next sweep committed exactly the 100 that had failed, and nothing else",
+        "audit count 402 + 100 = 502 — one entry per committed change, no duplicates from the failed attempt",
+        "the sweep recovers without operator intervention or a persisted cursor"
+      ]
+    }
+  ],
+
+  "receipts_api_probe": {
+    "route": "GET /api/governance/receipts",
+    "unauthenticated_response": "HTTP 401 {\"error\":\"NIP-98 authentication required\"}",
+    "schema_live": "governance_receipts created on D1 by ensure_schema with stage/stage_error/decision_id/signed_at/accepted_at/projected_at/replays present"
+  },
+
+  "not_covered": [
+    "A signed 31402/31403 governance journey over the relay WebSocket was not driven: minting a NIP-98 or a signed governance event needs schnorr signing, and no Node signing library is installed in this container. The receipt stage machine is covered by 14 unit tests with failure injection; its D1 batch is verified live only indirectly, via the identical batch mechanism proven all-or-nothing in run 3.",
+    "No remote D1 and no relay credentials were used at any point."
+  ]
+}

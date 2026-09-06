@@ -196,3 +196,13 @@ and re-recording `verified_commit` from `git rev-parse --short HEAD`; (4) record
 the decision as a new `docs/adr/` ledger entry (copy `docs/adr/TEMPLATE.md`) in the
 same change and regenerating the index (`node scripts/adr-index-gen.js docs/adr`).
 Legacy ADR prose is evidence, not authority — cite it, do not defer to it.
+
+## Estate closeout qualification — 2026-09-04
+
+The operative ADR-2001–2009 closeout extensions qualify release identity, canary execution, signer custody and cross-version ACL claims. Index validity is documentation evidence. Native tests and WASM compilation are separate from an executed deployed journey. Shared policy code does not certify equal resolver/cache behaviour across differing pod revisions. Governance relay OK precedes projection and downstream application; expose these as separate receipt stages and require durable reconciliation before complete-system acceptance.
+
+See the [forum review](../../VisionFlow/docs/estate-review/forum-decisions.md) for scoped evidence and acceptance requirements. Historical verified commits and activation claims are not refreshed by this source review.
+
+## Proposed durable governance receipts — ADR-2010
+
+[ADR-2010](adr/ADR-2010-durable-governance-outcome-receipts.md) proposes distinct signed, relay-accepted, projection-committed, consumer-received and applied/rejected states. Current relay OK establishes acceptance only. The complete receipt contract remains proposed and inactive; adoption requires agreement with the authority consumer and mutation owner, plus failure/restart evidence. Historical ADR-106 supplies rationale, not proof of this contract.

@@ -1,0 +1,93 @@
+{
+  "artefact": "browser run — ADR-090 / ADR-091 / ADR-092 / agent-disclosure badges",
+  "date": "2026-09-05",
+  "repo": "nostr-rust-forum",
+
+  "harness": {
+    "relay": "wrangler 4.125.0 `dev --local` (workerd + miniflare, local D1) on 0.0.0.0:8799, built with `worker-build --release`",
+    "relay_cors": "started with --var ALLOWED_ORIGINS:http://agentbox:8081 so the harness origin is accepted; no wrangler.toml change",
+    "client": "Trunk build of crates/nostr-bbs-forum-client (dev profile, wasm-opt post-build hook), served from a copy of dist/ by a small SPA-fallback static server so the Leptos router sees deep links",
+    "client_origins": {
+      "http://agentbox:8081": "all endpoints pinned to the LOCAL relay (window.__ENV__: VITE_RELAY_URL=ws://agentbox:8799, RELAY_API_URL/AUTH_API_URL/POD_API_URL=http://agentbox:8799)",
+      "http://agentbox:8082": "identical build with every endpoint repointed to the closed port 8798, to exercise fetch-failure states"
+    },
+    "browser": "chrome-devtools-mcp sidecar (Chrome 151.0.7922.47) on browsercontainer; screenshots captured over raw CDP (172.20.0.6:9223) because the MCP server refuses file writes outside its own workspace roots",
+    "credentials": "none. The sign-in used a throwaway all-local hex key ('1'x63 + '2') that exists only in this browser profile. No production endpoint was contacted (the only off-origin request in any run is the Google Fonts stylesheet) and no relay credential exists in this build."
+  },
+
+  "checks": [
+    {
+      "adr": "ADR-090",
+      "check": "hostile returnTo on a cold entry",
+      "url": "http://agentbox:8081/login?returnTo=https://evil.example.com/pwned",
+      "observed": {
+        "final_url": "unchanged; still on http://agentbox:8081",
+        "returnTo_reflected_into_DOM": false,
+        "off_origin_links_rendered": 0,
+        "page": "login form renders normally"
+      },
+      "verdict": "PASS — the absolute off-site returnTo is neither honoured nor echoed into the document.",
+      "screenshot": "screenshots/adr-090-hostile-returnto.png"
+    },
+    {
+      "adr": "ADR-090",
+      "check": "deep-link round trip through the auth gate",
+      "url": "http://agentbox:8081/chat/deadbeef...deadbeef (unauthenticated cold entry)",
+      "observed": {
+        "redirected_to": "/login?returnTo=/chat/deadbeef...deadbeef",
+        "returnTo_form": "relative, app-internal — not an absolute URL",
+        "after_sign_in": "navigated to /chat/deadbeef...deadbeef, the original deep-link target"
+      },
+      "verdict": "PASS — the gate mints a relative returnTo and the deep-link target survives the login round trip.",
+      "screenshot": "screenshots/adr-092-cold-deeplink.png"
+    },
+    {
+      "adr": "ADR-092",
+      "check": "cold deep-link bootstrap against a channel the relay does not have",
+      "url": "http://agentbox:8081/chat/deadbeef...deadbeef (authenticated)",
+      "observed": {
+        "rendered": "'Channel could not be loaded — This channel is not on the relay. It may have been removed, or the link may be wrong.'",
+        "counts": "0 messages · 0 members",
+        "connection": "Connected"
+      },
+      "verdict": "PASS — a definitive negative answer, reached without waiting on a clock. The previous eight-second timer fallback would have resolved this as a success; the page instead names a true terminal failure state and distinguishes 'the relay does not have this' from 'still loading'.",
+      "screenshot": "screenshots/adr-092-bootstrap-failed-state.png"
+    },
+    {
+      "adr": "ADR-091",
+      "check": "channel counts decreasing after a deletion",
+      "verdict": "NOT EXERCISED IN THE BROWSER",
+      "reason": "Driving a deletion needs signed kind-42 and kind-5 events. Minting them requires secp256k1 Schnorr signing, and no Node signing library is installed in this container; the relay also gates writes on NIP-42 AUTH plus the whitelist. The reconciliation logic is covered by unit tests over crates/nostr-bbs-forum-client/src/utils/reconcile.rs (removals before appends, survivor order and per-item reactive identity preserved).",
+      "observed_partial": "The channel header renders derived counts ('0 messages · 0 members') from the store snapshot rather than an append-only accumulator, which is the shape the fix requires."
+    },
+    {
+      "adr": "agent-disclosure badges",
+      "check": "badge freshness and fetch-failure states",
+      "urls": [
+        "http://agentbox:8081/profile/<pk> (live relay)",
+        "http://agentbox:8082/profile/<pk> (every endpoint on a closed port)"
+      ],
+      "observed": {
+        "freshness_surfaced": true,
+        "freshness_label": "'checked just now' rendered beside the Badges heading in both runs",
+        "agent_disclosure_fetch_failure": "console: '[agent_badge] disclosure fetch failed: fetch error: ...' — the failure is logged rather than swallowed",
+        "dead_relay_badge_panel": "'No badges earned yet' — the EMPTY branch, after 18s, well past the store's 5s no-EOSE deadline",
+        "expected_on_dead_relay": "'Badges unavailable — Badges could not be read from the relay, so this is not a claim that there are none.'"
+      },
+      "verdict": "PARTIAL — freshness is surfaced and the disclosure fetch failure is reported, but the Unavailable state did not render end-to-end.",
+      "finding": "The `BadgeListView::Unavailable` branch in components/badge_display.rs and the `BadgeFetchState::Unavailable` deadline in stores/badges.rs are both implemented and unit-tested, and pages/profile.rs does pass a real `state` signal — so the defect is NOT in the code the closeout targeted. On an unreachable relay the store still reaches `Loaded`, which means something upstream reports a successful empty result: most plausibly the relay layer invoking the EOSE callback when the socket is not connected. That is a separate defect in the relay client, and it currently defeats the badge fix at runtime.",
+      "screenshot": "screenshots/badge-dead-relay.png"
+    }
+  ],
+
+  "incidental_observations": [
+    "Leptos dev-mode warning on the channel page: 'At crates/nostr-bbs-forum-client/src/pages/channel.rs:87:37, you access a ParamsMap memo outside a reactive tracking context.' The page functions; this is an advisory about a params read that may not re-run on navigation between channels. Pre-existing shape (a `move ||` closure over `use_params_map`), not introduced by the deletion-reconciliation change, but worth a look.",
+    "The forum client ignores `window.__ENV__` keys that are not its own: the real names are VITE_RELAY_URL, RELAY_API_URL, AUTH_API_URL, VITE_AUTH_API_URL, POD_API_URL, VITE_POD_API_URL, BBS_ENABLED, BBS_URL, BRAND_LABEL, FORUM_NAME (crates/nostr-bbs-forum-client/src/utils/relay_url.rs). An un-injected build falls back to the production relay, so a local harness that guesses the key names will silently talk to production. Worth a comment in index.html."
+  ],
+
+  "governance_response_flow": {
+    "verdict": "NOT EXERCISED IN THE BROWSER",
+    "reason": "Same blocker as ADR-091: a governance response is a signed kind-31403 event, and no Schnorr signing is available in this container. The relay-side receipt stages are covered by 14 unit tests with failure injection, the GET /api/governance/receipts route was probed live (HTTP 401 without NIP-98, i.e. the route exists and is gated), and the governance_receipts table was confirmed created on the live local D1 with the full stage/correlation column set.",
+    "route_probe": "GET http://127.0.0.1:8799/api/governance/receipts?case=case-1 -> HTTP 401 {\"error\":\"NIP-98 authentication required\"}"
+  }
+}

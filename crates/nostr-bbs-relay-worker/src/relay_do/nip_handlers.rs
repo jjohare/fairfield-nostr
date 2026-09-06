@@ -10,6 +10,9 @@
 //! - F11 (PRD-010): Federated kind allowlist filtering for mesh peers.
 
 use nostr_bbs_core::event::NostrEvent;
+use nostr_bbs_core::feature_gate::{
+    device_keys_enabled as core_device_keys_enabled, DEVICE_KEYS_ENABLED_VAR,
+};
 use nostr_bbs_core::governance;
 use nostr_bbs_core::{KIND_BAN, KIND_MUTE, KIND_REPORT_NIP56, KIND_UNBAN, KIND_UNMUTE};
 use wasm_bindgen::JsValue;
@@ -24,6 +27,7 @@ use super::broadcast::{event_treatment, EventTreatment};
 use super::calendar_projection;
 use super::filter::{self, NostrFilter};
 use super::nip42::{self, AuthMode};
+use super::receipts::{self, ReceiptOutcome, ReceiptStore};
 use super::NostrRelayDO;
 
 use nostr_bbs_core::KIND_CALENDAR_RSVP;
@@ -404,6 +408,14 @@ pub(crate) fn plan_supersession(
 ///
 /// Pure over its inputs so the resolution is unit-testable without a
 /// `worker::Env` / D1.
+/// Pure seam over [`NostrRelayDO::device_keys_enabled`]: the same decision,
+/// taken on the raw `DEVICE_KEYS_ENABLED` value instead of a `worker::Env`, so
+/// the relay's half of the ADR-2004 dual-worker gate is unit-testable natively.
+/// Delegates to the shared rule — this crate defines no parse of its own.
+pub fn device_keys_enabled_var(raw: Option<&str>) -> bool {
+    core_device_keys_enabled(raw)
+}
+
 pub fn effective_principal(pubkey: &str, device_owner: Option<&str>, enabled: bool) -> String {
     if enabled {
         if let Some(owner) = device_owner {
@@ -906,7 +918,18 @@ impl NostrRelayDO {
                 if governance::extract_supersedes_target(&event.tags).is_some() {
                     self.project_supersession(&event).await;
                 } else {
-                    self.project_action_response(&event).await;
+                    // ADR-2010: the OK above certified storage only. If the
+                    // decision did not reach `projection-committed`, the
+                    // response is accepted but NOT applied — say so, rather
+                    // than letting the relay's OK stand as the last word.
+                    let receipt = self.project_action_response(&event).await;
+                    if !receipt.is_applied() {
+                        console_warn!(
+                            "governance response {} accepted but not applied: {:?}",
+                            &event.id,
+                            receipt
+                        );
+                    }
                 }
             }
         } else {
@@ -1625,11 +1648,20 @@ impl NostrRelayDO {
     /// ADR-099: whether device-key honouring is enabled. Reads the
     /// `DEVICE_KEYS_ENABLED` Worker var; only the exact string `"true"` enables
     /// the feature. Absent/empty/any-other value ⇒ disabled (default off).
+    ///
+    /// ADR-2004 keeps this check **independent** of the auth worker's — the
+    /// relay reads its own binding and decides alone, never calling across.
+    /// Only the parse *rule* is shared ([`nostr_bbs_core::feature_gate`]) so the
+    /// two gates cannot drift on what `"true"` means, which is precisely the
+    /// "kept in lockstep" obligation the ADR records as the cost of duplication.
     pub(crate) fn device_keys_enabled(&self) -> bool {
-        match self.env.var("DEVICE_KEYS_ENABLED") {
-            Ok(val) => val.to_string() == "true",
-            Err(_) => false,
-        }
+        device_keys_enabled_var(
+            self.env
+                .var(DEVICE_KEYS_ENABLED_VAR)
+                .ok()
+                .map(|v| v.to_string())
+                .as_deref(),
+        )
     }
 
     /// ADR-099 (read-only here; the auth-worker owns writes): resolve the OWNER
@@ -1743,16 +1775,35 @@ impl NostrRelayDO {
     /// projection's fixed `under_review` fallback. A malformed, terminal or
     /// self-review response yields an error and persists nothing — the case is
     /// left unchanged, never parked.
-    pub(crate) async fn project_action_response(&self, event: &NostrEvent) {
+    /// Project a 31403 ActionResponse, recording a durable receipt of the stage
+    /// the response actually reached (ADR-2010).
+    ///
+    /// The relay has already stored the envelope and sent `OK` by the time this
+    /// runs, so the acknowledgement the client saw certifies storage and nothing
+    /// more. What happens next is now recorded rather than assumed: a receipt is
+    /// written at `relay-accepted`, and the decision row, the case state and the
+    /// receipt's transition to `projection-committed` are submitted as a single
+    /// D1 batch — one implicit transaction, so a half-applied projection cannot
+    /// occur. A redelivery of the same signed event is recognised by its full
+    /// event id and never re-runs the mutation.
+    pub(crate) async fn project_action_response(&self, event: &NostrEvent) -> ReceiptOutcome {
         let db = match self.env.d1("DB") {
             Ok(db) => db,
-            Err(_) => return,
+            Err(_) => {
+                return ReceiptOutcome::NotRecorded {
+                    error: "DB binding missing".to_string(),
+                }
+            }
         };
 
-        let case_id = governance::extract_d_tag(&event.tags).unwrap_or("");
-        if case_id.is_empty() {
-            return;
-        }
+        // Correlation first: an event we cannot join to a case gets no receipt
+        // and no projection. ADR-2010 keeps an uncorrelated request unresolved
+        // rather than absorbing it into a fallback case.
+        let correlation = match receipts::correlate(event) {
+            Some(c) => c,
+            None => return ReceiptOutcome::Uncorrelated,
+        };
+        let case_id = correlation.case_id.clone();
 
         // Hydrate the case aggregate from its D1 projection: the orchestrator
         // reads category/state/created_by/share-states, and the latest decision
@@ -1762,7 +1813,7 @@ impl NostrRelayDO {
                 "SELECT category, state, created_by, from_share_state, to_share_state \
                  FROM broker_cases WHERE id = ?1 LIMIT 1",
             )
-            .bind(&[JsValue::from_str(case_id)])
+            .bind(&[JsValue::from_str(&case_id)])
             .ok();
         let case_row = match case_row {
             Some(stmt) => stmt.first::<BrokerCaseRow>(None).await.ok().flatten(),
@@ -1778,7 +1829,7 @@ impl NostrRelayDO {
                 "SELECT decision_id FROM broker_decisions \
                  WHERE case_id = ?1 ORDER BY decided_at DESC LIMIT 1",
             )
-            .bind(&[JsValue::from_str(case_id)])
+            .bind(&[JsValue::from_str(&case_id)])
             .ok();
         let latest_decision_id = match latest_stmt {
             Some(stmt) => stmt
@@ -1791,7 +1842,7 @@ impl NostrRelayDO {
         };
 
         let proj = match plan_action_response(
-            case_id,
+            &case_id,
             case_row.as_ref(),
             &event.id,
             &event.content,
@@ -1800,52 +1851,56 @@ impl NostrRelayDO {
             event.created_at,
         ) {
             Ok(proj) => proj,
-            Err(_) => return,
+            Err(e) => {
+                // A malformed or unroutable response is a rejection, not a
+                // silent drop: the receipt records that it never projected.
+                let store = receipts::D1ReceiptStore::new(db);
+                let now = auth::js_now_secs();
+                let _ = store.record_accepted(&correlation, now).await;
+                let _ = store
+                    .mark_projection_failed(&event.id, &format!("{e:?}"), now)
+                    .await;
+                return ReceiptOutcome::ProjectionFailed {
+                    error: format!("{e:?}"),
+                };
+            }
         };
 
-        let detail_val = proj
-            .outcome_detail
-            .as_deref()
-            .map(JsValue::from_str)
-            .unwrap_or(JsValue::NULL);
-        let prior_val = proj
-            .prior_decision_id
-            .as_deref()
-            .map(JsValue::from_str)
-            .unwrap_or(JsValue::NULL);
+        let commit = receipts::ProjectionCommit {
+            event_id: event.id.clone(),
+            case_id,
+            decision_id: proj.decision_id,
+            outcome: proj.outcome,
+            outcome_detail: proj.outcome_detail,
+            prior_decision_id: proj.prior_decision_id,
+            reasoning: proj.reasoning,
+            broker_pubkey: event.pubkey.clone(),
+            new_state: proj.new_state.as_str().to_string(),
+            decided_at: event.created_at,
+        };
 
-        let stmt = db.prepare(
-            "INSERT OR IGNORE INTO broker_decisions \
-             (decision_id, case_id, outcome, outcome_detail, broker_pubkey, reasoning, \
-              prior_decision_id, decided_at) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        );
-        if let Ok(bound) = stmt.bind(&[
-            JsValue::from_str(&proj.decision_id),
-            JsValue::from_str(case_id),
-            JsValue::from_str(&proj.outcome),
-            detail_val,
-            JsValue::from_str(&event.pubkey),
-            JsValue::from_str(&proj.reasoning),
-            prior_val,
-            JsValue::from_f64(event.created_at as f64),
-        ]) {
-            let _ = bound.run().await;
-        }
+        let store = receipts::D1ReceiptStore::new(db);
+        let outcome =
+            receipts::apply_with_receipt(&store, &correlation, &commit, auth::js_now_secs()).await;
 
-        // Move the case to the CaseState the orchestrator produced — never
-        // `under_review` for a well-formed non-binary outcome.
-        let update_stmt = db.prepare(
-            "UPDATE broker_cases SET state = ?1, assigned_to = ?2, updated_at = ?3 WHERE id = ?4",
-        );
-        if let Ok(bound) = update_stmt.bind(&[
-            JsValue::from_str(proj.new_state.as_str()),
-            JsValue::from_str(&event.pubkey),
-            JsValue::from_f64(event.created_at as f64),
-            JsValue::from_str(case_id),
-        ]) {
-            let _ = bound.run().await;
+        match &outcome {
+            ReceiptOutcome::ProjectionFailed { error } => {
+                console_warn!(
+                    "governance receipt {}: projection failed: {}",
+                    &event.id,
+                    error
+                );
+            }
+            ReceiptOutcome::NotRecorded { error } => {
+                console_warn!(
+                    "governance receipt {}: could not be recorded: {}",
+                    &event.id,
+                    error
+                );
+            }
+            _ => {}
         }
+        outcome
     }
 
     /// F6 (DDD §7a.1): the governance-role rank of a pubkey for the

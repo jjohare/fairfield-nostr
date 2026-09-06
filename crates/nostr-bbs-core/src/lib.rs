@@ -41,6 +41,7 @@ pub mod boot_profile;
 pub mod cors;
 pub mod d1_helpers;
 pub mod did;
+pub mod feature_gate;
 pub mod governance;
 pub mod kanban;
 #[cfg(target_arch = "wasm32")]

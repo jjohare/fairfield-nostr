@@ -16,7 +16,7 @@ use crate::components::avatar::{Avatar, AvatarSize};
 use crate::components::badge_display::BadgeGrid;
 use crate::components::user_display::use_display_name_tracked;
 use crate::relay::{Filter, RelayConnection};
-use crate::stores::badges::{use_badges, EarnedBadge};
+use crate::stores::badges::{use_badges, BadgeFetchState, EarnedBadge};
 use crate::utils::shorten_pubkey;
 
 /// Parsed kind 0 metadata.
@@ -111,8 +111,14 @@ pub fn ProfilePage() -> impl IntoView {
         );
     });
 
-    // Fetch badges for this profile's pubkey
+    // Fetch badges for this profile's pubkey.
+    //
+    // The fetch state is tracked explicitly so the badge section can tell
+    // "this person has no badges" (an EOSE with nothing in it) from "we could
+    // not read the register" (the deadline with no EOSE) — see
+    // `stores::badges::badge_list_view`.
     let profile_badges: RwSignal<Vec<EarnedBadge>> = RwSignal::new(Vec::new());
+    let badge_state = RwSignal::new(BadgeFetchState::Loading);
     {
         let _badge_store = use_badges();
         Effect::new(move |_| {
@@ -151,12 +157,24 @@ pub fn ProfilePage() -> impl IntoView {
                     });
                 }
             });
-            let on_eose = Rc::new(|| {});
+            // EOSE is the relay's receipt that it has sent every award it
+            // holds: only then is an empty list an authoritative "none".
+            let on_eose = Rc::new(move || {
+                badge_state.set(BadgeFetchState::Loaded {
+                    as_of: js_sys::Date::now() / 1000.0,
+                });
+            });
             let sub_id = relay.subscribe(vec![filter], on_event, Some(on_eose));
             let relay_cleanup = relay.clone();
             crate::utils::set_timeout_once(
                 move || {
                     relay_cleanup.unsubscribe(&sub_id);
+                    // Deadline with no receipt: unavailable, not empty.
+                    badge_state.update(|s| {
+                        if matches!(s, BadgeFetchState::Loading) {
+                            *s = BadgeFetchState::Unavailable { last_ok: None };
+                        }
+                    });
                 },
                 5_000,
             );
@@ -279,7 +297,7 @@ pub fn ProfilePage() -> impl IntoView {
 
             // Badges
             <div class="bg-gray-800/50 border border-gray-700/30 rounded-xl p-4">
-                <BadgeGrid badges=badges_signal />
+                <BadgeGrid badges=badges_signal state=Signal::derive(move || badge_state.get()) />
             </div>
 
             // Details card

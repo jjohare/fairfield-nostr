@@ -32,6 +32,9 @@ use wasm_bindgen::JsValue;
 use worker::{console_warn, Env};
 
 use crate::auth;
+// `trust` is used only by the demotion-policy test adapter below; the live
+// sweep moved to `trust_sweep`.
+#[cfg(test)]
 use crate::trust::{self, TrustThresholds};
 
 /// How many rows to pull per `SELECT` page. D1 enforces a 1 MB result-row
@@ -261,176 +264,21 @@ pub(crate) async fn upsert_profile_from_row(env: &Env, row: &Kind0Row) -> Result
 }
 
 // ---------------------------------------------------------------------------
-// ADR-102 — Inactivity-decay trust demotion sweep
+// ADR-2006 — inactivity-decay trust demotion sweep
 //
-// `trust::check_demotion` is inherently time-driven: its precondition is that a
-// pubkey has been inactive for `inactivity_demotion_secs` (~6 months). Wiring it
-// into a request handler would fire it on ACTIVE users — the opposite of its
-// precondition — so it lives here, on the scheduled (cron) trigger, alongside
-// the periodic-sweep pattern established by `backfill_profiles`.
+// The sweep itself now lives in [`crate::trust_sweep`], which pages the
+// candidate set with a **keyset cursor** rather than `LIMIT/OFFSET`. The offset
+// form was unsound here: the sweep mutates `trust_level`, the very column its
+// candidate predicate filters on, so demoted rows leave the eligible set and
+// shift the remainder underneath the offset — a 400-row backlog swept at a
+// batch size of 200 processed 200 rows and reported clean completion.
 //
-// The decay policy is exactly what `check_demotion` already encodes; the sweep
-// invents nothing harsher:
-//   - only rows past the inactivity gate are candidates;
-//   - TL3 (admin-granted) and admin/exempt rows are never demoted;
-//   - TL0 is a hard floor (no demotion below Newcomer);
-//   - TL2 → TL1 when the row still qualifies for TL1, else TL2 → TL0;
-//   - TL1 → TL0.
-// Each qualifying sweep applies one demotion step per row. `check_demotion`
-// writes the `whitelist.trust_level` change and the `admin_log` entry itself,
-// so the sweep is a pure selection-and-dispatch loop.
+// The policy is unchanged and lives in `trust::decide_demotion`: only rows past
+// the inactivity gate are candidates; TL3 and admin/exempt rows are never
+// demoted; TL0 is a hard floor; TL2 lands on TL1 when the row still earns it and
+// on TL0 otherwise; TL1 lands on TL0. One committed transition per row per
+// sweep.
 // ---------------------------------------------------------------------------
-
-/// How many candidate whitelist rows to pull per `SELECT` page. The whitelist
-/// is small relative to `events`, but we page it the same way as the profile
-/// backfill so a large community never produces an unbounded result set or a
-/// single oversized D1 statement.
-pub(crate) const DEMOTION_BATCH_SIZE: u32 = 200;
-
-/// Circuit breaker: the maximum number of candidate rows the sweep will process
-/// in one cron invocation, keeping us inside the worker CPU budget. This is a
-/// ceiling, not a target — a healthy forum produces far fewer inactive rows per
-/// sweep than this.
-const DEMOTION_MAX_ROWS: u64 = 50_000;
-
-/// Minimal candidate row shape for the demotion sweep. We only need the pubkey
-/// to dispatch `check_demotion`; the SQL predicate has already filtered on
-/// trust level, inactivity, and the admin/exempt flag, so re-reading those
-/// columns here would be redundant. `check_demotion` re-reads the full row
-/// (parameterised, by pubkey) and re-checks every guard before writing, so the
-/// SQL filter is an optimisation — it bounds the candidate set — not the
-/// authority for the decision.
-#[derive(Deserialize)]
-struct DemotionCandidate {
-    pubkey: String,
-}
-
-/// Outcome of [`sweep_inactive_demotions`].
-#[derive(Debug, Clone, Copy, serde::Serialize)]
-pub struct DemotionSweepResult {
-    /// Total candidate rows read from `whitelist` (past the inactivity gate and
-    /// holding a demotable trust level).
-    pub scanned: u64,
-    /// Rows whose trust level `check_demotion` actually lowered this sweep.
-    pub demoted: u64,
-    /// `true` if we hit [`DEMOTION_MAX_ROWS`] before exhausting the candidates.
-    pub truncated: bool,
-}
-
-/// Periodic inactivity-decay sweep (ADR-102).
-///
-/// Selects whitelist rows whose inactivity exceeds `inactivity_demotion_secs`
-/// and that currently hold a demotable trust level (TL1/TL2, non-admin), then
-/// applies [`trust::check_demotion`] to each. Paged and bounded: never scans or
-/// updates the whole table unbounded.
-///
-/// The inactivity cutoff is computed once, in Rust, from the loaded thresholds
-/// and the current time, then bound as a parameter — the SQL itself stays a
-/// plain parameterised `SELECT … WHERE last_active_at < ?` with no clock or
-/// arithmetic embedded in the statement.
-///
-/// Returns counts for observability. Per-row demotion failures are impossible
-/// to distinguish from "row did not need demoting" through `check_demotion`'s
-/// `Option` return, so `demoted` reflects an actual trust-level decrease only.
-pub async fn sweep_inactive_demotions(env: &Env) -> Result<DemotionSweepResult, String> {
-    let db = env
-        .d1("DB")
-        .map_err(|e| format!("DB binding missing: {e:?}"))?;
-
-    let thresholds = TrustThresholds::load(env).await;
-    let now = auth::js_now_secs() as i64;
-    // Anything last active at or before this instant is past the inactivity
-    // gate. Computed in Rust so the SQL carries no clock/arithmetic.
-    let inactive_cutoff = now - thresholds.inactivity_demotion_secs;
-
-    let demotable_floor = trust::TrustLevel::Member.as_i32(); // TL1
-    let demotable_ceiling = trust::TrustLevel::Regular.as_i32(); // TL2
-
-    let mut offset: u32 = 0;
-    let mut scanned: u64 = 0;
-    let mut demoted: u64 = 0;
-
-    loop {
-        // Parameterised candidate page. The predicate bounds the candidate set:
-        //   - trust_level in [TL1, TL2]  → TL0 floor and TL3 are excluded here;
-        //   - last_active_at <= cutoff   → only rows past the inactivity gate;
-        //   - is_admin coalesced to 0    → admin/exempt rows never selected.
-        // `check_demotion` re-validates all of these before any write, so this
-        // is an optimisation that keeps the sweep bounded, not the decision.
-        let stmt = db.prepare(
-            "SELECT pubkey FROM whitelist \
-             WHERE trust_level >= ?1 AND trust_level <= ?2 \
-               AND COALESCE(last_active_at, 0) <= ?3 \
-               AND COALESCE(is_admin, 0) = 0 \
-             ORDER BY last_active_at ASC \
-             LIMIT ?4 OFFSET ?5",
-        );
-
-        let bound = stmt
-            .bind(&[
-                JsValue::from_f64(demotable_floor as f64),
-                JsValue::from_f64(demotable_ceiling as f64),
-                JsValue::from_f64(inactive_cutoff as f64),
-                JsValue::from_f64(DEMOTION_BATCH_SIZE as f64),
-                JsValue::from_f64(offset as f64),
-            ])
-            .map_err(|e| format!("bind failed: {e:?}"))?;
-
-        let rows: Vec<DemotionCandidate> = bound
-            .all()
-            .await
-            .map_err(|e| format!("page query failed: {e:?}"))?
-            .results()
-            .map_err(|e| format!("results parse failed: {e:?}"))?;
-
-        let page_len = rows.len() as u32;
-        if page_len == 0 {
-            break;
-        }
-
-        for row in rows {
-            scanned += 1;
-
-            // Snapshot the level before, so we count only genuine decreases.
-            let before = trust::get_trust_level(&row.pubkey, env).await;
-            if let Some(after) = trust::check_demotion(&row.pubkey, env).await {
-                if after < before {
-                    demoted += 1;
-                }
-            }
-
-            if scanned >= DEMOTION_MAX_ROWS {
-                console_warn!(
-                    "sweep_inactive_demotions: hit DEMOTION_MAX_ROWS ({}), stopping early",
-                    DEMOTION_MAX_ROWS
-                );
-                return Ok(DemotionSweepResult {
-                    scanned,
-                    demoted,
-                    truncated: true,
-                });
-            }
-        }
-
-        // Demotions mutate `trust_level`, which shrinks the candidate set this
-        // very query filters on. Re-querying from OFFSET 0 each iteration would
-        // risk skipping rows as the window shifts; advancing the offset by the
-        // page length and ordering by a stable key (last_active_at ASC) pages
-        // forward deterministically without revisiting demoted rows.
-        if page_len < DEMOTION_BATCH_SIZE {
-            break;
-        }
-        offset = offset
-            .checked_add(page_len)
-            .ok_or_else(|| "offset overflow".to_string())?;
-    }
-
-    Ok(DemotionSweepResult {
-        scanned,
-        demoted,
-        truncated: false,
-    })
-}
 
 // ---------------------------------------------------------------------------
 // Retention / NIP-40 expiry sweep
@@ -642,21 +490,15 @@ async fn delete_id_page(
     Ok(page_len)
 }
 
-/// Pure model of the demotion decision the sweep applies per row (ADR-102).
+/// Test adapter over the single demotion authority, [`trust::decide_demotion`].
 ///
-/// This is a side-effect-free mirror of the policy `trust::check_demotion`
-/// encodes against D1: same inactivity gate, same TL3/admin/TL0 guards, same
-/// per-level hysteresis. It exists so the sweep's contract is testable without
-/// a D1 binding — the live path (`check_demotion`) remains the executable
-/// authority; this function asserts the live path's policy is the one we
-/// intend. The two MUST stay in lockstep.
-///
-/// Returns the trust level the row should hold AFTER this sweep. A return value
-/// equal to `current` means "not demoted this sweep".
+/// The sweep's policy used to be mirrored here as a separate `#[cfg(test)]`
+/// copy that the tests asserted against, with a comment insisting the two
+/// "MUST stay in lockstep" — a convention, not a guarantee. The policy is now a
+/// pure function on the live path, so these tests exercise the executable
+/// authority directly and the mirror cannot drift. This adapter only shapes the
+/// flat test arguments into the row the real function takes.
 #[cfg(test)]
-// Signature mirrors the live `trust::check_demotion` policy inputs 1:1 so the
-// two stay in lockstep (see doc above); collapsing them into a struct here would
-// break that parity, so the arg count is intentional on this security-path model.
 #[allow(clippy::too_many_arguments)]
 fn decide_demotion(
     current: trust::TrustLevel,
@@ -669,59 +511,20 @@ fn decide_demotion(
     now: i64,
     thresholds: &TrustThresholds,
 ) -> trust::TrustLevel {
-    use trust::TrustLevel;
-
-    // TL3 never auto-demoted; TL0 is the floor.
-    if current == TrustLevel::Trusted || current == TrustLevel::Newcomer {
-        return current;
-    }
-    // Admin/exempt rows are never demoted.
-    if is_admin {
-        return current;
-    }
-    // Inactivity gate: only demote rows past `inactivity_demotion_secs`.
-    if now - last_active_at < thresholds.inactivity_demotion_secs {
-        return current;
-    }
-
-    let hysteresis = thresholds.demotion_hysteresis_pct as f64 / 100.0;
-
-    match current {
-        TrustLevel::Regular => {
-            let needs_demote = (days_active as f64)
-                < (thresholds.tl2_days_active as f64 * hysteresis)
-                || (posts_read as f64) < (thresholds.tl2_posts_read as f64 * hysteresis)
-                || (posts_created as f64) < (thresholds.tl2_posts_created as f64 * hysteresis)
-                || mod_actions_against > 0;
-            if needs_demote {
-                let qualifies = trust::compute_trust_level(
-                    days_active,
-                    posts_read,
-                    posts_created,
-                    mod_actions_against,
-                    thresholds,
-                );
-                if qualifies >= TrustLevel::Member {
-                    TrustLevel::Member
-                } else {
-                    TrustLevel::Newcomer
-                }
-            } else {
-                current
-            }
-        }
-        TrustLevel::Member => {
-            let needs_demote = (days_active as f64)
-                < (thresholds.tl1_days_active as f64 * hysteresis)
-                || (posts_read as f64) < (thresholds.tl1_posts_read as f64 * hysteresis)
-                || (posts_created as f64) < (thresholds.tl1_posts_created as f64 * hysteresis);
-            if needs_demote {
-                TrustLevel::Newcomer
-            } else {
-                current
-            }
-        }
-        _ => current,
+    let row = trust::WhitelistTrustRow {
+        pubkey: "test".to_string(),
+        trust_level: current.as_i32(),
+        days_active,
+        posts_read,
+        posts_created,
+        mod_actions_against,
+        last_active_at: Some(last_active_at as f64),
+        trust_level_updated_at: None,
+        is_admin: Some(if is_admin { 1 } else { 0 }),
+    };
+    match trust::decide_demotion(&row, thresholds, now) {
+        trust::DemotionDecision::Hold(_) => current,
+        trust::DemotionDecision::Demote { to, .. } => to,
     }
 }
 
@@ -996,20 +799,26 @@ mod tests {
     fn demotion_batch_size_is_bounded() {
         // The sweep pages the whitelist; the batch must be a sane bound, never
         // an unbounded full-table scan-and-update.
-        const { assert!(DEMOTION_BATCH_SIZE > 0) };
-        const { assert!(DEMOTION_BATCH_SIZE <= 1000) };
+        const { assert!(crate::trust_sweep::DEMOTION_BATCH_SIZE > 0) };
+        const { assert!(crate::trust_sweep::DEMOTION_BATCH_SIZE <= 1000) };
     }
 
     #[test]
     fn demotion_sweep_result_serializes_for_observability() {
-        let r = DemotionSweepResult {
+        // The sweep's observability contract: committed, held and failed are
+        // each reported, and the three account for every scanned row.
+        let r = crate::trust_sweep::DemotionSweepResult {
             scanned: 12,
             demoted: 3,
-            truncated: false,
+            held: 8,
+            failed: 1,
+            ..Default::default()
         };
+        assert!(r.is_balanced());
         let json = serde_json::to_string(&r).unwrap();
         assert!(json.contains("\"scanned\":12"));
         assert!(json.contains("\"demoted\":3"));
-        assert!(json.contains("\"truncated\":false"));
+        assert!(json.contains("\"held\":8"));
+        assert!(json.contains("\"failed\":1"));
     }
 }

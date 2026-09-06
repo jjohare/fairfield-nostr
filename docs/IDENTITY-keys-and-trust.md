@@ -161,3 +161,9 @@ re-recording `verified_commit` from `git rev-parse --short HEAD`; (4) recording 
 decision as a new `docs/adr/` ledger entry (copy `docs/adr/TEMPLATE.md`) in the same
 change and regenerating the index (`node scripts/adr-index-gen.js docs/adr`). Legacy
 ADR prose is evidence, not authority — cite it, do not defer to it.
+
+## Estate closeout qualification — 2026-09-04
+
+The native key suite passes 22 tests including its JS-parity known-answer fixture; executing the current JS implementation remains a separate acceptance task. Exact device gates do not prove deployed revocation. The trust sweep can move TL2 directly to TL0; UPDATE and audit INSERT errors are ignored before returning the planned level, and advancing OFFSET over a shrinking eligible set can skip rows. ADR-2006 is therefore partial. Require committed outcome reporting, stable pagination and recoverable audit/state consistency. Recipient admission and Rust key zeroisation do not establish private delivery or browser-storage erasure.
+
+See the [forum review](../../VisionFlow/docs/estate-review/forum-decisions.md) for scoped evidence and acceptance requirements. Historical verified commits and activation claims are not refreshed by this source review.

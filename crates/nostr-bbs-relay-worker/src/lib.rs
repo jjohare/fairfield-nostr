@@ -26,6 +26,7 @@ mod nip11;
 mod profiles;
 mod relay_do;
 mod trust;
+mod trust_sweep;
 mod user_admin;
 mod whitelist;
 mod zone_config;
@@ -265,6 +266,14 @@ async fn route(req: Request, env: &Env, path: &str) -> Result<Response> {
     // never from event content.
     if path == "/api/agents/disclosure" && method == Method::Get {
         return agent_disclosure::handle_agent_disclosure(env).await;
+    }
+
+    // ADR-2010 — governance receipt trail. Exposes the stage each signed
+    // response actually reached, so a consumer can tell a denied action from an
+    // approved one whose write failed, and can verify correlation itself rather
+    // than trusting a relay OK or a forum badge.
+    if path == "/api/governance/receipts" && method == Method::Get {
+        return relay_do::receipts::handle_receipts_list(&req, env).await;
     }
 
     // Whitelist add (NIP-98 admin only)
@@ -726,6 +735,29 @@ async fn ensure_schema(env: &Env) {
             superseded_by TEXT, \
             decided_at INTEGER NOT NULL\
         )",
+        // ADR-2010 — durable governance outcome receipts. One row per signed
+        // governance event, keyed by the FULL event id, recording the stage the
+        // response actually reached. Written at `relay-accepted` right after the
+        // envelope is stored; transitions to `projection-committed` inside the
+        // same batch as the decision row and case state, so the two can never
+        // disagree. `replays` counts redeliveries without re-running the mutation.
+        "CREATE TABLE IF NOT EXISTS governance_receipts (\
+            event_id TEXT PRIMARY KEY NOT NULL, \
+            kind INTEGER NOT NULL, \
+            case_id TEXT NOT NULL, \
+            request_event_id TEXT, \
+            signer_pubkey TEXT NOT NULL, \
+            decision_outcome TEXT, \
+            target_operation TEXT, \
+            supersedes_event_id TEXT, \
+            stage TEXT NOT NULL, \
+            stage_error TEXT, \
+            decision_id TEXT, \
+            signed_at INTEGER NOT NULL, \
+            accepted_at INTEGER, \
+            projected_at INTEGER, \
+            replays INTEGER NOT NULL DEFAULT 0\
+        )",
         // Role assignments for broker governance (which pubkeys can claim cases).
         "CREATE TABLE IF NOT EXISTS broker_roles (\
             pubkey TEXT NOT NULL, \
@@ -778,6 +810,10 @@ async fn ensure_schema(env: &Env) {
         "CREATE INDEX IF NOT EXISTS idx_broker_cases_assigned ON broker_cases(assigned_to)",
         "CREATE INDEX IF NOT EXISTS idx_broker_decisions_case ON broker_decisions(case_id)",
         "CREATE INDEX IF NOT EXISTS idx_broker_roles_pubkey ON broker_roles(pubkey)",
+        "CREATE INDEX IF NOT EXISTS idx_governance_receipts_case ON governance_receipts(case_id)",
+        "CREATE INDEX IF NOT EXISTS idx_governance_receipts_stage ON governance_receipts(stage)",
+        "CREATE INDEX IF NOT EXISTS idx_governance_receipts_request ON governance_receipts(request_event_id)",
+        "CREATE INDEX IF NOT EXISTS idx_governance_receipts_signer ON governance_receipts(signer_pubkey)",
         // Task #7: reverse lookup old_pubkey -> new_pubkey for display/cohort
         // resolution (the forward new_pubkey lookup uses the PK).
         "CREATE INDEX IF NOT EXISTS idx_pubkey_aliases_old ON pubkey_aliases(old_pubkey)",
@@ -824,14 +860,21 @@ async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
         .first::<serde_json::Value>(None)
         .await;
 
-    match cron::sweep_inactive_demotions(&env).await {
+    match trust_sweep::sweep_inactive_demotions(&env).await {
         Ok(result) => {
-            if result.demoted > 0 || result.truncated {
+            // ADR-2006: report the explicit outcomes, not just the happy count.
+            // A sweep whose writes all failed must not look like a quiet tick,
+            // so `failed` and `aborted` are as loud as `demoted`.
+            if result.demoted > 0 || result.truncated || result.failed > 0 || result.aborted {
                 console_log!(
-                    "trust demotion sweep: scanned={} demoted={} truncated={}",
+                    "trust demotion sweep: scanned={} demoted={} held={} failed={} \
+                     truncated={} aborted={}",
                     result.scanned,
                     result.demoted,
-                    result.truncated
+                    result.held,
+                    result.failed,
+                    result.truncated,
+                    result.aborted
                 );
             }
         }

@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "algorithm": "HMAC-SHA-256(key = root secret key, 32 raw bytes; message = UTF-8 bytes of tag) -> 32-byte child secret key, then validated as a secp256k1 scalar (0 < x < n)",
+  "algorithm_id": "agentbox-subkey-hmac-sha256-v1",
+  "not_hkdf": "Deliberately NOT HKDF. Do not \"upgrade\" this construction — it exists to match the agentbox JavaScript derivation byte-for-byte. See ADR-2003 / ADR-094.",
+  "adr": [
+    "ADR-2003",
+    "ADR-094"
+  ],
+  "secp256k1_order_hex": "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+  "runners": [
+    "cargo test -p nostr-bbs-core --test identity_subkey_vectors",
+    "node scripts/identity-vector-parity.mjs"
+  ],
+  "agentbox_reference_impl": [
+    "project/agentbox/config/hooks/nostr-live-mirror.cjs :: deriveChildKey()",
+    "project/agentbox/config/nostr-gateway/nostr-send.cjs :: loadIdentity() (child mode)",
+    "project/agentbox/config/nostr-gateway/gateway.cjs :: child identity constant"
+  ],
+  "vectors": [
+    {
+      "id": "canonical-mirror-v1",
+      "notes": "Canonical agentbox live-mirror child tag (config/hooks/nostr-live-mirror.cjs, config/nostr-gateway/nostr-send.cjs). Matches the inline Rust known-answer test.",
+      "root_id": "root-01",
+      "root_secret_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+      "tag": "agentbox-mirror-v1",
+      "tag_utf8_bytes": 18,
+      "expected_child_secret_hex": "2d07f2ce93d0361687fdd81d2690082b5d6c35b93e3ece2d44bcf115ef8f695d"
+    },
+    {
+      "id": "canonical-mirror-v1-alt",
+      "notes": "Same canonical tag under a different root — root separation.",
+      "root_id": "root-42",
+      "root_secret_hex": "4242424242424242424242424242424242424242424242424242424242424242",
+      "tag": "agentbox-mirror-v1",
+      "tag_utf8_bytes": 18,
+      "expected_child_secret_hex": "5c593f64607573e264c2dfbdf72d29e38750d1bb105ac5eb05bdfaadbfc2ef91"
+    },
+    {
+      "id": "canonical-gateway-v1",
+      "notes": "Canonical agentbox gateway child tag (config/nostr-gateway/gateway.cjs).",
+      "root_id": "root-01",
+      "root_secret_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+      "tag": "agentbox-gateway-v1",
+      "tag_utf8_bytes": 19,
+      "expected_child_secret_hex": "e10e112b110a9a39a9b6c3d7acdb127d6a95cd5e2c0163cf131de0d1d04d8f2f"
+    },
+    {
+      "id": "canonical-agent-v1",
+      "notes": "Forum-side agent tag used by the existing inline domain-separation test.",
+      "root_id": "root-42",
+      "root_secret_hex": "4242424242424242424242424242424242424242424242424242424242424242",
+      "tag": "agentbox-agent-v1",
+      "tag_utf8_bytes": 17,
+      "expected_child_secret_hex": "1bb6d6f28fba0af100fdc0d342a844124d782acc403147b4dc1b9b818f5df427"
+    },
+    {
+      "id": "rotation-mirror-v2",
+      "notes": "Tag rotation: -v1 -> -v2 must produce a different child.",
+      "root_id": "root-01",
+      "root_secret_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+      "tag": "agentbox-mirror-v2",
+      "tag_utf8_bytes": 18,
+      "expected_child_secret_hex": "6b61ae9254a980c996eb2742efa74a298d0fe21e4464fed806e2fa0f7a7ed1ab"
+    },
+    {
+      "id": "rotation-gateway-v2",
+      "notes": "Tag rotation for the gateway tag.",
+      "root_id": "root-01",
+      "root_secret_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+      "tag": "agentbox-gateway-v2",
+      "tag_utf8_bytes": 19,
+      "expected_child_secret_hex": "bed7fe8493db732e67f5e161040c459748772042061d5f50183346170866d1cc"
+    },
+    {
+      "id": "empty-tag",
+      "notes": "Empty tag: HMAC over a zero-length message. Valid and distinct.",
+      "root_id": "root-07",
+      "root_secret_hex": "0707070707070707070707070707070707070707070707070707070707070707",
+      "tag": "",
+      "tag_utf8_bytes": 0,
+      "expected_child_secret_hex": "9dac6a74401b46ed9b489d0e19d68d1b13cc6b5090352fdcfa5bd74df4e69d87"
+    },
+    {
+      "id": "single-byte-tag",
+      "notes": "Minimal non-empty tag.",
+      "root_id": "root-07",
+      "root_secret_hex": "0707070707070707070707070707070707070707070707070707070707070707",
+      "tag": "a",
+      "tag_utf8_bytes": 1,
+      "expected_child_secret_hex": "4e7004bebac287656f96a29d4b16be2d4aa352cf8871cd2222f27bd0240e6118"
+    },
+    {
+      "id": "long-tag",
+      "notes": "Long tag (519 bytes) — exceeds the SHA-256 block size, exercising HMAC key/message length handling.",
+      "root_id": "root-rand",
+      "root_secret_hex": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "tag": "agentbox-mirror-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-v1",
+      "tag_utf8_bytes": 519,
+      "expected_child_secret_hex": "3f5c607b93ca0a63ff78d48de670032cff2a6f893c2352257d35a94acb5707e0"
+    },
+    {
+      "id": "utf8-multibyte-tag",
+      "notes": "Non-ASCII tag spanning 2-, 3- and 4-byte UTF-8 sequences. Rust encodes str as UTF-8; Node update(string) defaults to UTF-8.",
+      "root_id": "root-rand",
+      "root_secret_hex": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "tag": "agentbox-miroir-café-日本語-🔑-v1",
+      "tag_utf8_bytes": 39,
+      "expected_child_secret_hex": "8ec78107457818d2ea2584c43fa3f2f36f148338fa924d7e4fc464f49d6961cb"
+    },
+    {
+      "id": "utf8-combining-tag",
+      "notes": "Tag with a combining acute accent (U+0301) — byte-level, not NFC-normalised, on both stacks.",
+      "root_id": "root-rand",
+      "root_secret_hex": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "tag": "agentbox-é-v1",
+      "tag_utf8_bytes": 15,
+      "expected_child_secret_hex": "c85b709b47284b27e3edf86fc5e53955f6c956e26419f27e36234f4159d60f4b"
+    },
+    {
+      "id": "max-scalar-root",
+      "notes": "Root = curve order n-1, the largest valid secp256k1 scalar.",
+      "root_id": "root-nm1",
+      "root_secret_hex": "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
+      "tag": "agentbox-mirror-v1",
+      "tag_utf8_bytes": 18,
+      "expected_child_secret_hex": "fa8cc55a9709563157ab49fa53914e179dd643be52f1938de3456a9b228888c6"
+    },
+    {
+      "id": "whitespace-tag",
+      "notes": "Tag with leading/trailing spaces — distinct from the trimmed tag; no trimming on either side.",
+      "root_id": "root-42",
+      "root_secret_hex": "4242424242424242424242424242424242424242424242424242424242424242",
+      "tag": " agentbox-mirror-v1 ",
+      "tag_utf8_bytes": 20,
+      "expected_child_secret_hex": "a0475d2e7fbadb673362a44bede0279ccecbe21a37cf493f4dbe65c6bbb9987f"
+    }
+  ],
+  "invalid": [
+    {
+      "id": "invalid-root-all-zero",
+      "root_secret_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+      "reason": "Zero is not a valid secp256k1 scalar.",
+      "rust_expects": "KeyError::InvalidSecretKey from SecretKey::from_bytes",
+      "js_expects": "scalar_out_of_range"
+    },
+    {
+      "id": "invalid-root-all-ff",
+      "root_secret_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "reason": "0xff..ff exceeds the secp256k1 curve order n.",
+      "rust_expects": "KeyError::InvalidSecretKey from SecretKey::from_bytes",
+      "js_expects": "scalar_out_of_range"
+    },
+    {
+      "id": "invalid-root-equals-order",
+      "root_secret_hex": "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+      "reason": "Root equals the curve order n exactly; valid scalars are 0 < x < n.",
+      "rust_expects": "KeyError::InvalidSecretKey from SecretKey::from_bytes",
+      "js_expects": "scalar_out_of_range"
+    }
+  ]
+}

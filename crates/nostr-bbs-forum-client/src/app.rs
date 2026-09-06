@@ -55,6 +55,13 @@ pub(crate) fn base_href(path: &str) -> String {
     }
 }
 
+/// Routes a `returnTo` must never point at: bouncing back to an auth page
+/// after authenticating is a redirect loop (QA HIGH bug #2).
+pub(crate) const AUTH_ROUTES: &[&str] = &["/login", "/signup", "/setup"];
+
+/// Where a rejected or absent `returnTo` sends the user instead.
+pub(crate) const DEFAULT_RETURN_TO: &str = "/forums";
+
 /// Strip `FORUM_BASE` from a browser path, returning a base-relative app path.
 ///
 /// `current_app_path("/community/forums")` → `"/forums"` when `FORUM_BASE="/community"`.
@@ -63,18 +70,27 @@ pub(crate) fn base_href(path: &str) -> String {
 /// Use this whenever you want to feed `location.pathname.get()` back into
 /// `use_navigate(...)` or store it in a `returnTo` query — the router will
 /// re-prefix the base on its own, so the value stored must NOT contain it.
+///
+/// ADR-090 closeout: the strip is **router-aware**, i.e. it only fires on a
+/// path-segment boundary. `/communityfoo` is a sibling route, not a route
+/// inside `/community`, and is returned untouched; `/community/community-notes`
+/// loses only its leading occurrence. See [`crate::utils::paths::app_path`] for
+/// the pure implementation and its unit tests.
 pub(crate) fn current_app_path(pathname: &str) -> String {
-    if FORUM_BASE.is_empty() {
-        return pathname.to_string();
-    }
-    let stripped = pathname.strip_prefix(FORUM_BASE).unwrap_or(pathname);
-    if stripped.is_empty() {
-        "/".to_string()
-    } else if stripped.starts_with('/') {
-        stripped.to_string()
-    } else {
-        format!("/{stripped}")
-    }
+    crate::utils::paths::app_path(FORUM_BASE, pathname)
+}
+
+/// Validate an attacker-controllable `returnTo` and reduce it to a safe,
+/// base-relative app path.
+///
+/// ADR-090 closeout: `returnTo` arrives in a query string that anybody can put
+/// in a link, so it is treated as hostile input. Absolute URLs, schemes
+/// (`javascript:`, `data:`), scheme-relative `//evil.example`, backslash
+/// authorities, control-character splitting, encoded traversal and anything
+/// that escapes the base are all refused, and the user lands on
+/// [`DEFAULT_RETURN_TO`] instead. See [`crate::utils::paths::validate_return_to`].
+pub(crate) fn safe_return_to(raw: &str) -> String {
+    crate::utils::paths::sanitise_return_to(FORUM_BASE, raw, DEFAULT_RETURN_TO, AUTH_ROUTES)
 }
 
 // -- Dev-auth panel (no-op when feature is disabled) -------------------------
@@ -932,18 +948,9 @@ fn Layout(children: Children) -> impl IntoView {
 
     let location = use_location();
     // Strip FORUM_BASE prefix so nav comparisons work regardless of sub-directory.
-    let pathname = move || {
-        let p = location.pathname.get();
-        if FORUM_BASE.is_empty() {
-            return p;
-        }
-        let stripped = p.strip_prefix(FORUM_BASE).unwrap_or(&p);
-        if stripped.is_empty() {
-            "/".to_string()
-        } else {
-            stripped.to_string()
-        }
-    };
+    // Router-aware (ADR-090): a sibling route that merely shares the base's
+    // leading characters is left alone rather than mangled.
+    let pathname = move || current_app_path(&location.pathname.get());
 
     // Resolve the logged-in user's display name through the layered profile
     // cache (tracked, so the chip updates the moment our kind-0 lands in the
@@ -1364,15 +1371,7 @@ fn AuthGatedDmChat() -> impl IntoView {
 /// never leaks into the stored value and the `/login`/`/signup` guards
 /// actually match in production builds.
 fn login_redirect_target(pathname: &str) -> Option<String> {
-    let app_path = current_app_path(pathname);
-    if app_path.starts_with("/login") || app_path.starts_with("/signup") {
-        return None;
-    }
-    if app_path.is_empty() || app_path == "/" || !app_path.starts_with('/') {
-        Some("/login".to_string())
-    } else {
-        Some(format!("/login?returnTo={}", app_path))
-    }
+    crate::utils::paths::login_redirect_for(FORUM_BASE, pathname, AUTH_ROUTES)
 }
 
 /// Macro-like helper: all new auth gates follow identical pattern.

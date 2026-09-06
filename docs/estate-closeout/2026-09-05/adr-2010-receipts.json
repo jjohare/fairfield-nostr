@@ -1,0 +1,90 @@
+{
+  "adr": "ADR-2010",
+  "title": "Track governance decisions through durable projection and application receipts",
+  "date": "2026-09-05",
+  "repo": "nostr-rust-forum",
+  "scope": "relay-side stages only (signed -> relay-accepted -> projection-committed). The consumer-received and applied/rejected stages belong to agentbox and the mutation owner and are NOT implemented here.",
+
+  "findings_addressed": [
+    {
+      "finding": "handle_event sends OK and broadcasts after save_event, then projects",
+      "assessment": "The ordering is retained deliberately — NIP-01 requires the OK, and it is truthful about what it certifies (storage). What was missing is any record of what happened afterwards. A durable receipt is now written per signed event, so an OK is no longer the last word on a decision's fate.",
+      "test": "relay_do::receipts::tests::only_a_committed_projection_counts_as_applied"
+    },
+    {
+      "finding": "Projection inserts decision and updates case separately",
+      "root_cause": "Two independent prepared statements, each with its result discarded, so a decision row could land while the case state update did not.",
+      "fix": "The decision INSERT, the case UPDATE and the receipt's transition to projection-committed are submitted as one D1 batch — a single implicit transaction. A half-applied projection is unrepresentable rather than merely unlikely.",
+      "test": "relay_do::receipts::tests::projection_failure_leaves_a_retryable_receipt_and_no_partial_write"
+    },
+    {
+      "finding": "No receipt stages",
+      "fix": "governance_receipts table keyed by the FULL 64-hex signed event id, carrying stage (signed | relay-accepted | projection-committed | projection-failed), stage_error, and the full correlation set: request_event_id, case_id, signer_pubkey, decision_outcome, target_operation, supersedes_event_id, decision_id, signed_at, accepted_at, projected_at, replays.",
+      "test": "relay_do::receipts::tests::correlation_binds_the_full_event_id_not_a_truncation, relay_do::receipts::tests::correlation_captures_request_and_supersession_links"
+    },
+    {
+      "finding": "Retrying the same signed event must not duplicate the mutation",
+      "fix": "The receipt row IS the durable replay record ADR-2010 permits where the storage boundary prevents spanning envelope and projection in one transaction. A replay of an already-committed event is counted and short-circuits before any write. A replay of a receipt still at relay-accepted or projection-failed is treated as reconciliation and retried; the retry is safe because the decision insert is INSERT OR IGNORE on a deterministic decision id and the case update is a state assignment, not an increment.",
+      "test": "relay_do::receipts::tests::replaying_a_committed_event_does_not_duplicate_the_mutation, relay_do::receipts::tests::redelivery_after_a_failed_projection_reconciles_exactly_once"
+    }
+  ],
+
+  "atomicity_position": "End-to-end atomicity across save_event and the projection is NOT claimed and is not achievable on D1: save_event has already committed by the time a projection is planned. ADR-2010 explicitly permits the alternative — a durable replay record with idempotent reconciliation — and that is what is implemented. The projection itself is genuinely atomic.",
+
+  "files_changed": [
+    "crates/nostr-bbs-relay-worker/src/relay_do/receipts.rs (new)",
+    "crates/nostr-bbs-relay-worker/src/relay_do/nip_handlers.rs",
+    "crates/nostr-bbs-relay-worker/src/relay_do/mod.rs",
+    "crates/nostr-bbs-relay-worker/src/lib.rs",
+    "crates/nostr-bbs-relay-worker/migrations/0005_governance_receipts.sql (new)"
+  ],
+
+  "api": {
+    "route": "GET /api/governance/receipts",
+    "auth": "NIP-98 admin",
+    "filters": ["case", "event", "stage", "signer", "limit", "offset"],
+    "derived_fields": {
+      "applied": "true only for projection-committed. The operator-facing distinction ADR-2010 turns on: a denied action and an approved action whose write failed must never look the same.",
+      "awaitsProjection": "true where a further projection attempt is warranted (signed, relay-accepted, projection-failed)."
+    },
+    "authority_note": "Scoped to the relay's existing administrative authority. ADR-2010's history-consumer extension leaves cross-case read authority for CP-04/05/08/09 to ratify, so no broader authority was invented here."
+  },
+
+  "tests": {
+    "command": "cargo test -p nostr-bbs-relay-worker --features test-exports",
+    "exit_code": 0,
+    "totals": "239 lib + 23 + 10 + 34 + 96 + 50 = 452 passed, 0 failed",
+    "warnings": "none",
+    "new_tests": [
+      "relay_do::receipts::tests::first_delivery_commits_and_records_the_stage",
+      "relay_do::receipts::tests::replaying_a_committed_event_does_not_duplicate_the_mutation",
+      "relay_do::receipts::tests::projection_failure_leaves_a_retryable_receipt_and_no_partial_write",
+      "relay_do::receipts::tests::redelivery_after_a_failed_projection_reconciles_exactly_once",
+      "relay_do::receipts::tests::repeated_projection_failures_never_apply_the_mutation",
+      "relay_do::receipts::tests::a_receipt_that_cannot_be_written_is_reported_not_swallowed",
+      "relay_do::receipts::tests::only_a_committed_projection_counts_as_applied",
+      "relay_do::receipts::tests::stages_round_trip_through_their_wire_form",
+      "relay_do::receipts::tests::stage_ordering_never_regresses",
+      "relay_do::receipts::tests::correlation_binds_the_full_event_id_not_a_truncation",
+      "relay_do::receipts::tests::correlation_captures_request_and_supersession_links",
+      "relay_do::receipts::tests::an_uncorrelated_event_mints_no_receipt",
+      "relay_do::receipts::tests::wire_form_distinguishes_a_failed_write_from_a_denial",
+      "relay_do::receipts::tests::wire_form_carries_the_full_correlation_set"
+    ],
+    "failure_injection": [
+      "after save / before projection completes: commit_projection fails, asserting no decision row, no case state change, receipt at projection-failed with the reason retained, and is_applied() false",
+      "receipt store itself unavailable: reported as NotRecorded, never swallowed, no mutation",
+      "repeated failures: mutation never applies; a later success applies it exactly once",
+      "duplicate replay of a committed event: commit_projection is not called at all"
+    ]
+  },
+
+  "remaining": [
+    "No deployed D1 exercise. The batch's all-or-nothing semantics are modelled in the fake store, not observed against D1.",
+    "consumer-received and applied/rejected stages are not implemented — they belong to agentbox and the mutation owner, and require the versioned receipt contract ADR-2010 says forum and agentbox maintainers must agree.",
+    "project_appeal and project_supersession are NOT yet receipt-wired; only the first-order project_action_response path is.",
+    "Retention policy for governance_receipts is unset — rows accumulate.",
+    "Browser-side acceptance (rationale capture, signer cancellation, acknowledgement timeout, conflicting in-flight actions) is not covered by these tests.",
+    "Revoked-signer and conflicting-response cases are governed by the existing authority checks, not by the receipt layer; the receipt records what happened, it does not add an authority gate."
+  ]
+}

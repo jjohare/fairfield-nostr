@@ -56,3 +56,13 @@ the index. The archive is history only, never authority.
 - Living docs authored against code at `verified_commit` 23be587
   (`git rev-parse --short HEAD`).
 - Index generator run clean: `node scripts/adr-index-gen.js docs/adr` exits 0.
+
+## Closeout extension — 2026-09-04
+
+Work packages: CP-01/08. Accountable owner: the existing owner above, with forum release/identity maintainers for cross-service acceptance. Historical verification and activation declarations are preserved; this review does not re-certify a live deployment.
+
+The operative ledger and frozen archive remain distinct. A generated index checks record structure; it cannot certify current implementation or deployment.
+
+**Acceptance condition:** Keep all 24 archived entries and the three sprint canonical documents resolvable through their lineage. Bind each operative claim to source/build/deployment identity and a scoped receipt; amend both governing documents with their ledger records.
+
+Dependencies: CP-01 release identity and the relevant identity, governance and recovery journeys. Reopen when the governed source, dependency, deployment profile or consumer contract changes. See the [estate forum review](../../../VisionFlow/docs/estate-review/forum-decisions.md) and [current source/test receipt](../../../VisionFlow/docs/estate-review/evidence/forum-closeout-snapshot.json).

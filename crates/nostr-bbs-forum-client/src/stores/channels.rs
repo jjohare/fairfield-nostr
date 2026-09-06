@@ -71,6 +71,11 @@ pub struct ChannelStore {
     pub channel_messages: RwSignal<HashMap<String, Vec<NostrEvent>>>,
     pub loading: RwSignal<bool>,
     pub eose_received: RwSignal<bool>,
+    /// Set when the broad kind-42 subscription reaches EOSE — the store has
+    /// received all the message history the relay holds. ADR-092 closeout: this
+    /// is a real "store is ready" receipt, used by pages instead of a timer to
+    /// decide that an empty channel is authoritatively empty.
+    pub msg_eose_received: RwSignal<bool>,
     sub_id: RwSignal<Option<String>>,
     msg_sub_id: RwSignal<Option<String>>,
     /// Set of channel ids/slugs for which `ensure_subscribed` has been called.
@@ -106,6 +111,7 @@ impl ChannelStore {
             // If we have cache, don't show loading — render immediately
             loading: RwSignal::new(!has_cache),
             eose_received: RwSignal::new(false),
+            msg_eose_received: RwSignal::new(false),
             sub_id: RwSignal::new(None),
             msg_sub_id: RwSignal::new(None),
             ensured: RwSignal::new(HashSet::new()),
@@ -128,6 +134,22 @@ impl ChannelStore {
                 fold_deletions(m, t, &deleted);
             });
         });
+    }
+
+    /// Whether `event_id` has been deleted (NIP-09 kind-5 tombstone).
+    ///
+    /// ADR-092 closeout: deletion semantics must be identical on EVERY
+    /// insertion path. The broad kind-42 subscription and `ensure_subscribed`
+    /// consult the tombstone set directly because they own it; the deep-link
+    /// replay in [`crate::pages::channel::ChannelPage`] lives outside this
+    /// module and needs this accessor, or a deleted post walks back into view
+    /// through the one path that skipped the check.
+    ///
+    /// Untracked: it gates an insert inside an event callback, and subscribing
+    /// that callback to the tombstone signal would be a reactive cycle.
+    pub fn is_message_deleted(&self, event_id: &str) -> bool {
+        self.tombstones
+            .with_untracked(|t| !admits_message(t, event_id))
     }
 
     // -- Derived count accessors (ADR-091) ------------------------------------
@@ -379,7 +401,7 @@ impl ChannelStore {
             // Suppress a message that was already deleted — a kind-5 can land
             // before its target kind-42 in the same backfill (arrival order is
             // not guaranteed), so the tombstone is the durable gate.
-            if tombstones.with_untracked(|t| is_tombstoned(t, &event.id)) {
+            if tombstones.with_untracked(|t| !admits_message(t, &event.id)) {
                 return;
             }
 
@@ -437,7 +459,9 @@ impl ChannelStore {
         });
 
         let store_for_eose = store;
+        let msg_eose_sig = self.msg_eose_received;
         let on_msg_eose = Rc::new(move || {
+            msg_eose_sig.set(true);
             store_for_eose.save_cache();
         });
 
@@ -500,7 +524,7 @@ impl ChannelStore {
                 return;
             }
             // Skip messages already deleted via kind-5 (see `start_msg_sync`).
-            if tombstones.with_untracked(|t| is_tombstoned(t, &event.id)) {
+            if tombstones.with_untracked(|t| !admits_message(t, &event.id)) {
                 return;
             }
             // Re-resolve here as well in case channel metadata arrived after
@@ -768,6 +792,19 @@ pub fn fold_deletions(
 /// Whether `id` (any casing) has been deleted (tombstoned).
 pub fn is_tombstoned(tombstones: &HashSet<String>, id: &str) -> bool {
     tombstones.contains(&id.to_lowercase())
+}
+
+/// Whether a kind-42 delivery may be inserted into `channel_messages`.
+///
+/// ADR-092 closeout: this is the SINGLE admission predicate, shared by every
+/// insertion path — the broad kind-42 subscription, the per-channel
+/// `ensure_subscribed` query and the deep-link replay in
+/// [`crate::pages::channel::ChannelPage`] (through
+/// [`ChannelStore::is_message_deleted`]). Deletion semantics that live at only
+/// some of the entry points are deletion semantics that a deep link can walk
+/// around, which is exactly the defect this closes.
+pub fn admits_message(tombstones: &HashSet<String>, event_id: &str) -> bool {
+    !is_tombstoned(tombstones, event_id)
 }
 
 #[cfg(test)]
@@ -1039,6 +1076,38 @@ mod tests {
         ));
         assert_eq!(msgs["chan"].len(), 1);
         assert!(tomb.is_empty());
+    }
+
+    #[test]
+    fn admission_predicate_gates_every_insertion_path() {
+        let mut msgs: HashMap<String, Vec<NostrEvent>> = HashMap::new();
+        let mut tombs: HashSet<String> = HashSet::new();
+        fold_deletions(&mut msgs, &mut tombs, &["DEADBEEF".to_lowercase()]);
+
+        // Every path — broad subscription, ensure_subscribed, deep-link replay
+        // — asks this one question before inserting.
+        assert!(!admits_message(&tombs, "deadbeef"));
+        assert!(
+            !admits_message(&tombs, "DEADBEEF"),
+            "casing bypassed the gate"
+        );
+        assert!(!admits_message(&tombs, "DeAdBeEf"));
+        assert!(admits_message(&tombs, "cafebabe"));
+    }
+
+    #[test]
+    fn admission_predicate_is_the_inverse_of_the_tombstone_test() {
+        let mut tombs: HashSet<String> = HashSet::new();
+        tombs.insert("abc".to_string());
+        for id in ["abc", "ABC", "def", ""] {
+            assert_eq!(admits_message(&tombs, id), !is_tombstoned(&tombs, id));
+        }
+    }
+
+    #[test]
+    fn no_tombstones_admits_everything() {
+        let tombs: HashSet<String> = HashSet::new();
+        assert!(admits_message(&tombs, "anything"));
     }
 
     #[test]

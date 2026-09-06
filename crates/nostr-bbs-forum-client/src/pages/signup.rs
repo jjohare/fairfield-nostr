@@ -36,7 +36,7 @@ use wasm_bindgen_futures::{spawn_local, JsFuture};
 
 use solid_pod_rs::webid::{pod_git_clone_url, webid_url};
 
-use crate::app::{base_href, current_app_path};
+use crate::app::{base_href, safe_return_to};
 use crate::auth::use_auth;
 use crate::components::info_term::InfoTerm;
 use crate::components::recovery_sheet::RecoverySheet;
@@ -228,20 +228,10 @@ pub fn SignupPage() -> impl IntoView {
     // are collapsed by default — they are informational, not the safety net.
     let show_advanced = RwSignal::new(false);
 
-    // returnTo: same base-relative normalisation as login.rs (ADR-090).
+    // returnTo: same hostile-input validation as login.rs (ADR-090 closeout) —
+    // app-internal relative paths only, everything else falls back to /forums.
     let query = use_query_map();
-    let return_to = move || {
-        let raw = query.read().get("returnTo").unwrap_or_default();
-        if raw.is_empty() || !raw.starts_with('/') {
-            return "/forums".to_string();
-        }
-        let normalised = current_app_path(&raw);
-        if normalised == "/" || normalised == "/login" || normalised == "/signup" {
-            "/forums".to_string()
-        } else {
-            normalised
-        }
-    };
+    let return_to = move || safe_return_to(&query.read().get("returnTo").unwrap_or_default());
 
     // Phase 1 → 2: create identity (generate key, publish kind-0, store the
     // optional admin-only real name, provision the pod).

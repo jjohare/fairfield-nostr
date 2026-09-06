@@ -1,0 +1,153 @@
+{
+  "schema": "adr-2003.vector-parity-receipt.v1",
+  "adr": "ADR-2003",
+  "title": "derive_subkey cross-stack identity vector parity (Rust nostr-bbs-core <-> agentbox JavaScript)",
+  "date": "2026-09-05",
+  "verdict": "PASS",
+  "construction": {
+    "algorithm": "HMAC-SHA-256(key = root secret key, 32 raw bytes; message = UTF-8 bytes of tag) -> 32-byte child secret key, then validated as a secp256k1 scalar (0 < x < n)",
+    "algorithm_id": "agentbox-subkey-hmac-sha256-v1",
+    "is_hkdf": false,
+    "note": "Deliberately NOT HKDF. Do not \"upgrade\" this construction \u2014 it exists to match the agentbox JavaScript derivation byte-for-byte. See ADR-2003 / ADR-094."
+  },
+  "fixture": {
+    "path": "crates/nostr-bbs-core/tests/vectors/identity-subkey-vectors.v1.json",
+    "absolute_path": "/home/devuser/workspace/nostr-rust-forum/crates/nostr-bbs-core/tests/vectors/identity-subkey-vectors.v1.json",
+    "version": 1,
+    "sha256": "51d8a9fede65576cdd3033d8f3e1e526ed6dc4f422ce4854d5dc77679020709b",
+    "vector_count": 13,
+    "invalid_count": 3,
+    "vector_ids": [
+      "canonical-mirror-v1",
+      "canonical-mirror-v1-alt",
+      "canonical-gateway-v1",
+      "canonical-agent-v1",
+      "rotation-mirror-v2",
+      "rotation-gateway-v2",
+      "empty-tag",
+      "single-byte-tag",
+      "long-tag",
+      "utf8-multibyte-tag",
+      "utf8-combining-tag",
+      "max-scalar-root",
+      "whitespace-tag"
+    ],
+    "invalid_ids": [
+      "invalid-root-all-zero",
+      "invalid-root-all-ff",
+      "invalid-root-equals-order"
+    ],
+    "edge_cases_covered": [
+      "canonical tags in live use by both stacks (agentbox-mirror-v1, agentbox-gateway-v1, agentbox-agent-v1)",
+      "tag rotation -v1 -> -v2 for both the mirror and gateway tags (same root, distinct child)",
+      "empty tag (zero-length HMAC message)",
+      "single-byte tag",
+      "long tag (519 UTF-8 bytes, past the SHA-256 block size)",
+      "non-ASCII UTF-8 tag spanning 2-, 3- and 4-byte sequences (cafe with acute, CJK, emoji)",
+      "tag with a combining acute accent (byte-level, no NFC normalisation on either side)",
+      "tag with significant leading/trailing whitespace (no trimming on either side)",
+      "root separation (same tag under two different roots)",
+      "maximum valid secp256k1 scalar root (n-1)",
+      "invalid roots: all-zero, all-0xff, and exactly the curve order n"
+    ]
+  },
+  "runners": [
+    {
+      "name": "rust",
+      "command": "cargo test -p nostr-bbs-core",
+      "cwd": "/home/devuser/workspace/nostr-rust-forum",
+      "exit_code": 0,
+      "tests_passed": 474,
+      "tests_failed": 0,
+      "tests_ignored": 2,
+      "fixture_target": {
+        "command": "cargo test -p nostr-bbs-core --test identity_subkey_vectors",
+        "test_file": "crates/nostr-bbs-core/tests/identity_subkey_vectors.rs",
+        "tests_passed": 5,
+        "tests": [
+          "fixture_header_is_the_expected_contract",
+          "every_fixture_vector_matches_derive_subkey",
+          "tag_rotation_changes_the_child_key",
+          "invalid_roots_are_rejected",
+          "derive_subkey_is_raw_hmac_not_hkdf"
+        ]
+      }
+    },
+    {
+      "name": "node",
+      "command": "node scripts/identity-vector-parity.mjs",
+      "cwd": "/home/devuser/workspace/nostr-rust-forum",
+      "node_version": "v22.23.1",
+      "exit_code": 0,
+      "vectors_passed": 13,
+      "vectors_total": 13,
+      "invalid_rejected": 3,
+      "invalid_total": 3,
+      "checks_passed": 18,
+      "checks_total": 18,
+      "failures": []
+    }
+  ],
+  "js_provenance": {
+    "mode": "mirrored",
+    "imported_directly": false,
+    "reason": "None of the three agentbox call sites export the derivation. config/hooks/nostr-live-mirror.cjs exports only composeBody, mintActivityUrn, activityScopePubkey, bodyForEvent and MAX_BODY_CHARS - deriveChildKey is module-private. config/nostr-gateway/nostr-send.cjs and config/nostr-gateway/gateway.cjs are self-executing entrypoints (process.exit / socket bind at require time) and additionally require nostr-tools, which this repository does not depend on. The parity runner therefore re-executes the identical construction verbatim and pins the agentbox sources by sha256 plus an exact-expression check, so a change to the agentbox derivation fails the runner instead of passing against a stale mirror.",
+    "mirrored_expression": "crypto.createHmac('sha256', rootBytes).update(tag, 'utf8').digest()",
+    "agentbox_root": "/home/devuser/workspace/project/agentbox",
+    "sources_consulted": [
+      {
+        "path": "/home/devuser/workspace/project/agentbox/config/hooks/nostr-live-mirror.cjs",
+        "repo_relative": "config/hooks/nostr-live-mirror.cjs",
+        "symbol": "deriveChildKey",
+        "sha256": "b8b31f57810580f81cced3a0b4875754a1904a8fb75771ecd0fb71c47ce93274",
+        "status": "present",
+        "construction_verified": true
+      },
+      {
+        "path": "/home/devuser/workspace/project/agentbox/config/nostr-gateway/nostr-send.cjs",
+        "repo_relative": "config/nostr-gateway/nostr-send.cjs",
+        "symbol": "loadIdentity",
+        "sha256": "401210ae396061ddd312cb94e174255f796816d60c02c2e33298b83bf39e8756",
+        "status": "present",
+        "construction_verified": true
+      },
+      {
+        "path": "/home/devuser/workspace/project/agentbox/config/nostr-gateway/gateway.cjs",
+        "repo_relative": "config/nostr-gateway/gateway.cjs",
+        "symbol": "child identity constant",
+        "sha256": "c8c280ea93d8fe10c9a7afce13600813bfee8240af91b062171468ca8af520b1",
+        "status": "present",
+        "construction_verified": true
+      }
+    ]
+  },
+  "preserved": {
+    "inline_js_parity_test": "crates/nostr-bbs-core/src/keys.rs::tests::derive_subkey_known_answer_vector_js_parity",
+    "note": "Retained unchanged per ADR-2003; the fixture vector 'canonical-mirror-v1' reproduces its known answer (2d07f2ce93d0361687fdd81d2690082b5d6c35b93e3ece2d44bcf115ef8f695d)."
+  },
+  "negative_verification": {
+    "performed": true,
+    "cases": [
+      "corrupted expected_child_secret_hex in the fixture -> rust test FAILED (1 of 5), node runner exit 1",
+      "fixture file removed -> rust test panicked loudly (no skip), node runner exit 1 with an explicit error"
+    ],
+    "fixture_restored_sha256": "51d8a9fede65576cdd3033d8f3e1e526ed6dc4f422ce4854d5dc77679020709b"
+  },
+  "artefacts": [
+    {
+      "path": "crates/nostr-bbs-core/tests/vectors/identity-subkey-vectors.v1.json",
+      "kind": "fixture",
+      "sha256": "51d8a9fede65576cdd3033d8f3e1e526ed6dc4f422ce4854d5dc77679020709b"
+    },
+    {
+      "path": "crates/nostr-bbs-core/tests/identity_subkey_vectors.rs",
+      "kind": "rust-test",
+      "sha256": "e8a5027484c28b76bb324db67e25db38707389c29e101bd0cbd7db53ba11dd5c"
+    },
+    {
+      "path": "scripts/identity-vector-parity.mjs",
+      "kind": "node-runner",
+      "sha256": "1ed211e88845759e441d80af1a802962f1d611387dafd57e2dd382c1a0e1910f"
+    }
+  ]
+}

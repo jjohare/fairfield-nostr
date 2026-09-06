@@ -53,9 +53,19 @@ use crate::relay::{ConnectionState, Filter, RelayConnection};
 use crate::stores::channels::ChannelStore;
 use crate::stores::read_position::use_read_positions;
 use crate::stores::zones::{load_zones, section_to_zone};
+use crate::utils::bootstrap::{derive_phase, BootstrapSignals};
+use crate::utils::reconcile::{absent_from, id_set, retain_present, Reconciliation};
 use crate::utils::slug_hash::section_slug;
 use crate::utils::zone_theme::zone_accent_style_cfg;
 use crate::utils::{arrow_left_svg, set_timeout_once};
+
+/// Bounded deadline for a deep-link bootstrap, in milliseconds.
+///
+/// ADR-092 closeout: this is a FAILURE deadline, not a success timer. When it
+/// fires without a receipt the page reports a named failure; when a receipt
+/// arrives after it, the receipt still wins (see
+/// [`crate::utils::bootstrap::derive_phase`]).
+const BOOTSTRAP_DEADLINE_MS: i32 = 8000;
 
 /// Parsed channel metadata from the kind 40 event.
 #[derive(Clone, Debug)]
@@ -221,7 +231,6 @@ pub fn ChannelPage() -> impl IntoView {
     let messages = RwSignal::new(Vec::<MessageData>::new());
     let channel_info: RwSignal<Option<ChannelHeader>> = RwSignal::new(None);
     let pinned = RwSignal::new(Vec::<PinnedMessage>::new());
-    let loading = RwSignal::new(true);
     // Held in a `StoredValue` (Copy) so the reply-divider closure below can be
     // move-captured into the `Show`-gated flat view without making that view
     // `FnOnce`.
@@ -250,6 +259,22 @@ pub fn ChannelPage() -> impl IntoView {
     // panics under fast navigation.
     let channel_sub_id: RwSignal<Option<String>> = RwSignal::new(None);
     let replay_sub_ids: RwSignal<Vec<String>> = RwSignal::new(Vec::new());
+
+    // -- Deep-link bootstrap receipts (ADR-092 closeout) ---------------------
+    //
+    // Success is an OBSERVED condition, never a clock. `metadata_eose` is the
+    // relay signing off the kind-40 lookup, `replay_eose` the same for the
+    // narrow kind-42 history query, and `messages_present` the target events
+    // actually resolving into the store. The deadline below is a FAILURE path
+    // only: when it fires without a receipt the page names the failure and
+    // offers a retry instead of quietly clearing the spinner as if the channel
+    // had loaded and were empty.
+    let metadata_eose = RwSignal::new(false);
+    let replay_eose = RwSignal::new(false);
+    let bootstrap_deadline = RwSignal::new(false);
+    // Bumped by the retry button; the subscription Effect reads it reactively
+    // so a retry re-opens the queries and re-arms the deadline.
+    let retry_nonce = RwSignal::new(0u32);
 
     // Clone relay for each closure that needs it
     let relay_for_sub = relay.clone();
@@ -299,9 +324,28 @@ pub fn ChannelPage() -> impl IntoView {
     // Messages come from ChannelStore's shared kind-42 subscription — the
     // Cloudflare DO relay ignores duplicate REQs on the same WebSocket, so
     // we cannot create a second kind-42 subscription.
+    let applied_retry_nonce = StoredValue::new(0u32);
     Effect::new(move |_| {
         let state = conn_state.get();
         let cid = channel_id();
+        // Read reactively so pressing "Try again" re-opens the queries.
+        let nonce = retry_nonce.get();
+        if nonce != applied_retry_nonce.get_value() {
+            applied_retry_nonce.set_value(nonce);
+            // Tear the previous attempt down before starting another, so a
+            // retry cannot leak REQs that keep firing into the shared store.
+            if let Some(id) = channel_sub_id.get_untracked() {
+                relay_for_sub.unsubscribe(&id);
+            }
+            for id in replay_sub_ids.get_untracked() {
+                relay_for_sub.unsubscribe(&id);
+            }
+            channel_sub_id.set(None);
+            replay_sub_ids.set(Vec::new());
+            metadata_eose.set(false);
+            replay_eose.set(false);
+            bootstrap_deadline.set(false);
+        }
         if state != ConnectionState::Connected || cid.is_empty() {
             return;
         }
@@ -366,8 +410,18 @@ pub fn ChannelPage() -> impl IntoView {
                     let channel_msgs = store.channel_messages;
                     let channels_sig = store.channels;
                     let cid_for_replay = event.id.clone();
+                    let store_for_replay = *store;
                     let on_replay = Rc::new(move |ev: NostrEvent| {
                         if ev.kind != 42 {
+                            return;
+                        }
+                        // ADR-092 closeout: apply the SAME deletion semantics as
+                        // the broad store subscription. A kind-5 tombstone can
+                        // arrive before its target in a backfill, so without this
+                        // gate a deleted post is replayed back into view through
+                        // the deep-link path alone — the one entry point that
+                        // used to skip the check.
+                        if store_for_replay.is_message_deleted(&ev.id) {
                             return;
                         }
                         let tag_val = ev
@@ -417,6 +471,12 @@ pub fn ChannelPage() -> impl IntoView {
                     if !section.is_empty() {
                         needles.push(section);
                     }
+                    // EOSE on the narrow history query is the relay's own
+                    // receipt that it has sent everything it holds for this
+                    // channel — the real bootstrap-success signal (ADR-092).
+                    let on_replay_eose = Rc::new(move || {
+                        replay_eose.set(true);
+                    });
                     let sub_id = relay_for_retry.subscribe(
                         vec![Filter {
                             kinds: Some(vec![42]),
@@ -424,15 +484,36 @@ pub fn ChannelPage() -> impl IntoView {
                             ..Default::default()
                         }],
                         on_replay,
-                        None,
+                        Some(on_replay_eose),
                     );
                     replay_sub_ids.update(|ids| ids.push(sub_id));
                 }
             }
         });
 
-        let id1 = relay_for_sub.subscribe(vec![channel_filter], on_channel_event, None);
+        // EOSE on the kind-40 lookup: the relay has answered. If nothing came
+        // back the channel is not there, which is an ANSWER, not a timeout —
+        // `channel_absent` below turns it into a named failure straight away
+        // rather than making the user wait out the deadline.
+        let on_metadata_eose = Rc::new(move || {
+            metadata_eose.set(true);
+        });
+        let id1 = relay_for_sub.subscribe(
+            vec![channel_filter],
+            on_channel_event,
+            Some(on_metadata_eose),
+        );
         channel_sub_id.set(Some(id1));
+
+        // Arm the bounded FAILURE deadline for this attempt. It never reports
+        // success: `derive_phase` checks the receipts first, so an answer that
+        // arrives after the deadline still resolves to Ready.
+        set_timeout_once(
+            move || {
+                bootstrap_deadline.set(true);
+            },
+            BOOTSTRAP_DEADLINE_MS,
+        );
     });
 
     // Read messages from ChannelStore's shared kind-42 subscription.
@@ -453,24 +534,54 @@ pub fn ChannelPage() -> impl IntoView {
         // ADR-092: deep-links via slug must still locate their events.
         let cid = store.resolve_channel(&raw_cid).unwrap_or(raw_cid.clone());
 
+        // The rendered set is a PROJECTION of the store snapshot, never an
+        // accumulation of everything ever delivered (ADR-091 closeout). A
+        // channel whose entry has disappeared entirely reconciles against an
+        // empty snapshot, which clears the view rather than freezing the last
+        // state on screen.
         let all_msgs = store.channel_messages.get();
-        let channel_events = match all_msgs.get(&cid).or_else(|| all_msgs.get(&raw_cid)) {
-            Some(events) => events.clone(),
-            None => {
-                // No messages yet — check if EOSE has been received
-                if store.eose_received.get_untracked() {
-                    loading.set(false);
-                }
-                return;
-            }
-        };
+        let channel_events: Vec<NostrEvent> = all_msgs
+            .get(&cid)
+            .or_else(|| all_msgs.get(&raw_cid))
+            .cloned()
+            .unwrap_or_default();
 
-        loading.set(false);
+        // Work out the diff WITHOUT touching the signal, so a store update that
+        // does not affect this channel writes nothing. An unconditional
+        // `update` notifies subscribers even when the list is unchanged, which
+        // re-runs the auto-scroll effect and pulls the viewport to the bottom
+        // while the reader is scrolled up.
+        let (has_stale, to_add) = messages.with_untracked(|list| {
+            let present = id_set(&channel_events, |e| e.id.as_str());
+            let stale = list.iter().any(|m| !present.contains(m.id.as_str()));
+            let rendered = id_set(&list[..], |m| m.id.as_str());
+            let to_add: Vec<NostrEvent> = absent_from(&channel_events, &rendered, |e| e.id.as_str())
+                .into_iter()
+                .cloned()
+                .collect();
+            (stale, to_add)
+        });
+        let outcome = Reconciliation {
+            removed: usize::from(has_stale),
+            added: to_add.len(),
+        };
+        if !outcome.changed() {
+            return;
+        }
+
         messages.update(|list| {
-            for event in &channel_events {
-                if list.iter().any(|m| m.id == event.id) {
-                    continue;
-                }
+            // 1. Drop anything the store no longer has. This is the half that
+            //    was missing: without it a NIP-09 deletion (or an EOSE prune)
+            //    leaves the post on screen forever and the derived post/member
+            //    counts can only ever go up.
+            let present = id_set(&channel_events, |e| e.id.as_str());
+            retain_present(list, &present, |m| m.id.as_str());
+
+            // 2. Append what is new. Survivors are NOT rebuilt, so their
+            //    per-message reactive state (thread replies) and the scroll
+            //    anchor around them are preserved — a streaming append still
+            //    only touches the rows that actually appeared.
+            for event in &to_add {
                 let reply_to = event
                     .tags
                     .iter()
@@ -505,15 +616,50 @@ pub fn ChannelPage() -> impl IntoView {
         });
     });
 
-    // Loading timeout fallback
-    set_timeout_once(
-        move || {
-            if loading.get_untracked() {
-                loading.set(false);
-            }
-        },
-        8000,
-    );
+    // -- Bootstrap phase (ADR-092 closeout) ----------------------------------
+    //
+    // Derived from receipts the page has actually observed, so "loaded" means
+    // loaded. The deadline only ever produces a FAILURE, and a receipt that
+    // arrives after it still wins.
+    let store_for_phase = use_context::<ChannelStore>();
+    let bootstrap = Memo::new(move |_| {
+        let channel_resolved = channel_info.with(|c| c.is_some());
+        let store_channels_ready = store_for_phase
+            .map(|s| s.eose_received.get())
+            .unwrap_or(false);
+        let store_messages_ready = store_for_phase
+            .map(|s| s.msg_eose_received.get())
+            .unwrap_or(false);
+        derive_phase(BootstrapSignals {
+            connected: conn_state.get() == ConnectionState::Connected,
+            channel_resolved,
+            // The relay answered the kind-40 lookup AND the store finished its
+            // channel list, and neither produced this channel: a definitive
+            // negative, reported now rather than after the deadline.
+            channel_absent: metadata_eose.get() && store_channels_ready && !channel_resolved,
+            // Either the narrow history query or the store's broad kind-42
+            // subscription signed off — both are real EOSE receipts.
+            replay_complete: replay_eose.get() || store_messages_ready,
+            messages_present: !messages.with(|m| m.is_empty()),
+            deadline_passed: bootstrap_deadline.get(),
+        })
+    });
+    let show_spinner = Signal::derive(move || bootstrap.get().is_pending());
+    let bootstrap_failure = Signal::derive(move || {
+        let phase = bootstrap.get();
+        if phase.is_failed() {
+            Some((phase.message().to_string(), phase.is_retryable()))
+        } else {
+            None
+        }
+    });
+
+    // Retry: bump the nonce. The subscription Effect owns the relay handle, so
+    // it does the teardown-and-reopen; this closure captures nothing but a
+    // `Copy` signal, which keeps it usable from a reactive view.
+    let do_retry = move |_| {
+        retry_nonce.update(|n| *n = n.wrapping_add(1));
+    };
 
     // Auto-scroll to bottom when new messages arrive + mark as read
     Effect::new(move |_| {
@@ -809,20 +955,64 @@ pub fn ChannelPage() -> impl IntoView {
                         view! { <PinnedMessages channel_id=cid pinned=pinned /> }
                     }
 
+                    // Bootstrap failure (ADR-092): a bounded deadline with no
+                    // receipt, or a definitive "no such channel", is reported as
+                    // a named failure. It is NEVER allowed to look like a
+                    // successfully-loaded empty channel.
                     {move || {
-                        if loading.get() {
+                        bootstrap_failure.get().map(|(message, retryable)| view! {
+                            <div
+                                class="my-6 rounded-lg border border-amber-700/60 bg-amber-950/40 px-4 py-3"
+                                role="alert"
+                                aria-live="polite"
+                            >
+                                <div class="flex items-start gap-3">
+                                    <svg class="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="9"/>
+                                        <line x1="12" y1="8" x2="12" y2="13" stroke-linecap="round"/>
+                                        <line x1="12" y1="16" x2="12" y2="16" stroke-linecap="round"/>
+                                    </svg>
+                                    <div class="flex-1">
+                                        <h3 class="text-amber-200 text-sm font-semibold mb-1">
+                                            "Channel could not be loaded"
+                                        </h3>
+                                        <p class="text-amber-100/80 text-sm">{message}</p>
+                                    </div>
+                                    <Show when=move || retryable>
+                                        <button
+                                            class="text-xs font-medium text-amber-200 border border-amber-600/70 rounded-lg px-3 py-1.5 hover:bg-amber-900/50 transition-colors flex-shrink-0"
+                                            on:click=do_retry
+                                        >
+                                            "Try again"
+                                        </button>
+                                    </Show>
+                                </div>
+                            </div>
+                        })
+                    }}
+
+                    {move || {
+                        if show_spinner.get() {
+                            let status = bootstrap.get().message();
                             view! {
                                 <div class="flex flex-col items-center justify-center py-20 gap-3">
                                     <svg class="w-6 h-6 text-[color:var(--zone-accent)] animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
-                                    <span class="text-gray-400 text-sm">"Loading messages..."</span>
+                                    <span class="text-gray-400 text-sm">{status}</span>
                                 </div>
                             }.into_any()
                         } else {
                             let msgs = messages.get();
                             if msgs.is_empty() {
+                                // Only assert emptiness on a real receipt. A
+                                // failed bootstrap has already rendered its own
+                                // banner above and must not also claim the
+                                // channel is empty (ADR-092).
+                                if !bootstrap.get().is_ready() {
+                                    return ().into_any();
+                                }
                                 view! {
                                     <div class="flex flex-col items-center justify-center py-20 text-center">
                                         <div class="w-14 h-14 rounded-full bg-gray-800 flex items-center justify-center mb-4">

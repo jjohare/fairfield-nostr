@@ -26,7 +26,9 @@ numbers to the living docs).
 governing document **in the same change**, and regenerate this index
 (`node scripts/adr-index-gen.js docs/adr` — it fails CI on invalid frontmatter).
 
-_9 record(s). Regenerate with_ `node scripts/adr-index-gen.js docs/adr`.
+The [historical closeout map](../adr-history-closeout.md) resolves each frozen record to its current governing surface and remaining acceptance work. [ADR-2010](ADR-2010-durable-governance-outcome-receipts.md) is a proposed governance receipt contract; its presence in this index does not ratify it.
+
+_10 record(s). Regenerate with_ `node scripts/adr-index-gen.js docs/adr`.
 
 | ID | Title | Date | Decision | Impl | Activation | Supersedes | Superseded by | Owner | Repo |
 |----|-------|------|----------|------|------------|------------|---------------|-------|------|
@@ -39,3 +41,4 @@ _9 record(s). Regenerate with_ `node scripts/adr-index-gen.js docs/adr`.
 | [ADR-2007](ADR-2007-kit-exact-pin-beta-channel.md) | Pin `solid-pod-rs` to an exact version and publish the kit on a single `1.0.0-beta.N` channel | 2026-08-31 | accepted | complete | live | — | — | jjohare | nostr-rust-forum |
 | [ADR-2008](ADR-2008-bbs-signer-holds-key-directly.md) | Let the retro BBS client hold its SecretKey directly, diverging from the ADR-105 `sign()` seam | 2026-08-31 | accepted | complete | live | — | — | jjohare | nostr-rust-forum |
 | [ADR-2009](ADR-2009-acl-sidecar-coerce-to-control.md) | Coerce every `.acl`/`.meta` sidecar access to `Control` via the shared upstream policy, reads and writes alike | 2026-08-31 | accepted | complete | live | — | — | jjohare | nostr-rust-forum |
+| [ADR-2010](ADR-2010-durable-governance-outcome-receipts.md) | Track governance decisions through durable projection and application receipts | 2026-09-04 | proposed | partial | inactive | — | — | nostr-rust-forum maintainers (DreamLab AI) | nostr-rust-forum |

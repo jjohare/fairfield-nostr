@@ -1,0 +1,77 @@
+{
+  "adr": "ADR-2006",
+  "title": "Run trust demotion time-driven on the cron trigger with hysteresis; never auto-demote TL3",
+  "date": "2026-09-05",
+  "repo": "nostr-rust-forum",
+  "scope": "source and synthetic-store evidence; no deployed D1 reproduction",
+
+  "findings_addressed": [
+    {
+      "finding": "OFFSET pagination skips rows as the eligible set shrinks (400 rows -> 200 processed)",
+      "root_cause": "The sweep mutates trust_level, the column its own candidate predicate filters on. Rows demoted out of the TL1..TL2 band leave the result set underneath the offset, so the next page at OFFSET 200 queries a set that now holds only the untouched remainder, returns empty, and the loop exits reporting clean completion.",
+      "fix": "Keyset cursor over (COALESCE(last_active_at,0) ASC, pubkey ASC). Neither column is written by a demotion, so every row's ordering key is stable across the mutation boundary. The pubkey tiebreak makes the order total so a cohort sharing one last_active_at pages deterministically.",
+      "test": "trust_sweep::tests::sweeps_every_row_across_many_batches, trust_sweep::tests::tied_timestamps_page_deterministically"
+    },
+    {
+      "finding": "Ignores UPDATE and audit INSERT errors, then returns the planned level; the sweep counts that return as a decrease",
+      "root_cause": "Both writes used `let _ = ... .run().await`, discarding the result, and check_demotion returned new_level unconditionally. A failed write was indistinguishable from a committed one.",
+      "fix": "Every row resolves to exactly one explicit outcome (committed / held-with-reason / failed-with-error). Counters move only on a confirmed commit. Page-query failure sets `aborted` rather than looking like a clean finish. The invariant scanned == demoted + held + failed is asserted in tests and checked on the live path.",
+      "test": "trust_sweep::tests::failed_write_is_not_counted_as_a_demotion, trust_sweep::tests::page_query_failure_aborts_rather_than_reporting_completion, trust_sweep::tests::row_clearing_hysteresis_is_held_and_counted"
+    },
+    {
+      "finding": "Audit/state consistency not protected",
+      "root_cause": "The whitelist UPDATE and the admin_log INSERT were separate unchecked statements; either could land without the other.",
+      "fix": "Both are submitted as one D1 batch, which Cloudflare executes in a single implicit transaction. An optimistic guard (`AND trust_level = <observed>`) plus a `meta().changes == 0` check turns a concurrent admin grant into a reported conflict rather than a silent clobber.",
+      "test": "trust_sweep::tests::audit_failure_leaves_state_and_audit_consistent"
+    },
+    {
+      "finding": "Source can demote TL2 directly to TL0",
+      "assessment": "Not a defect. ADR-2006's Decision explicitly permits TL2 -> TL0 when the TL1 criteria are not met, with TL0 as the hard floor. Retained and now covered by test. 'Single step' is enforced as one committed transition per row per sweep, guaranteed by the keyset cursor never revisiting a row.",
+      "test": "trust_sweep::tests::one_committed_transition_per_row_per_sweep, trust_sweep::tests::tl2_lands_on_tl1_when_tl1_criteria_still_met"
+    }
+  ],
+
+  "files_changed": [
+    "crates/nostr-bbs-relay-worker/src/trust_sweep.rs (new)",
+    "crates/nostr-bbs-relay-worker/src/trust.rs",
+    "crates/nostr-bbs-relay-worker/src/cron.rs",
+    "crates/nostr-bbs-relay-worker/src/lib.rs"
+  ],
+
+  "structural_changes": [
+    "trust::decide_demotion is now a pure function and the single authority for the policy (no clock read, no I/O).",
+    "cron.rs previously carried a #[cfg(test)] copy of the policy with a comment that the two 'MUST stay in lockstep'. That mirror is deleted; the tests now exercise the live function through a thin argument-shaping adapter, so drift is structurally impossible.",
+    "trust::check_demotion (the per-pubkey demotion entry point) is deleted. It had no caller but the sweep, and its absence makes ADR-2006's 'demotion never runs on the hot path' invariant structural rather than conventional.",
+    "The sweep now selects the full candidate row in its page query. The previous implementation re-read each row and reloaded every threshold setting from D1 per candidate (~7 extra queries per row)."
+  ],
+
+  "tests": {
+    "command": "cargo test -p nostr-bbs-relay-worker --features test-exports",
+    "exit_code": 0,
+    "totals": "239 lib + 23 + 10 + 34 + 96 + 50 = 452 passed, 0 failed",
+    "warnings": "none",
+    "new_tests": [
+      "trust_sweep::tests::sweeps_every_row_across_many_batches",
+      "trust_sweep::tests::tied_timestamps_page_deterministically",
+      "trust_sweep::tests::one_committed_transition_per_row_per_sweep",
+      "trust_sweep::tests::tl2_lands_on_tl1_when_tl1_criteria_still_met",
+      "trust_sweep::tests::tl3_and_admin_rows_are_never_swept",
+      "trust_sweep::tests::active_row_inside_the_window_is_held_not_demoted",
+      "trust_sweep::tests::row_clearing_hysteresis_is_held_and_counted",
+      "trust_sweep::tests::failed_write_is_not_counted_as_a_demotion",
+      "trust_sweep::tests::audit_failure_leaves_state_and_audit_consistent",
+      "trust_sweep::tests::page_query_failure_aborts_rather_than_reporting_completion",
+      "trust_sweep::tests::truncation_reports_a_resume_point",
+      "trust_sweep::tests::rerunning_the_sweep_reconciles_and_converges",
+      "trust_sweep::tests::empty_whitelist_is_a_clean_no_op",
+      "trust_sweep::tests::exact_batch_multiple_terminates"
+    ],
+    "method": "An in-memory DemotionStore reproduces the D1 behaviour the OFFSET form tripped over: a committed demotion changes the eligible set the next page query runs against. Failure injection covers commit failure, audit-half failure (asserting the batch's all-or-nothing semantics) and page-query failure."
+  },
+
+  "remaining": [
+    "No deployed D1 reproduction. The keyset SQL and the batch commit are exercised against an in-memory model of D1's semantics, not against D1 itself.",
+    "Restart reconciliation is verified as sweep-to-sweep convergence in-process; a cron tick interrupted mid-page has not been exercised against a live worker.",
+    "The DEMOTION_MAX_ROWS resume point is reported but not persisted: the next tick restarts from the first candidate rather than the recorded cursor. This is safe (the keyset makes a restart correct, just not minimal) but a persisted cursor would bound the work on a very large backlog."
+  ]
+}

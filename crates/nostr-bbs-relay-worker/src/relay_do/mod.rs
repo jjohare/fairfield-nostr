@@ -24,6 +24,7 @@ mod filter;
 mod mod_cache;
 mod nip42;
 mod nip_handlers;
+pub(crate) mod receipts;
 mod session;
 mod storage;
 
@@ -41,7 +42,10 @@ pub mod test_exports {
         parse_auth_mode, protected_read_blocked, relay_urls_match, write_auth_ok, AuthMode,
         AuthVerdict, AUTH_MAX_SKEW_SECS, KIND_AUTH, PROTECTED_READ_KINDS,
     };
-    pub use super::nip_handlers::{governance_response_blocked, is_ban_gated_kind};
+    pub use super::nip_handlers::{
+        device_keys_enabled_var, effective_principal, governance_response_blocked,
+        is_ban_gated_kind,
+    };
 }
 
 use std::cell::RefCell;
