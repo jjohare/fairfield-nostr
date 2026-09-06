@@ -31,10 +31,10 @@
 //! crate's `schema::ensure_schema` pattern.
 
 use nostr_bbs_core::admin_shared::PubkeyRow;
+use nostr_bbs_core::event::{verify_event_strict, NostrEvent};
 use nostr_bbs_core::feature_gate::{
     device_keys_enabled as core_device_keys_enabled, DEVICE_KEYS_ENABLED_VAR,
 };
-use nostr_bbs_core::event::{verify_event_strict, NostrEvent};
 use serde::Deserialize;
 use serde_json::json;
 use wasm_bindgen::JsValue;
@@ -918,8 +918,8 @@ mod tests {
             (Some("TRUE"), false),  // case variants do not enable
             (Some("True"), false),
             (Some("False"), false),
-            (Some(""), false),       // present but empty
-            (Some("0"), false),      // truthy aliases do not enable
+            (Some(""), false),  // present but empty
+            (Some("0"), false), // truthy aliases do not enable
             (Some("1"), false),
             (Some("yes"), false),
             (Some("no"), false),

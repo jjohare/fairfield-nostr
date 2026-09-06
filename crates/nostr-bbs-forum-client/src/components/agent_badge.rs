@@ -274,9 +274,10 @@ impl AgentDisclosureCache {
                     // last good answer was, so the badge reports an unknown
                     // state once that answer ages out.
                     let last_ok = as_of_of(&cache.status.get_untracked());
-                    cache
-                        .status
-                        .set(DisclosureStatus::Error { message: e, last_ok });
+                    cache.status.set(DisclosureStatus::Error {
+                        message: e,
+                        last_ok,
+                    });
                     DISCLOSURE_RETRY_MS
                 }
             };

@@ -111,7 +111,10 @@ pub fn app_path(base: &str, pathname: &str) -> String {
 pub fn path_has_prefix(path: &str, prefix: &str) -> bool {
     match path.strip_prefix(prefix) {
         None => false,
-        Some(rest) => matches!(rest.as_bytes().first(), None | Some(b'/') | Some(b'?') | Some(b'#')),
+        Some(rest) => matches!(
+            rest.as_bytes().first(),
+            None | Some(b'/') | Some(b'?') | Some(b'#')
+        ),
     }
 }
 
@@ -523,7 +526,10 @@ mod tests {
                 validate_return_to("", hostile, BLOCKED).is_err(),
                 "accepted absolute URL {hostile}"
             );
-            assert_eq!(sanitise_return_to("", hostile, "/forums", BLOCKED), "/forums");
+            assert_eq!(
+                sanitise_return_to("", hostile, "/forums", BLOCKED),
+                "/forums"
+            );
         }
     }
 
@@ -664,7 +670,10 @@ mod tests {
 
     #[test]
     fn return_to_rejects_root_and_blocked_routes() {
-        assert_eq!(validate_return_to("", "/", BLOCKED), Err(ReturnToError::Root));
+        assert_eq!(
+            validate_return_to("", "/", BLOCKED),
+            Err(ReturnToError::Root)
+        );
         assert_eq!(
             validate_return_to(BASE, "/community/", BLOCKED),
             Err(ReturnToError::Root)
@@ -693,7 +702,10 @@ mod tests {
 
     #[test]
     fn return_to_rejects_empty_and_oversized() {
-        assert_eq!(validate_return_to("", "", BLOCKED), Err(ReturnToError::Empty));
+        assert_eq!(
+            validate_return_to("", "", BLOCKED),
+            Err(ReturnToError::Empty)
+        );
         let long = format!("/{}", "a".repeat(MAX_RETURN_TO_LEN));
         assert_eq!(
             validate_return_to("", &long, BLOCKED),
@@ -765,7 +777,10 @@ mod tests {
             login_redirect_for(BASE, "/community", BLOCKED),
             Some("/login".to_string())
         );
-        assert_eq!(login_redirect_for("", "/", BLOCKED), Some("/login".to_string()));
+        assert_eq!(
+            login_redirect_for("", "/", BLOCKED),
+            Some("/login".to_string())
+        );
         assert_eq!(
             login_redirect_for("", "/foo\\bar", BLOCKED),
             Some("/login".to_string())

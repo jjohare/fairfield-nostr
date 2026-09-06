@@ -49,8 +49,8 @@ fn gate_variant_matrix_relay_worker() {
         (Some("TRUE"), false),  // case variants do NOT enable
         (Some("True"), false),
         (Some("False"), false),
-        (Some(""), false),       // present but empty
-        (Some("0"), false),      // truthy aliases do NOT enable
+        (Some(""), false),  // present but empty
+        (Some("0"), false), // truthy aliases do NOT enable
         (Some("1"), false),
         (Some("yes"), false),
         (Some("no"), false),
@@ -171,7 +171,11 @@ fn mismatch_auth_enabled_relay_disabled_fails_closed() {
     // The load-bearing assertion: with the relay half off, a fully registered,
     // non-revoked device resolves to ITSELF, not to its owner.
     assert_eq!(
-        effective_principal(&device(), Some(&owner()), gate.attribution_rewriting_active()),
+        effective_principal(
+            &device(),
+            Some(&owner()),
+            gate.attribution_rewriting_active()
+        ),
         device(),
         "relay gate off ⇒ mapping ignored, author key used as-is"
     );
@@ -199,7 +203,11 @@ fn mismatch_relay_enabled_auth_disabled_is_unrevocable() {
 
     // A pre-existing live mapping IS honoured here…
     assert_eq!(
-        effective_principal(&device(), Some(&owner()), gate.attribution_rewriting_active()),
+        effective_principal(
+            &device(),
+            Some(&owner()),
+            gate.attribution_rewriting_active()
+        ),
         owner()
     );
     // …and the only remaining way to stop it is a direct D1 write, since the
@@ -216,7 +224,11 @@ fn spelling_mismatch_between_workers_collapses_to_fail_closed() {
     assert_eq!(gate.posture(), DeviceGatePosture::AuthOnlyFailsClosed);
     assert!(!gate.device_acts_as_owner());
     assert_eq!(
-        effective_principal(&device(), Some(&owner()), gate.attribution_rewriting_active()),
+        effective_principal(
+            &device(),
+            Some(&owner()),
+            gate.attribution_rewriting_active()
+        ),
         device()
     );
 }
@@ -230,7 +242,11 @@ fn lockstep_postures_off_and_on() {
     assert_eq!(stock.posture(), DeviceGatePosture::Off);
     assert!(stock.is_lockstep());
     assert_eq!(
-        effective_principal(&device(), Some(&owner()), stock.attribution_rewriting_active()),
+        effective_principal(
+            &device(),
+            Some(&owner()),
+            stock.attribution_rewriting_active()
+        ),
         device()
     );
 

@@ -251,7 +251,10 @@ where
     let mut cursor: Option<SweepCursor> = None;
 
     loop {
-        let page = match store.candidate_page(cutoff, cursor.as_ref(), batch_size).await {
+        let page = match store
+            .candidate_page(cutoff, cursor.as_ref(), batch_size)
+            .await
+        {
             Ok(page) => page,
             Err(e) => {
                 result.aborted = true;
@@ -330,7 +333,9 @@ pub struct D1DemotionStore {
 impl D1DemotionStore {
     /// Bind the store to the worker's `DB` D1 binding.
     pub fn new(env: &Env) -> Result<Self, String> {
-        let db = env.d1("DB").map_err(|e| format!("DB binding missing: {e:?}"))?;
+        let db = env
+            .d1("DB")
+            .map_err(|e| format!("DB binding missing: {e:?}"))?;
         Ok(Self { db })
     }
 }
@@ -599,9 +604,7 @@ mod tests {
     impl FakeStore {
         fn new(rows: Vec<WhitelistTrustRow>) -> Self {
             Self {
-                rows: RefCell::new(
-                    rows.into_iter().map(|r| (r.pubkey.clone(), r)).collect(),
-                ),
+                rows: RefCell::new(rows.into_iter().map(|r| (r.pubkey.clone(), r)).collect()),
                 audit: RefCell::new(Vec::new()),
                 commit_failures: HashMap::new(),
                 audit_failures: HashMap::new(),
@@ -629,7 +632,11 @@ mod tests {
         }
 
         fn level_of(&self, pubkey: &str) -> i32 {
-            self.rows.borrow().get(pubkey).map(|r| r.trust_level).unwrap()
+            self.rows
+                .borrow()
+                .get(pubkey)
+                .map(|r| r.trust_level)
+                .unwrap()
         }
 
         fn audit_count(&self) -> usize {
@@ -763,7 +770,13 @@ mod tests {
             .collect();
         let store = FakeStore::new(rows);
 
-        let r = block_on(run_demotion_sweep(&store, &thresholds(), NOW, 200, DEMOTION_MAX_ROWS));
+        let r = block_on(run_demotion_sweep(
+            &store,
+            &thresholds(),
+            NOW,
+            200,
+            DEMOTION_MAX_ROWS,
+        ));
 
         assert_eq!(r.scanned, 400, "every eligible row must be evaluated");
         assert_eq!(r.demoted, 400, "every TL1 idle row demotes to TL0");
@@ -785,7 +798,13 @@ mod tests {
             .collect();
         let store = FakeStore::new(rows);
 
-        let r = block_on(run_demotion_sweep(&store, &thresholds(), NOW, 50, DEMOTION_MAX_ROWS));
+        let r = block_on(run_demotion_sweep(
+            &store,
+            &thresholds(),
+            NOW,
+            50,
+            DEMOTION_MAX_ROWS,
+        ));
 
         assert_eq!(r.scanned, 500);
         assert_eq!(r.demoted, 500);
@@ -810,7 +829,13 @@ mod tests {
         // once, not stepped TL2 → TL1 → TL0 within the same sweep.
         let store = FakeStore::new(vec![idle_row("pk", 2, stale_ts())]);
 
-        let r = block_on(run_demotion_sweep(&store, &thresholds(), NOW, 10, DEMOTION_MAX_ROWS));
+        let r = block_on(run_demotion_sweep(
+            &store,
+            &thresholds(),
+            NOW,
+            10,
+            DEMOTION_MAX_ROWS,
+        ));
 
         assert_eq!(r.scanned, 1);
         assert_eq!(r.demoted, 1);
@@ -829,7 +854,13 @@ mod tests {
         row.posts_created = 10;
         let store = FakeStore::new(vec![row]);
 
-        let r = block_on(run_demotion_sweep(&store, &thresholds(), NOW, 10, DEMOTION_MAX_ROWS));
+        let r = block_on(run_demotion_sweep(
+            &store,
+            &thresholds(),
+            NOW,
+            10,
+            DEMOTION_MAX_ROWS,
+        ));
 
         assert_eq!(r.demoted, 1);
         assert_eq!(store.level_of("pk"), 1);
@@ -846,7 +877,13 @@ mod tests {
         let normal = idle_row("normal", 1, stale_ts());
         let store = FakeStore::new(vec![admin, tl3, tl0, normal]);
 
-        let r = block_on(run_demotion_sweep(&store, &thresholds(), NOW, 10, DEMOTION_MAX_ROWS));
+        let r = block_on(run_demotion_sweep(
+            &store,
+            &thresholds(),
+            NOW,
+            10,
+            DEMOTION_MAX_ROWS,
+        ));
 
         // Only the ordinary TL1 row is even a candidate: the SQL predicate
         // excludes admin, TL3 and TL0 before the policy runs.
@@ -866,7 +903,13 @@ mod tests {
         let row = idle_row("recent", 1, NOW - IDLE + 10);
         let store = FakeStore::new(vec![row]);
 
-        let r = block_on(run_demotion_sweep(&store, &thresholds(), NOW, 10, DEMOTION_MAX_ROWS));
+        let r = block_on(run_demotion_sweep(
+            &store,
+            &thresholds(),
+            NOW,
+            10,
+            DEMOTION_MAX_ROWS,
+        ));
 
         // The SQL-equivalent predicate filters it out entirely.
         assert_eq!(r.scanned, 0);
@@ -882,11 +925,20 @@ mod tests {
         row.posts_created = 100;
         let store = FakeStore::new(vec![row]);
 
-        let r = block_on(run_demotion_sweep(&store, &thresholds(), NOW, 10, DEMOTION_MAX_ROWS));
+        let r = block_on(run_demotion_sweep(
+            &store,
+            &thresholds(),
+            NOW,
+            10,
+            DEMOTION_MAX_ROWS,
+        ));
 
         assert_eq!(r.scanned, 1);
         assert_eq!(r.demoted, 0);
-        assert_eq!(r.held, 1, "a hold is an explicit outcome, not a silent skip");
+        assert_eq!(
+            r.held, 1,
+            "a hold is an explicit outcome, not a silent skip"
+        );
         assert!(r.is_balanced());
         assert_eq!(store.level_of("solid"), 1);
         assert_eq!(store.audit_count(), 0);
@@ -903,7 +955,13 @@ mod tests {
         ])
         .fail_commit_for("bad", "D1_ERROR: disk full");
 
-        let r = block_on(run_demotion_sweep(&store, &thresholds(), NOW, 10, DEMOTION_MAX_ROWS));
+        let r = block_on(run_demotion_sweep(
+            &store,
+            &thresholds(),
+            NOW,
+            10,
+            DEMOTION_MAX_ROWS,
+        ));
 
         assert_eq!(r.scanned, 3);
         assert_eq!(r.demoted, 2, "counts reflect committed changes only");
@@ -925,7 +983,13 @@ mod tests {
         let store = FakeStore::new(vec![idle_row("pk", 2, stale_ts())])
             .fail_audit_for("pk", "D1_ERROR: admin_log constraint");
 
-        let r = block_on(run_demotion_sweep(&store, &thresholds(), NOW, 10, DEMOTION_MAX_ROWS));
+        let r = block_on(run_demotion_sweep(
+            &store,
+            &thresholds(),
+            NOW,
+            10,
+            DEMOTION_MAX_ROWS,
+        ));
 
         assert_eq!(r.demoted, 0);
         assert_eq!(r.failed, 1);
@@ -942,7 +1006,13 @@ mod tests {
         // Page 0 succeeds, page 1 fails.
         let store = FakeStore::new(rows).fail_page_at(1);
 
-        let r = block_on(run_demotion_sweep(&store, &thresholds(), NOW, 200, DEMOTION_MAX_ROWS));
+        let r = block_on(run_demotion_sweep(
+            &store,
+            &thresholds(),
+            NOW,
+            200,
+            DEMOTION_MAX_ROWS,
+        ));
 
         assert!(r.aborted, "a failed page must not look like a clean finish");
         assert_eq!(r.scanned, 200);
@@ -1018,7 +1088,13 @@ mod tests {
     #[test]
     fn empty_whitelist_is_a_clean_no_op() {
         let store = FakeStore::new(vec![]);
-        let r = block_on(run_demotion_sweep(&store, &thresholds(), NOW, 200, DEMOTION_MAX_ROWS));
+        let r = block_on(run_demotion_sweep(
+            &store,
+            &thresholds(),
+            NOW,
+            200,
+            DEMOTION_MAX_ROWS,
+        ));
         assert_eq!(r.scanned, 0);
         assert!(!r.aborted);
         assert!(!r.truncated);
@@ -1033,7 +1109,13 @@ mod tests {
             .map(|i| idle_row(&format!("pk{i:04}"), 1, stale_ts() - i as i64))
             .collect();
         let store = FakeStore::new(rows);
-        let r = block_on(run_demotion_sweep(&store, &thresholds(), NOW, 10, DEMOTION_MAX_ROWS));
+        let r = block_on(run_demotion_sweep(
+            &store,
+            &thresholds(),
+            NOW,
+            10,
+            DEMOTION_MAX_ROWS,
+        ));
         assert_eq!(r.scanned, 20);
         assert_eq!(r.demoted, 20);
     }

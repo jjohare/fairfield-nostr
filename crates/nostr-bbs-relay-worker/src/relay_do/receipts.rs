@@ -118,7 +118,10 @@ impl ReceiptStage {
 
     /// Whether a further projection attempt is warranted.
     pub fn awaits_projection(self) -> bool {
-        matches!(self, Self::Signed | Self::RelayAccepted | Self::ProjectionFailed)
+        matches!(
+            self,
+            Self::Signed | Self::RelayAccepted | Self::ProjectionFailed
+        )
     }
 }
 
@@ -181,8 +184,7 @@ pub fn correlate(event: &NostrEvent) -> Option<ReceiptCorrelation> {
         )
         .map(|o| o.action_str().to_string()),
         target_operation: tag_value(event, "op"),
-        supersedes_event_id: governance::extract_supersedes_target(&event.tags)
-            .map(str::to_string),
+        supersedes_event_id: governance::extract_supersedes_target(&event.tags).map(str::to_string),
         signed_at: event.created_at,
     })
 }
@@ -354,7 +356,9 @@ where
             // Best-effort transition to the failed stage. If even that write
             // fails the receipt stays at `relay-accepted`, which is still
             // correct: it claims only what is true, and remains retryable.
-            let _ = store.mark_projection_failed(&commit.event_id, &e, now).await;
+            let _ = store
+                .mark_projection_failed(&commit.event_id, &e, now)
+                .await;
             ReceiptOutcome::ProjectionFailed { error: e }
         }
     }
@@ -629,14 +633,8 @@ pub async fn handle_receipts_list(
     let url = req.url()?;
     let request_url = url.to_string();
     let auth_header = req.headers().get("Authorization").ok().flatten();
-    match crate::auth::require_nip98_admin(
-        auth_header.as_deref(),
-        &request_url,
-        "GET",
-        None,
-        env,
-    )
-    .await
+    match crate::auth::require_nip98_admin(auth_header.as_deref(), &request_url, "GET", None, env)
+        .await
     {
         Ok(_) => {}
         Err((body, status)) => return json_response(env, &body, status),
@@ -739,12 +737,18 @@ mod tests {
         case_states: HashMap<String, String>,
     }
 
+    /// One row of the fake receipt table, keyed by event id:
+    /// `(stage, replays, last projection error)`. These are the only three
+    /// receipt columns the projection path reads back, so the fake models them
+    /// as a tuple rather than mirroring the full D1 schema.
+    type FakeReceiptRow = (ReceiptStage, u32, Option<String>);
+
     /// In-memory model of the receipt table plus the projection tables, with
     /// the batch's all-or-nothing semantics reproduced faithfully: an injected
     /// failure leaves the decision row, the case state AND the receipt stage
     /// all untouched.
     struct FakeStore {
-        receipts: RefCell<HashMap<String, (ReceiptStage, u32, Option<String>)>>,
+        receipts: RefCell<HashMap<String, FakeReceiptRow>>,
         applied: RefCell<Applied>,
         /// Fail `record_accepted` — the relay cannot even mint a replay record.
         fail_accept: Option<String>,
@@ -799,10 +803,7 @@ mod tests {
             let mut r = self.receipts.borrow_mut();
             match r.get_mut(&c.event_id) {
                 None => {
-                    r.insert(
-                        c.event_id.clone(),
-                        (ReceiptStage::RelayAccepted, 0, None),
-                    );
+                    r.insert(c.event_id.clone(), (ReceiptStage::RelayAccepted, 0, None));
                     Ok(AcceptOutcome::Fresh)
                 }
                 Some(entry) => {
@@ -908,7 +909,10 @@ mod tests {
             }
         );
         assert!(out.is_applied());
-        assert_eq!(store.stage_of(&"e".repeat(64)), Some(ReceiptStage::ProjectionCommitted));
+        assert_eq!(
+            store.stage_of(&"e".repeat(64)),
+            Some(ReceiptStage::ProjectionCommitted)
+        );
         assert_eq!(store.decision_count(), 1);
         assert_eq!(store.case_state("case-1").as_deref(), Some("approved"));
     }
@@ -949,7 +953,12 @@ mod tests {
         // projection batch aborts. Nothing may be half-applied, and the
         // response must not read as approved-and-applied.
         let store = FakeStore::new().failing_commits(1);
-        let out = block_on(apply_with_receipt(&store, &correlation(), &commit_plan(), 5));
+        let out = block_on(apply_with_receipt(
+            &store,
+            &correlation(),
+            &commit_plan(),
+            5,
+        ));
 
         match &out {
             ReceiptOutcome::ProjectionFailed { error } => {
@@ -957,14 +966,20 @@ mod tests {
             }
             other => panic!("expected ProjectionFailed, got {other:?}"),
         }
-        assert!(!out.is_applied(), "a failed write must never read as applied");
+        assert!(
+            !out.is_applied(),
+            "a failed write must never read as applied"
+        );
         assert_eq!(store.decision_count(), 0, "no decision row");
         assert_eq!(store.case_state("case-1"), None, "no case state change");
         assert_eq!(
             store.stage_of(&"e".repeat(64)),
             Some(ReceiptStage::ProjectionFailed)
         );
-        assert!(store.error_of(&"e".repeat(64)).is_some(), "the reason is retained");
+        assert!(
+            store.error_of(&"e".repeat(64)).is_some(),
+            "the reason is retained"
+        );
     }
 
     #[test]
@@ -1017,7 +1032,12 @@ mod tests {
     #[test]
     fn a_receipt_that_cannot_be_written_is_reported_not_swallowed() {
         let store = FakeStore::new().failing_accept("D1_ERROR: receipts unavailable");
-        let out = block_on(apply_with_receipt(&store, &correlation(), &commit_plan(), 1));
+        let out = block_on(apply_with_receipt(
+            &store,
+            &correlation(),
+            &commit_plan(),
+            1,
+        ));
         match &out {
             ReceiptOutcome::NotRecorded { error } => assert!(error.contains("unavailable")),
             other => panic!("expected NotRecorded, got {other:?}"),

@@ -8,8 +8,8 @@
 //! here becomes a NEW TOPIC rather than a threaded reply. Every deep-link that
 //! used to land here (notifications, search, bookmarks, note-view, channel
 //! cards) is therefore REDIRECTED to the section topic-list
-//! (`/:category/:section`, [`crate::pages::section::SectionPage`]), whose
-//! per-topic [`crate::pages::thread::ThreadPage`] composer threads replies
+//! (`/:category/:section`, [`crate::pages::SectionPage`]), whose
+//! per-topic [`crate::pages::ThreadPage`] composer threads replies
 //! correctly. Fixing it at this single resolver covers all entry points at once.
 //!
 //! The redirect resolves `channel_id` → its owning zone/section from the shared
@@ -21,7 +21,7 @@
 //! ## Relationship to the BBS section view (#8 reconciliation)
 //!
 //! A *section* (kind-40 channel) is presented two ways:
-//! - `/forums/:category/:section` ([`crate::pages::section::SectionPage`]) — the
+//! - `/forums/:category/:section` ([`crate::pages::SectionPage`]) — the
 //!   BBS TOPIC LIST: kind-42 roots with reply counts, the canonical browse view.
 //! - `/chat/:channel_id` (this page) — the flat, real-time chat log of every
 //!   message in the channel, now only reached as the unresolvable-channel
@@ -555,10 +555,11 @@ pub fn ChannelPage() -> impl IntoView {
             let present = id_set(&channel_events, |e| e.id.as_str());
             let stale = list.iter().any(|m| !present.contains(m.id.as_str()));
             let rendered = id_set(&list[..], |m| m.id.as_str());
-            let to_add: Vec<NostrEvent> = absent_from(&channel_events, &rendered, |e| e.id.as_str())
-                .into_iter()
-                .cloned()
-                .collect();
+            let to_add: Vec<NostrEvent> =
+                absent_from(&channel_events, &rendered, |e| e.id.as_str())
+                    .into_iter()
+                    .cloned()
+                    .collect();
             (stale, to_add)
         });
         let outcome = Reconciliation {

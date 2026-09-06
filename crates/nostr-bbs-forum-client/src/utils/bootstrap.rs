@@ -98,7 +98,10 @@ impl BootstrapPhase {
     /// Whether offering a retry makes sense. A channel the relay definitively
     /// does not have will not appear by asking again.
     pub fn is_retryable(&self) -> bool {
-        !matches!(self, BootstrapPhase::Failed(BootstrapFailure::ChannelNotFound))
+        !matches!(
+            self,
+            BootstrapPhase::Failed(BootstrapFailure::ChannelNotFound)
+        )
     }
 
     /// Short status line for the user. UK English, no jargon, and never

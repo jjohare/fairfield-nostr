@@ -172,25 +172,25 @@ mod tests {
         assert!(device_keys_enabled(Some("true")), "exact \"true\" enables");
 
         for raw in [
-            None,               // var absent from [vars] entirely
-            Some(""),           // present but empty
-            Some("false"),      // the stock wrangler.toml value
+            None,          // var absent from [vars] entirely
+            Some(""),      // present but empty
+            Some("false"), // the stock wrangler.toml value
             Some("False"),
             Some("FALSE"),
-            Some("TRUE"),       // case variants do NOT enable (exact match)
+            Some("TRUE"), // case variants do NOT enable (exact match)
             Some("True"),
             Some("tRuE"),
             Some("0"),
-            Some("1"),          // truthy aliases do NOT enable
+            Some("1"), // truthy aliases do NOT enable
             Some("yes"),
             Some("no"),
             Some("on"),
             Some("off"),
-            Some(" true"),      // whitespace is NOT trimmed
+            Some(" true"), // whitespace is NOT trimmed
             Some("true "),
             Some(" true "),
             Some("\ttrue\n"),
-            Some("\"true\""),   // quoted (a TOML/JSON mis-escape)
+            Some("\"true\""), // quoted (a TOML/JSON mis-escape)
             Some("true1"),
             Some("truthy"),
             Some("enabled"),

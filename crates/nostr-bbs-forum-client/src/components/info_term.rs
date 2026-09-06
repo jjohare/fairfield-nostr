@@ -45,7 +45,7 @@ use crate::app::base_href;
 /// * `slug` — optional glossary anchor for the "Learn more →" link. When set
 ///   (e.g. `"relay"`) the link targets `/glossary#relay`; when omitted it links
 ///   to the top of the glossary. Slugs are defined in
-///   [`crate::pages::glossary`].
+///   [`crate::pages::GlossaryPage`].
 #[component]
 pub(crate) fn InfoTerm(
     /// The visible term (rendered with a dotted underline).

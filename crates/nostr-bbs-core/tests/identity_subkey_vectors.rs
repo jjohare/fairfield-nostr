@@ -61,9 +61,8 @@ fn hex32(value: &serde_json::Value, field: &str, vector_id: &str) -> [u8; 32] {
         .get(field)
         .and_then(|v| v.as_str())
         .unwrap_or_else(|| panic!("vector '{vector_id}': missing string field '{field}'"));
-    let raw = hex::decode(s).unwrap_or_else(|e| {
-        panic!("vector '{vector_id}': field '{field}' is not valid hex: {e}")
-    });
+    let raw = hex::decode(s)
+        .unwrap_or_else(|e| panic!("vector '{vector_id}': field '{field}' is not valid hex: {e}"));
     assert_eq!(
         raw.len(),
         32,
@@ -180,24 +179,24 @@ fn every_fixture_vector_matches_derive_subkey() {
             .and_then(|v| v.as_u64())
             .unwrap_or_else(|| panic!("vector '{id}': missing numeric `tag_utf8_bytes`"));
         assert_eq!(
-            tag.as_bytes().len() as u64,
+            tag.len() as u64,
             declared_len,
             "vector '{id}': tag is {} UTF-8 bytes but the fixture declares {declared_len} — \
              the tag was re-encoded or normalised somewhere",
-            tag.as_bytes().len()
+            tag.len()
         );
 
         let root = SecretKey::from_bytes(root_bytes).unwrap_or_else(|e| {
             panic!("vector '{id}': `root_secret_hex` is not a valid secp256k1 scalar: {e}")
         });
 
-        let child = derive_subkey(&root, tag).unwrap_or_else(|e| {
-            panic!("vector '{id}': derive_subkey failed: {e}")
-        });
+        let child = derive_subkey(&root, tag)
+            .unwrap_or_else(|e| panic!("vector '{id}': derive_subkey failed: {e}"));
         let actual = hex::encode(child.as_bytes());
 
         assert_eq!(
-            actual, expected,
+            actual,
+            expected,
             "vector '{id}' MISMATCH (tag = {tag:?}, root = {}): \
              Rust derive_subkey diverged from the shared JS-parity fixture. \
              Do not update the fixture to match Rust without re-running \

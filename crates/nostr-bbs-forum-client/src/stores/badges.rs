@@ -196,12 +196,7 @@ pub enum BadgeListView {
 /// changes with the state is whether an EMPTY list is presented as a fact
 /// (`Empty`) or as an absence of information (`Unavailable`), and whether the
 /// snapshot behind a non-empty list is flagged as stale.
-pub fn badge_list_view(
-    state: BadgeFetchState,
-    count: usize,
-    now: f64,
-    ttl: f64,
-) -> BadgeListView {
+pub fn badge_list_view(state: BadgeFetchState, count: usize, now: f64, ttl: f64) -> BadgeListView {
     match state {
         BadgeFetchState::Loading => {
             if count == 0 {
@@ -421,12 +416,7 @@ mod tests {
     #[test]
     fn a_failed_fetch_is_not_the_same_as_having_no_badges() {
         let none = badge_list_view(BadgeFetchState::Loaded { as_of: NOW }, 0, NOW, TTL);
-        let broken = badge_list_view(
-            BadgeFetchState::Unavailable { last_ok: None },
-            0,
-            NOW,
-            TTL,
-        );
+        let broken = badge_list_view(BadgeFetchState::Unavailable { last_ok: None }, 0, NOW, TTL);
         assert_eq!(none, BadgeListView::Empty { as_of: NOW });
         assert_eq!(broken, BadgeListView::Unavailable { last_ok: None });
         assert_ne!(none, broken);

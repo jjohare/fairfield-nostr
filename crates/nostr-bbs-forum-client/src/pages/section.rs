@@ -7,12 +7,12 @@
 //! it (a thread starter, anchored to the channel id). This page renders the
 //! section as a LIST OF TOPICS — each row showing the topic title, author,
 //! reply count and last-activity — NOT a flat linear chat. Clicking a topic row
-//! opens the [`crate::pages::thread::ThreadPage`] at
+//! opens the [`crate::pages::ThreadPage`] at
 //! `/forums/:category/:section/:topic`.
 //!
 //! The previous implementation rendered every kind-42 in the channel as a flat
 //! chat log, collapsing the topic/reply hierarchy. The flat single-channel chat
-//! still exists at `/chat/:channel_id` ([`crate::pages::channel::ChannelPage`])
+//! still exists at `/chat/:channel_id` ([`crate::pages::ChannelPage`])
 //! for direct deep-links, but the section view is now a true BBS topic list.
 //!
 //! ## Data sourcing

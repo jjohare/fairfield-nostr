@@ -141,7 +141,7 @@ impl ChannelStore {
     /// ADR-092 closeout: deletion semantics must be identical on EVERY
     /// insertion path. The broad kind-42 subscription and `ensure_subscribed`
     /// consult the tombstone set directly because they own it; the deep-link
-    /// replay in [`crate::pages::channel::ChannelPage`] lives outside this
+    /// replay in [`crate::pages::ChannelPage`] lives outside this
     /// module and needs this accessor, or a deleted post walks back into view
     /// through the one path that skipped the check.
     ///
@@ -799,7 +799,7 @@ pub fn is_tombstoned(tombstones: &HashSet<String>, id: &str) -> bool {
 /// ADR-092 closeout: this is the SINGLE admission predicate, shared by every
 /// insertion path — the broad kind-42 subscription, the per-channel
 /// `ensure_subscribed` query and the deep-link replay in
-/// [`crate::pages::channel::ChannelPage`] (through
+/// [`crate::pages::ChannelPage`] (through
 /// [`ChannelStore::is_message_deleted`]). Deletion semantics that live at only
 /// some of the entry points are deletion semantics that a deep link can walk
 /// around, which is exactly the defect this closes.

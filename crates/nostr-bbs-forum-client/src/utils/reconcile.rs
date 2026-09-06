@@ -119,7 +119,13 @@ mod tests {
         let mut rendered = ids(&["a", "b", "c"]);
         let outcome = reconcile_ids(&mut rendered, &[]);
         assert!(rendered.is_empty());
-        assert_eq!(outcome, Reconciliation { removed: 3, added: 0 });
+        assert_eq!(
+            outcome,
+            Reconciliation {
+                removed: 3,
+                added: 0
+            }
+        );
         assert!(outcome.changed());
     }
 
@@ -128,7 +134,13 @@ mod tests {
         let mut rendered: Vec<String> = Vec::new();
         let outcome = reconcile_ids(&mut rendered, &ids(&["a", "b"]));
         assert_eq!(rendered, ids(&["a", "b"]));
-        assert_eq!(outcome, Reconciliation { removed: 0, added: 2 });
+        assert_eq!(
+            outcome,
+            Reconciliation {
+                removed: 0,
+                added: 2
+            }
+        );
     }
 
     #[test]
@@ -180,7 +192,13 @@ mod tests {
         let mut rendered = ids(&["a", "b", "c"]);
         let outcome = reconcile_ids(&mut rendered, &ids(&["a", "c", "d"]));
         assert_eq!(rendered, ids(&["a", "c", "d"]));
-        assert_eq!(outcome, Reconciliation { removed: 1, added: 1 });
+        assert_eq!(
+            outcome,
+            Reconciliation {
+                removed: 1,
+                added: 1
+            }
+        );
     }
 
     #[test]
@@ -204,8 +222,14 @@ mod tests {
     #[test]
     fn retain_present_does_not_rebuild_survivors() {
         let mut rendered = vec![
-            Row { id: "a".into(), generation: 7 },
-            Row { id: "b".into(), generation: 7 },
+            Row {
+                id: "a".into(),
+                generation: 7,
+            },
+            Row {
+                id: "b".into(),
+                generation: 7,
+            },
         ];
         let snapshot = ids(&["a"]);
         let present: HashSet<&str> = snapshot.iter().map(String::as_str).collect();
@@ -213,7 +237,10 @@ mod tests {
         assert_eq!(removed, 1);
         assert_eq!(
             rendered,
-            vec![Row { id: "a".into(), generation: 7 }],
+            vec![Row {
+                id: "a".into(),
+                generation: 7
+            }],
             "surviving row lost its per-item state"
         );
     }
@@ -232,8 +259,14 @@ mod tests {
     #[test]
     fn id_set_collects_every_snapshot_id() {
         let snapshot = vec![
-            Row { id: "a".into(), generation: 0 },
-            Row { id: "b".into(), generation: 0 },
+            Row {
+                id: "a".into(),
+                generation: 0,
+            },
+            Row {
+                id: "b".into(),
+                generation: 0,
+            },
         ];
         let set = id_set(&snapshot, |r| r.id.as_str());
         assert!(set.contains("a") && set.contains("b"));
