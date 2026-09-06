@@ -7,6 +7,54 @@ and this project tracks its architecture decisions in [`docs/adr/`](docs/adr/).
 
 ## [Unreleased]
 
+## [1.0.0-beta.10] — 2026-09-06
+
+Governance-receipts and identity release; every kit crate moves to
+`1.0.0-beta.10`. The relay gains a durable receipt for every governance
+event it accepts, the client gains bootstrap, freshness and reconcile paths,
+and identity subkeys carry published test vectors. Registry crates
+superseded by this release are yanked once the DreamLab deployment pins it.
+
+### Added
+
+- **Governance receipts (relay-worker).** Every accepted kind-3140x event is
+  recorded in a new `governance_receipts` D1 table (`migrations/0005`) with
+  its stage, projection outcome and replay count; the schema is applied
+  idempotently by the worker at startup, so no manual `d1 migrations apply`
+  is needed. Receipts migrate existing decisions forward (`486ec5a`).
+- **Feature gate (core).** Operators enable forum features per deployment
+  through a typed gate rather than ad-hoc config reads (`486ec5a`).
+- **Identity subkey vectors (core).** Published derivation vectors for
+  `derive_subkey`, pinned in `tests/identity_subkey_vectors.rs` (`486ec5a`).
+- **Client bootstrap, freshness and reconcile (forum-client).** The client
+  bootstraps from the relay's disclosure endpoint, tracks freshness per
+  channel and reconciles local read positions against the relay (`486ec5a`).
+- **Trust sweep (relay-worker).** A periodic sweep retires stale trust rows
+  (`486ec5a`).
+- **Indexed tag lookups (relay-worker).** A trigger-maintained `event_tags`
+  table replaces JSON scans, the D1 free-tier fix the DreamLab deployment has
+  pinned since 2026-08-25 (`a754468`).
+- **`bench_keys` benchmark** (`f18b471`).
+
+### Changed
+
+- **bbs-client mobile refit T2**: wrapping post cards, button menu, legible
+  images (`2730b7a`).
+- **forum-client**: "Mark all read" and "Clear" stamp per-channel read
+  positions (`93dcf05`).
+
+### Fixed
+
+- rustfmt applied across the beta.10 landing; the receipts projection row
+  type is named (`FakeReceiptRow`); rustdoc links resolve through public
+  re-exports (`7b2a126`).
+
+### Documentation
+
+- ADR corpus consolidated into a living ground truth with a thin ledger and
+  the operative decision pack (`7795af5`, `6da33a7`); the beta.10 ADR pack
+  lands with `486ec5a`.
+
 ## [1.0.0-beta.9] — 2026-08-20
 
 Feature-parity and security-hardening release; every kit crate moves to

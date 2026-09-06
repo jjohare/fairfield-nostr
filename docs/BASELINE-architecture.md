@@ -111,8 +111,8 @@ path uses upsert-with-`DO NOTHING` to survive the SELECT-then-branch race
 ### Kit publishing & versioning
 
 The `nostr-bbs-*` crates are the publishable kit surface (legacy ADR-103). The
-current in-tree version is **`1.0.0-beta.9`** (`crates/nostr-bbs-core/Cargo.toml:3`;
-workspace path deps are pinned to `1.0.0-beta.9` in `Cargo.toml`). `solid-pod-rs`
+current in-tree version is **`1.0.0-beta.10`** (`crates/nostr-bbs-core/Cargo.toml:3`;
+workspace path deps are pinned to `1.0.0-beta.10` in `Cargo.toml`). `solid-pod-rs`
 is an **exact** pin (`=0.5.0-alpha.7`, `default-features = false`, `features =
 ["core"]`) so a caret range cannot silently pull a newer published alpha at resolve
 time (`Cargo.toml`).
@@ -154,7 +154,7 @@ from ban-gating because the recipient-whitelist gate already bounds them
   authority for on-`wasm32` Schnorr.
 - **Kit version drift.** The published-version narrative in legacy ADR-103 and the
   `Cargo.toml` comment ("published to crates.io as 1.0.0-beta.3") is stale — the
-  workspace is on `1.0.0-beta.9` (`crates/nostr-bbs-core/Cargo.toml:3`). Reconcile
+  workspace is on `1.0.0-beta.10` (`crates/nostr-bbs-core/Cargo.toml:3`). Reconcile
   the published/registry version before the next release.
 - **ADR-109 index/file disagreement.** `docs/adr/README.md:50` lists ADR-109 as
   "implementation pending" while the ADR file header states it shipped in

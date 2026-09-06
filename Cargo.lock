@@ -2084,14 +2084,14 @@ dependencies = [
 
 [[package]]
 name = "nostr-bbs-ascii"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "image",
 ]
 
 [[package]]
 name = "nostr-bbs-auth-worker"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "async-trait",
  "base64",
@@ -2114,7 +2114,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-bbs-bbs-client"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "async-trait",
  "base64",
@@ -2139,7 +2139,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-bbs-config"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "proptest",
  "schemars",
@@ -2152,7 +2152,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-bbs-core"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "aes",
  "async-trait",
@@ -2182,7 +2182,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-bbs-forum-client"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "async-trait",
  "base64",
@@ -2214,7 +2214,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-bbs-mesh"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "async-trait",
  "hex",
@@ -2229,7 +2229,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-bbs-pod-worker"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "async-trait",
  "base64",
@@ -2254,7 +2254,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-bbs-preview-worker"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "futures-util",
  "js-sys",
@@ -2268,7 +2268,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-bbs-rate-limit"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "async-trait",
  "hex",
@@ -2281,7 +2281,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-bbs-relay-worker"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "async-trait",
  "base64",
@@ -2300,7 +2300,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-bbs-search-worker"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "async-trait",
  "base64",
@@ -2318,7 +2318,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-bbs-setup-skill"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "async-trait",
  "nostr-bbs-config",
@@ -2330,7 +2330,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-bbs-upstream-canary"
-version = "1.0.0-beta.9"
+version = "1.0.0-beta.10"
 dependencies = [
  "getrandom 0.2.17",
  "hex",
