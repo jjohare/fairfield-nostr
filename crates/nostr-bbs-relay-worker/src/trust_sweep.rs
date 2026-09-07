@@ -216,6 +216,7 @@ pub trait DemotionStore {
         from: TrustLevel,
         to: TrustLevel,
         now: i64,
+        observed: &WhitelistTrustRow,
     ) -> Result<(), String>;
 }
 
@@ -280,7 +281,7 @@ where
                     result.held += 1;
                 }
                 DemotionDecision::Demote { from, to } => {
-                    match store.commit_demotion(&row.pubkey, from, to, now).await {
+                    match store.commit_demotion(&row.pubkey, from, to, now, row).await {
                         Ok(()) => result.demoted += 1,
                         Err(e) => {
                             result.failed += 1;
@@ -405,15 +406,29 @@ impl DemotionStore for D1DemotionStore {
         from: TrustLevel,
         to: TrustLevel,
         now: i64,
+        observed: &WhitelistTrustRow,
     ) -> Result<(), String> {
-        commit_demotion_d1(&self.db, pubkey, from, to, now).await
+        commit_demotion_d1(&self.db, pubkey, from, to, now, observed).await
     }
 }
+
+// These statements execute consecutively on the same D1 batch connection.
+// A successful zero-row UPDATE must not manufacture an audit fact.
+const DEMOTION_UPDATE_SQL: &str = r#"UPDATE whitelist
+ SET trust_level = ?1, trust_level_updated_at = ?2
+ WHERE pubkey = ?3 AND trust_level = ?4
+ AND is_admin IS ?5 AND COALESCE(is_admin, 0) != 1
+ AND last_active_at IS ?6 AND trust_level_updated_at IS ?7
+ AND days_active = ?8 AND posts_read = ?9 AND posts_created = ?10
+ AND mod_actions_against = ?11"#;
+const DEMOTION_AUDIT_SQL: &str = r#"INSERT INTO admin_log
+ (actor_pubkey, action, target_pubkey, previous_value, new_value, reason, created_at)
+ SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7 WHERE changes() = 1"#;
 
 /// Apply one demotion against a D1 handle: the trust-level `UPDATE` and the
 /// `admin_log` audit `INSERT` submitted as a single batch, which Cloudflare
 /// executes in one implicit transaction. Shared by the sweep and the
-/// per-pubkey [`crate::trust::check_demotion`] path so both carry the same
+/// scheduled sweep path, preserving the same
 /// atomicity and conflict guarantees.
 pub(crate) async fn commit_demotion_d1(
     db: &worker::D1Database,
@@ -421,30 +436,40 @@ pub(crate) async fn commit_demotion_d1(
     from: TrustLevel,
     to: TrustLevel,
     now: i64,
+    observed: &WhitelistTrustRow,
 ) -> Result<(), String> {
     {
         // Conditioned on the observed level: if an admin grant landed between
         // the page read and this write, `changes` is 0 and we report a conflict
         // instead of overwriting the grant.
         let update = db
-            .prepare(
-                "UPDATE whitelist SET trust_level = ?1, trust_level_updated_at = ?2 \
-                 WHERE pubkey = ?3 AND trust_level = ?4",
-            )
+            .prepare(DEMOTION_UPDATE_SQL)
             .bind(&[
                 JsValue::from_f64(to.as_i32() as f64),
                 JsValue::from_f64(now as f64),
                 JsValue::from_str(pubkey),
                 JsValue::from_f64(from.as_i32() as f64),
+                observed
+                    .is_admin
+                    .map(|v| JsValue::from_f64(v as f64))
+                    .unwrap_or(JsValue::NULL),
+                observed
+                    .last_active_at
+                    .map(JsValue::from_f64)
+                    .unwrap_or(JsValue::NULL),
+                observed
+                    .trust_level_updated_at
+                    .map(JsValue::from_f64)
+                    .unwrap_or(JsValue::NULL),
+                JsValue::from_f64(observed.days_active as f64),
+                JsValue::from_f64(observed.posts_read as f64),
+                JsValue::from_f64(observed.posts_created as f64),
+                JsValue::from_f64(observed.mod_actions_against as f64),
             ])
             .map_err(|e| format!("update bind failed: {e:?}"))?;
 
         let audit = db
-            .prepare(
-                "INSERT INTO admin_log \
-                 (actor_pubkey, action, target_pubkey, previous_value, new_value, reason, created_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            )
+            .prepare(DEMOTION_AUDIT_SQL)
             .bind(&[
                 JsValue::from_str("system"),
                 JsValue::from_str("trust_level_change"),
@@ -472,17 +497,16 @@ pub(crate) async fn commit_demotion_d1(
             }
         }
 
-        // The UPDATE is the first statement; zero changed rows means the
-        // optimistic guard rejected the write.
-        if let Some(first) = results.first() {
-            if let Ok(Some(meta)) = first.meta() {
-                if meta.changes == Some(0) {
-                    return Err(format!(
-                        "trust level for {pubkey} changed concurrently (expected TL{})",
-                        from.as_i32()
-                    ));
-                }
-            }
+        // Require a confirmed state change AND its conditional audit. A no-op
+        // batch is safe (neither changed), but is a conflict rather than success.
+        if results.len() != 2
+            || results
+                .iter()
+                .any(|r| r.meta().ok().flatten().and_then(|meta| meta.changes) != Some(1))
+        {
+            return Err(format!(
+                "trust snapshot for {pubkey} changed concurrently or commit metadata unavailable"
+            ));
         }
 
         Ok(())
@@ -692,7 +716,9 @@ mod tests {
             from: TrustLevel,
             to: TrustLevel,
             now: i64,
+            observed: &WhitelistTrustRow,
         ) -> Result<(), String> {
+            let _ = observed;
             self.commit_attempts.borrow_mut().push(pubkey.to_string());
 
             if let Some(msg) = self.commit_failures.get(pubkey) {

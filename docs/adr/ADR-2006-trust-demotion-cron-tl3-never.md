@@ -153,3 +153,9 @@ recorded above and is not part of that condition.
 Keyset paging, named outcomes and transaction rollback on SQL errors are source-supported. A fresh SQLite probe using the source queries establishes a different failure: a concurrent trust change causes the guarded UPDATE to affect zero rows while the unconditional audit INSERT commits. `crates/nostr-bbs-relay-worker/src/trust_sweep.rs:429-485` checks the affected-row count only after the batch. A transaction groups statements but does not make an audit claim conditional on its preceding UPDATE succeeding.
 
 Closeout: make audit creation conditional on the accepted transition within the same transaction, and test concurrent level, administrator, exemption and activity changes. Preserve the protected trust level and emit no false transition. The 239 native relay tests passed; the isolated SQLite counterexample is not evidence of an observed deployed D1 incident. CP-04/05. See the [federation audit](../../../VisionFlow/docs/estate-review/2026-09-07-federation-audit.md).
+
+## Execution qualification — 2026-09-07
+
+The earlier optimistic-conflict audit finding is repaired in the working tree. `trust_sweep.rs` compares all observed policy inputs (level, admin exemption, activity/update timestamps and counters), uses null-safe nullable predicates, and executes `INSERT ... SELECT ... WHERE changes() = 1` immediately after the guarded UPDATE in one D1 batch. Both result counts must equal one before a demotion is reported. Exact production-SQL SQLite tests cover concurrent input changes, missing rows, null snapshots, duplicate delivery and audit-failure rollback. Native relay tests and wasm32 compilation pass. This is a repair candidate and local adapter evidence; the existing live axis does not certify deployment of these new bytes or a live D1 probe.
+
+Evidence: [federation execution receipt](../../../VisionFlow/docs/estate-review/closeout/2026-09-07-execution-federation.md).

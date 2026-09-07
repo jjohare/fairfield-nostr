@@ -137,6 +137,7 @@ pub fn governance_response_blocked(kind: u64, is_admin: bool) -> bool {
 pub(crate) struct BrokerCaseRow {
     pub category: String,
     pub state: String,
+    pub nostr_event_id: Option<String>,
     pub created_by: String,
     pub from_share_state: Option<String>,
     pub to_share_state: Option<String>,
@@ -162,8 +163,8 @@ pub(crate) struct ResponseProjection {
 /// Plan the 31403 ActionResponse projection (COM-16 / F3).
 ///
 /// This is the relay's consumer of the tested escalation state machine: it
-/// hydrates a `BrokerCase` from the case's D1 row (or a sensible default when
-/// the row is absent — a response can arrive before its request projected) and
+/// hydrates a `BrokerCase` from the case's D1 row (a missing request remains
+/// unresolved until a later redelivery) and
 /// routes the parsed outcome through **`DecisionOrchestrator::decide`**, so a
 /// `delegate`/`promote`/`precedent` outcome reaches the matching `CaseState`
 /// instead of the former fixed `under_review` fallback. The `Env`/D1 read + write
@@ -199,6 +200,28 @@ pub(crate) fn plan_action_response(
         .unwrap_or_default();
     let decision_id = format!("dec-{}", &event_id[..16.min(event_id.len())]);
 
+    if let Some(row) = case_row {
+        if !matches!(
+            row.state.as_str(),
+            "open"
+                | "under_review"
+                | "reopened"
+                | "decided"
+                | "resolved"
+                | "rejected"
+                | "delegated"
+                | "promoted"
+                | "precedent"
+                | "closed"
+                | "superseded"
+        ) {
+            return Err(
+                governance::broker::OrchestrationError::ShareTransitionRejected(
+                    "unknown persisted case state; repair before deciding".into(),
+                ),
+            );
+        }
+    }
     let snapshot = match case_row {
         Some(row) => CaseSnapshot {
             id: case_id.to_string(),
@@ -209,15 +232,13 @@ pub(crate) fn plan_action_response(
             to_state: row.to_share_state.as_deref().and_then(ShareState::parse),
             latest_decision_id,
         },
-        None => CaseSnapshot {
-            id: case_id.to_string(),
-            category: CaseCategory::ManualSubmission,
-            created_by: String::new(),
-            state: CaseState::Open,
-            from_state: None,
-            to_state: None,
-            latest_decision_id,
-        },
+        None => {
+            return Err(
+                governance::broker::OrchestrationError::ShareTransitionRejected(
+                    "request case has not projected; retry after request".to_string(),
+                ),
+            )
+        }
     };
 
     // Hydrate the aggregate and route through the tested orchestrator.
@@ -1744,7 +1765,7 @@ impl NostrRelayDO {
             .unwrap_or(50);
 
         let stmt = db.prepare(
-            "INSERT OR REPLACE INTO broker_cases \
+            "INSERT OR IGNORE INTO broker_cases \
              (id, category, subject_kind, subject_id, title, summary, state, priority, \
               created_by, nostr_event_id, created_at, updated_at) \
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'open', ?7, ?8, ?9, ?10, ?10)",
@@ -1804,13 +1825,53 @@ impl NostrRelayDO {
             None => return ReceiptOutcome::Uncorrelated,
         };
         let case_id = correlation.case_id.clone();
+        // Check completed receipts before hydrating a now-terminal case. A
+        // legitimate redelivery must report the prior result, not fail planning.
+        #[derive(serde::Deserialize)]
+        struct PriorReceipt {
+            stage: String,
+        }
+        let prior = match db
+            .prepare("SELECT stage FROM governance_receipts WHERE event_id = ?1")
+            .bind(&[JsValue::from_str(&event.id)])
+        {
+            Ok(stmt) => stmt.first::<PriorReceipt>(None).await,
+            Err(error) => {
+                return ReceiptOutcome::NotRecorded {
+                    error: format!("receipt lookup bind: {error:?}"),
+                }
+            }
+        };
+        match prior {
+            Ok(Some(row)) if row.stage == "projection-committed" => {
+                let store = receipts::D1ReceiptStore::new(db);
+                return match store
+                    .record_accepted(&correlation, auth::js_now_secs())
+                    .await
+                {
+                    Ok(receipts::AcceptOutcome::Replay { replays, .. }) => {
+                        ReceiptOutcome::DuplicateIgnored { replays }
+                    }
+                    Ok(_) => ReceiptOutcome::NotRecorded {
+                        error: "committed receipt vanished".into(),
+                    },
+                    Err(error) => ReceiptOutcome::NotRecorded { error },
+                };
+            }
+            Err(error) => {
+                return ReceiptOutcome::NotRecorded {
+                    error: format!("receipt lookup: {error:?}"),
+                }
+            }
+            _ => {}
+        }
 
         // Hydrate the case aggregate from its D1 projection: the orchestrator
         // reads category/state/created_by/share-states, and the latest decision
         // id links the provenance chain.
         let case_row = db
             .prepare(
-                "SELECT category, state, created_by, from_share_state, to_share_state \
+                "SELECT category, state, nostr_event_id, created_by, from_share_state, to_share_state \
                  FROM broker_cases WHERE id = ?1 LIMIT 1",
             )
             .bind(&[JsValue::from_str(&case_id)])
@@ -1827,7 +1888,7 @@ impl NostrRelayDO {
         let latest_stmt = db
             .prepare(
                 "SELECT decision_id FROM broker_decisions \
-                 WHERE case_id = ?1 ORDER BY decided_at DESC LIMIT 1",
+                 WHERE case_id = ?1 ORDER BY decided_at DESC, decision_id DESC LIMIT 1",
             )
             .bind(&[JsValue::from_str(&case_id)])
             .ok();
@@ -1869,6 +1930,14 @@ impl NostrRelayDO {
         let commit = receipts::ProjectionCommit {
             event_id: event.id.clone(),
             case_id,
+            request_event_id: case_row
+                .as_ref()
+                .and_then(|r| r.nostr_event_id.clone())
+                .unwrap_or_default(),
+            expected_state: case_row
+                .as_ref()
+                .map(|r| r.state.clone())
+                .unwrap_or_default(),
             decision_id: proj.decision_id,
             outcome: proj.outcome,
             outcome_detail: proj.outcome_detail,
@@ -2453,6 +2522,7 @@ mod governance_projection_tests {
         BrokerCaseRow {
             category: "manual_submission".into(),
             state: "open".into(),
+            nostr_event_id: Some("r".repeat(64)),
             created_by: "agent-alice".into(),
             from_share_state: None,
             to_share_state: None,
@@ -2524,10 +2594,8 @@ mod governance_projection_tests {
     }
 
     #[test]
-    fn absent_case_row_defaults_to_open_and_still_projects() {
-        // A 31403 that arrives before its 31402 projected: no row yet. The
-        // planner defaults to an open ManualSubmission case so the decision is
-        // still recorded rather than dropped.
+    fn absent_case_row_stays_unresolved_until_request_projects() {
+        // An early response must not invent a request case.
         let proj = plan_action_response(
             "case-unknown",
             None,
@@ -2537,8 +2605,27 @@ mod governance_projection_tests {
             None,
             2_000,
         )
-        .expect("projects against default snapshot");
-        assert_eq!(proj.new_state, CaseState::Decided);
+        .expect_err("missing request cannot project");
+        assert!(matches!(
+            proj,
+            OrchestrationError::ShareTransitionRejected(_)
+        ));
+    }
+
+    #[test]
+    fn unknown_persisted_state_cannot_default_to_open() {
+        let mut row = open_case_row();
+        row.state = "corrupt".into();
+        assert!(plan_action_response(
+            "case-1",
+            Some(&row),
+            &"c".repeat(64),
+            r#"{"action":"approve"}"#,
+            "human-bob",
+            None,
+            2000
+        )
+        .is_err());
     }
 
     #[test]

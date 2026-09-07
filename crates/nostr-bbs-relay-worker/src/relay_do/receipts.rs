@@ -213,10 +213,28 @@ fn tag_with_marker(event: &NostrEvent, name: &str, marker: &str) -> Option<Strin
 
 /// The complete set of writes one committed projection performs, carried
 /// together because they must commit together.
+// Each following statement is conditional on its predecessor changing one row.
+// D1 batch serialises these statements in one transaction. The first statement
+// checks request identity, legal-state snapshot, latest decision and receipt.
+const PROJECTION_DECISION_SQL: &str = r#"INSERT INTO broker_decisions
+ (decision_id, case_id, outcome, outcome_detail, broker_pubkey, reasoning, prior_decision_id, decided_at)
+ SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8
+ WHERE EXISTS (SELECT 1 FROM broker_cases WHERE id = ?2 AND state = ?9 AND nostr_event_id = ?10 AND state IN ('open', 'under_review', 'reopened'))
+ AND (SELECT decision_id FROM broker_decisions WHERE case_id = ?2 ORDER BY decided_at DESC, decision_id DESC LIMIT 1) IS ?7
+ AND EXISTS (SELECT 1 FROM governance_receipts WHERE event_id = ?11 AND case_id = ?2
+ AND request_event_id = ?10 AND stage IN ('relay-accepted', 'projection-failed'))"#;
+const PROJECTION_CASE_SQL: &str = r#"UPDATE broker_cases SET state = ?1, assigned_to = ?2, updated_at = ?3
+ WHERE id = ?4 AND changes() = 1"#;
+const PROJECTION_RECEIPT_SQL: &str = r#"UPDATE governance_receipts
+ SET stage = ?1, projected_at = ?2, decision_id = ?3, stage_error = NULL
+ WHERE event_id = ?4 AND changes() = 1"#;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectionCommit {
     pub event_id: String,
     pub case_id: String,
+    pub request_event_id: String,
+    pub expected_state: String,
     pub decision_id: String,
     pub outcome: String,
     pub outcome_detail: Option<String>,
@@ -322,6 +340,16 @@ pub async fn apply_with_receipt<S>(
 where
     S: ReceiptStore + ?Sized,
 {
+    // Refuse a caller assembling a plan from a different signed response or
+    // request. An incomplete receipt never certifies an external operation.
+    if correlation.event_id != commit.event_id
+        || correlation.case_id != commit.case_id
+        || correlation.signer_pubkey != commit.broker_pubkey
+        || correlation.request_event_id.as_deref() != Some(commit.request_event_id.as_str())
+        || correlation.decision_outcome.as_deref() != Some(commit.outcome.as_str())
+    {
+        return ReceiptOutcome::Uncorrelated;
+    }
     let accept = match store.record_accepted(correlation, now).await {
         Ok(a) => a,
         Err(e) => return ReceiptOutcome::NotRecorded { error: e },
@@ -485,12 +513,7 @@ impl ReceiptStore for D1ReceiptStore {
     async fn commit_projection(&self, c: &ProjectionCommit) -> Result<(), String> {
         let decision = self
             .db
-            .prepare(
-                "INSERT OR IGNORE INTO broker_decisions \
-                 (decision_id, case_id, outcome, outcome_detail, broker_pubkey, reasoning, \
-                  prior_decision_id, decided_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            )
+            .prepare(PROJECTION_DECISION_SQL)
             .bind(&[
                 JsValue::from_str(&c.decision_id),
                 JsValue::from_str(&c.case_id),
@@ -500,15 +523,15 @@ impl ReceiptStore for D1ReceiptStore {
                 JsValue::from_str(&c.reasoning),
                 js_opt(c.prior_decision_id.as_deref()),
                 JsValue::from_f64(c.decided_at as f64),
+                JsValue::from_str(&c.expected_state),
+                JsValue::from_str(&c.request_event_id),
+                JsValue::from_str(&c.event_id),
             ])
             .map_err(|e| format!("decision bind: {e:?}"))?;
 
         let case = self
             .db
-            .prepare(
-                "UPDATE broker_cases SET state = ?1, assigned_to = ?2, updated_at = ?3 \
-                 WHERE id = ?4",
-            )
+            .prepare(PROJECTION_CASE_SQL)
             .bind(&[
                 JsValue::from_str(&c.new_state),
                 JsValue::from_str(&c.broker_pubkey),
@@ -519,11 +542,7 @@ impl ReceiptStore for D1ReceiptStore {
 
         let receipt = self
             .db
-            .prepare(
-                "UPDATE governance_receipts \
-                 SET stage = ?1, projected_at = ?2, decision_id = ?3, stage_error = NULL \
-                 WHERE event_id = ?4",
-            )
+            .prepare(PROJECTION_RECEIPT_SQL)
             .bind(&[
                 JsValue::from_str(ReceiptStage::ProjectionCommitted.as_str()),
                 JsValue::from_f64(c.decided_at as f64),
@@ -541,12 +560,23 @@ impl ReceiptStore for D1ReceiptStore {
             .await
             .map_err(|e| format!("projection batch failed: {e:?}"))?;
 
+        if results.len() != 3 {
+            return Err("projection batch returned an incomplete result".to_string());
+        }
         for r in &results {
             if !r.success() {
                 return Err(format!(
                     "projection batch reported failure: {}",
                     r.error().unwrap_or_else(|| "unknown".to_string())
                 ));
+            }
+        }
+        for r in &results {
+            if r.meta().ok().flatten().and_then(|m| m.changes) != Some(1) {
+                return Err(
+                    "projection conflict: case/request/state changed or receipt incomplete"
+                        .to_string(),
+                );
             }
         }
         Ok(())
@@ -879,6 +909,8 @@ mod tests {
         ProjectionCommit {
             event_id: "e".repeat(64),
             case_id: "case-1".to_string(),
+            request_event_id: "r".repeat(64),
+            expected_state: "open".to_string(),
             decision_id: "dec-eeeeeeeeeeeeeeee".to_string(),
             outcome: "approve".to_string(),
             outcome_detail: None,
@@ -887,6 +919,33 @@ mod tests {
             broker_pubkey: "a".repeat(64),
             new_state: "approved".to_string(),
             decided_at: 1_700_000_000,
+        }
+    }
+
+    #[test]
+    fn mismatched_signed_correlation_cannot_apply_a_plan() {
+        for mismatch in [
+            "event",
+            "case",
+            "request",
+            "signer",
+            "outcome",
+            "missing-request",
+        ] {
+            let store = FakeStore::new();
+            let mut c = correlation();
+            match mismatch {
+                "event" => c.event_id = "other".into(),
+                "case" => c.case_id = "other".into(),
+                "request" => c.request_event_id = Some("other".into()),
+                "signer" => c.signer_pubkey = "other".into(),
+                "outcome" => c.decision_outcome = Some("reject".into()),
+                _ => c.request_event_id = None,
+            }
+            assert!(matches!(
+                block_on(apply_with_receipt(&store, &c, &commit_plan(), 1)),
+                ReceiptOutcome::Uncorrelated
+            ));
         }
     }
 

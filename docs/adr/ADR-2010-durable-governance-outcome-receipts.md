@@ -139,3 +139,11 @@ built and tested, but the contract this ADR proposes spans consumers that have n
 Receipt batching and replay stages exist; proposed/partial/inactive remains the accurate full-contract posture. `crates/nostr-bbs-relay-worker/src/relay_do/receipts.rs:164-180` requires the case tag but accepts an absent request event reference. Case UPDATE construction at `:509-552` does not predicate on the observed prior state, and batch validation checks statement success rather than affected rows. The foreign key on decisions may reject an absent case; this audit does not claim a committed missing-case outcome.
 
 Closeout: enforce complete request/case/operation correlation, legal guarded transitions, zero-row and concurrent-decision handling, then retain durable replay and external application evidence. Signed, relay-accepted and projection-committed are separate states from applied. CP-05/09. See the [federation audit](../../../VisionFlow/docs/estate-review/2026-09-07-federation-audit.md).
+
+## Execution qualification — 2026-09-07
+
+The working-tree relay now rejects a missing request case and unknown persisted state, checks event/case/request/signer/outcome agreement at apply, recognises completed receipts before planning against a terminal case, and uses INSERT OR IGNORE for request projection so redelivery cannot reopen a decided case. Decision insertion requires the observed request, legal prior state, latest decision and incomplete receipt. Subsequent case and receipt writes each depend on the preceding changed-row count; all three must affect one row. Exact-SQL tests cover races, zero-row paths, replay and rollback.
+
+Still incomplete: operation payload binding to the originating signed request, cross-repo authority-consumer/mutation-owner receipt agreement, and live D1/restart/external application evidence. Supersession/appeal projection paths remain separate and are not certified by the ordinary-response transaction tests. A relay projection is not an external applied-operation receipt. Proposed/partial/inactive remains appropriate.
+
+Evidence: [federation execution receipt](../../../VisionFlow/docs/estate-review/closeout/2026-09-07-execution-federation.md).
