@@ -57,7 +57,8 @@
       "cmd": "cargo test -p nostr-bbs-core --lib -- thread 2>&1 | tail -30",
       "required": true,
       "deeps": [
-        "forum-thread-model"
+        "forum-thread-model",
+        "performance-scaling"
       ]
     }
   },
