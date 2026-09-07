@@ -133,3 +133,9 @@ callback while the socket is not connected. That is the highest-value follow-up 
 
 `decision_status` stays `proposed` and `implementation_status` stays `partial`: the relay-side stages are
 built and tested, but the contract this ADR proposes spans consumers that have not adopted it.
+
+## Estate audit — 2026-09-07
+
+Receipt batching and replay stages exist; proposed/partial/inactive remains the accurate full-contract posture. `crates/nostr-bbs-relay-worker/src/relay_do/receipts.rs:164-180` requires the case tag but accepts an absent request event reference. Case UPDATE construction at `:509-552` does not predicate on the observed prior state, and batch validation checks statement success rather than affected rows. The foreign key on decisions may reject an absent case; this audit does not claim a committed missing-case outcome.
+
+Closeout: enforce complete request/case/operation correlation, legal guarded transitions, zero-row and concurrent-decision handling, then retain durable replay and external application evidence. Signed, relay-accepted and projection-committed are separate states from applied. CP-05/09. See the [federation audit](../../../VisionFlow/docs/estate-review/2026-09-07-federation-audit.md).

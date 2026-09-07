@@ -116,3 +116,9 @@ deployment.
 `crates/nostr-bbs-relay-worker/src/relay_do/mod.rs`,
 `crates/nostr-bbs-relay-worker/tests/device_gate_tests.rs` (new). Receipt:
 [`docs/estate-closeout/2026-09-05/adr-2004-device-gate.json`](../estate-closeout/2026-09-05/adr-2004-device-gate.json).
+
+## Source qualification — 2026-09-07
+
+The exact-string, default-off contract and independent worker enforcement remain supported. The Decision's literal “rather than shared” describes the older implementation, not the current helper structure: `crates/nostr-bbs-auth-worker/src/devices.rs:36,91-104` and `crates/nostr-bbs-relay-worker/src/relay_do/nip_handlers.rs:14,1649-1663` independently obtain their worker setting and call the common `core_device_keys_enabled` predicate from `nostr-bbs-core/src/feature_gate.rs`. Sharing that pure predicate does not remove either worker's gate.
+
+The 2026-09-05 acceptance progress already records this extraction. This qualification makes the current decision reading explicit: one exact-value policy, enforced at both entrypoints. Client loose parsing, live revocation/reconnect, cached session and deployment acceptance remain distinct and unclosed; no activation status is changed. The [2026-09-07 audit](../../../VisionFlow/docs/estate-review/2026-09-07-federation-audit.md) records the source identity and native-test scope.

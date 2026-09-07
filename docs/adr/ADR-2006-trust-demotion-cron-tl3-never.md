@@ -147,3 +147,9 @@ and synthetic-query evidence, and every clause of it — stable pagination over 
 committed/error outcomes, multiple batches, tied timestamps, TL2-to-TL0, TL3/admin exclusions, write and
 audit failure, restart reconciliation, audit/state consistency — is now established. The deployed-D1 gap is
 recorded above and is not part of that condition.
+
+## Estate audit — 2026-09-07
+
+Keyset paging, named outcomes and transaction rollback on SQL errors are source-supported. A fresh SQLite probe using the source queries establishes a different failure: a concurrent trust change causes the guarded UPDATE to affect zero rows while the unconditional audit INSERT commits. `crates/nostr-bbs-relay-worker/src/trust_sweep.rs:429-485` checks the affected-row count only after the batch. A transaction groups statements but does not make an audit claim conditional on its preceding UPDATE succeeding.
+
+Closeout: make audit creation conditional on the accepted transition within the same transaction, and test concurrent level, administrator, exemption and activity changes. Preserve the protected trust level and emit no false transition. The 239 native relay tests passed; the isolated SQLite counterexample is not evidence of an observed deployed D1 incident. CP-04/05. See the [federation audit](../../../VisionFlow/docs/estate-review/2026-09-07-federation-audit.md).
