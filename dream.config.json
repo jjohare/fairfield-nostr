@@ -45,7 +45,7 @@
   "evaluatorEntrypoints": {
     "bench": "cargo test --workspace 2>&1 | tail -30",
     "perf": {
-      "cmd": "cargo bench -p nostr-bbs-core --benches -- --warm-up-time 1 --measurement-time 3 2>&1 | grep -E 'time:|thrpt:|Benchmarking|regressed|improved|^bench' | tail -80",
+      "cmd": "bash scripts/dream-perf.sh",
       "required": false,
       "deeps": [
         "performance-scaling",
