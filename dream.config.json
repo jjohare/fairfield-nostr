@@ -39,13 +39,13 @@
     "cargo check --workspace 2>&1 | tail -5 || true"
   ],
   "buildStep": {
-    "cmd": "bash -o pipefail -c 'cargo build --workspace --release 2>&1 | tail -20'",
+    "cmd": "cargo build --workspace --release 2>&1 | tail -20",
     "degradeOnWasmFailure": false
   },
   "evaluatorEntrypoints": {
-    "bench": "bash -o pipefail -c 'cargo test --workspace 2>&1 | tail -30'",
+    "bench": "cargo test --workspace 2>&1 | tail -30",
     "perf": {
-      "cmd": "bash -o pipefail -c 'cargo bench -p nostr-bbs-core --benches -- --warm-up-time 1 --measurement-time 3 2>&1 | grep -E '\"'\"'time:|thrpt:|Benchmarking|regressed|improved|^bench'\"'\"' | tail -80'",
+      "cmd": "cargo bench -p nostr-bbs-core --benches -- --warm-up-time 1 --measurement-time 3 2>&1 | grep -E 'time:|thrpt:|Benchmarking|regressed|improved|^bench' | tail -80",
       "required": false,
       "deeps": [
         "performance-scaling",
@@ -54,7 +54,7 @@
       "timeoutSecs": 1800
     },
     "thread-model": {
-      "cmd": "bash -o pipefail -c 'cargo test -p nostr-bbs-core --lib -- thread 2>&1 | tail -30'",
+      "cmd": "cargo test -p nostr-bbs-core --lib -- thread 2>&1 | tail -30",
       "required": true,
       "deeps": [
         "forum-thread-model"
