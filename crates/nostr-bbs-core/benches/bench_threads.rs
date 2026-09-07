@@ -44,7 +44,10 @@ impl Lcg {
         Self(seed)
     }
     fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+        self.0 = self
+            .0
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1);
         self.0 >> 11
     }
     /// Uniform-enough index in `0..n`.
@@ -87,7 +90,11 @@ fn synthetic_channel() -> (Vec<NostrEvent>, String) {
     // Thread roots.
     let mut root_ids: Vec<String> = Vec::with_capacity(ROOTS);
     for i in 0..ROOTS {
-        let p = post(seq, 1_700_000_000 + i as u64, channel_message_tags(CHANNEL, None));
+        let p = post(
+            seq,
+            1_700_000_000 + i as u64,
+            channel_message_tags(CHANNEL, None),
+        );
         root_ids.push(p.id.clone());
         posts.push(p);
         seq += 1;
