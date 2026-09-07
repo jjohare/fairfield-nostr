@@ -34,6 +34,7 @@ pub mod nip19;
 pub mod nip44;
 pub mod nip98;
 pub mod signer;
+pub mod thread;
 pub mod types;
 
 pub mod admin_shared;
@@ -134,4 +135,9 @@ pub use governance::{
     ActionResponse, ActionStyle, FieldDef, FieldType, LayoutHint, PanelCapability, PanelDefinition,
     PanelSchema, RegisteredAgent, GOVERNANCE_KIND_RANGE, KIND_ACTION_REQUEST, KIND_ACTION_RESPONSE,
     KIND_PANEL_DEFINITION, KIND_PANEL_RETIRED, KIND_PANEL_STATE, KIND_PANEL_UPDATE,
+};
+
+pub use thread::{
+    channel_message_tags, group_threads, is_thread_root, post_root_channel, reply_parent,
+    thread_messages, ThreadInfo, MAX_PARENT_HOPS,
 };
