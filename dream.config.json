@@ -4,19 +4,31 @@
   "slots": [
     {
       "deep": "nip-compliance",
-      "scan": ["event-validation", "relay-protocol"]
+      "scan": [
+        "event-validation",
+        "relay-protocol"
+      ]
     },
     {
       "deep": "forum-thread-model",
-      "scan": ["moderation", "threading"]
+      "scan": [
+        "moderation",
+        "threading"
+      ]
     },
     {
       "deep": "auth-and-identity",
-      "scan": ["nip42-auth", "delegation"]
+      "scan": [
+        "nip42-auth",
+        "delegation"
+      ]
     },
     {
       "deep": "performance-scaling",
-      "scan": ["connection-handling", "subscription-filters"]
+      "scan": [
+        "connection-handling",
+        "subscription-filters"
+      ]
     }
   ],
   "bonusModuli": {
@@ -32,7 +44,22 @@
   },
   "evaluatorEntrypoints": {
     "bench": "cargo test --workspace 2>&1 | tail -30",
-    "perf": "cargo bench -p nostr-bbs-core 2>&1 | grep -E 'time:|thrpt:|^bench|Benchmarking|regressed|improved' | tail -60"
+    "perf": {
+      "cmd": "cargo bench -p nostr-bbs-core --benches -- --warm-up-time 1 --measurement-time 3 2>&1 | grep -E 'time:|thrpt:|Benchmarking|regressed|improved|^bench' | tail -80",
+      "required": false,
+      "deeps": [
+        "performance-scaling",
+        "forum-thread-model"
+      ],
+      "timeoutSecs": 1800
+    },
+    "thread-model": {
+      "cmd": "cargo test -p nostr-bbs-core --lib -- thread 2>&1 | tail -30",
+      "required": true,
+      "deeps": [
+        "forum-thread-model"
+      ]
+    }
   },
   "adrConvention": "3-digit",
   "extraDisciplines": [
@@ -41,6 +68,9 @@
   ],
   "ledgerPath": "docs/dream-cycle/LEDGER.md",
   "branchPrefix": "dream/",
-  "labels": ["dream-cycle", "research"],
+  "labels": [
+    "dream-cycle",
+    "research"
+  ],
   "autoMerge": false
 }
