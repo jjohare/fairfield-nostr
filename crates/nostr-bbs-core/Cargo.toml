@@ -13,6 +13,11 @@ rust-version = "1.85"
 
 [lib]
 crate-type = ["lib", "cdylib"]
+# No `#[bench]` fns live in the lib — benchmarks are criterion targets below.
+# Without this, `cargo bench -- <criterion args>` runs the libtest unittest
+# target first and dies on "Unrecognized option: warm-up-time" before any
+# benchmark executes, which silently empties the dream-cycle perf evaluator.
+bench = false
 
 [dependencies]
 nostr = { workspace = true }
@@ -59,4 +64,8 @@ harness = false
 
 [[bench]]
 name = "bench_events"
+harness = false
+
+[[bench]]
+name = "bench_threads"
 harness = false
